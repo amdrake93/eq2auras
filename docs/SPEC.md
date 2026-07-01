@@ -107,7 +107,7 @@ We do **not** invent thresholds. Each timer already carries its own `WarningValu
 Escalation state is derived from each timer's live `TimeLeft` versus its `WarningValue`, evaluated every tick. A timer is in one of three states:
 
 1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
-2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. **Removed from the list** and promoted into the **center escalation zone** as a big radial pie (escalation Model A: escalated timers leave the list and move toward center). See the pie semantics and the zone layout below. Pulses.
+2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. **Removed from the list** (except on overflow — see §The center escalation zone) and promoted into the **center escalation zone** as a big radial pie (escalation Model A: escalated timers leave the list and move toward center). See the pie semantics and the zone layout below. Pulses.
 3. **Overdue** — `TimeLeft ≤ 0`. The ability is *late* — a deterministic countdown is lost, the scariest state. Escalated further (see Overdue visual). It remains **only as long as ACT keeps the frame**; when ACT removes it at `RemoveValue` (its normal behavior), it disappears. **Phase 1 does not override ACT's removal** — the overdue element behaves as ACT does today, just louder.
 
 **Transitions** follow `TimeLeft` directly: Calm → Imminent → Overdue as it decreases. When the ability fires, ACT resets the timer to full duration, so `TimeLeft` jumps back above `WarningValue` and the timer returns to **Calm** on the next tick. No special reset-detection is needed — a reset is simply a high `TimeLeft` reading.
@@ -141,7 +141,7 @@ Model A moves escalated timers out of the list and toward center — but in a re
 
 ### Diagnostic logging (first-class Phase 1 feature)
 
-Because the whole thing is one "read → diff → update" loop, tapping that loop yields a complete picture of ACT's behavior and our own. eq2auras writes **structured, timestamped diagnostics** (JSON-lines or CSV) capturing per-timer readings and — especially — every state transition (calm→imminent→overdue, resets, removals), each with `TimeLeft` / `WarningValue` / `RemoveValue`. It is toggleable so it is quiet in normal play. This log is both the mechanism for the verification spike (below) and a permanent debugging tool. **Volume & rotation:** normal play records **transitions only** (optionally plus low-rate sampled snapshots); the full per-tick dump is a **spike/verbose toggle**, not the default, since 30 fps × N timers grows fast. Logs write to a dedicated git-ignored directory with a size/age cap and rotation so they cannot grow unbounded.
+Because the whole thing is one "read → diff → update" loop, tapping that loop yields a complete picture of ACT's behavior and our own. eq2auras writes **structured, timestamped diagnostics** (JSON-lines or CSV) capturing per-timer readings and — especially — every state transition (calm→imminent→overdue, resets, removals), each with `TimeLeft` / `WarningValue` / `RemoveValue`. It is toggleable so it is quiet in normal play. This log is both the mechanism for the verification spike (below) and a permanent debugging tool. **Volume & rotation:** normal play records **transitions only** (optionally plus low-rate sampled snapshots); the full per-tick dump is a **spike/verbose toggle**, not the default, since 30 fps × N timers grows fast. Logs write to an **app-data path on the Windows box** (`%APPDATA%\Advanced Combat Tracker\eq2auras\logs` — *not* a repo working tree; that machine has none), with a size/age cap and rotation so they cannot grow unbounded. **Retrieval to the Mac** (where analysis happens) is via a synced/shared folder or a manual copy — or, if the self-hosted-runner escape hatch is in use, the runner ferries logs out on each run since it already touches the Windows filesystem. Without a retrieval path the spike's findings are stranded on the machine that can't analyze them, so this is part of the spike's setup, not an afterthought. The repo's `.gitignore` entry for logs matters only once a log lands on the Mac.
 
 ### Baked-in constants for Phase 1
 
@@ -150,7 +150,8 @@ These are the values that become configuration later. Phase 1 fixes them:
 - Bar styling (fill, font, colors derived from `FillColor`).
 - Center-pie size and position; pulse animation parameters.
 - Overdue visual (count-up styling, flash).
-- Render tick rate.
+- Poll/state tick rate.
+- Target display & DPI: **primary monitor, system DPI** for Phase 1 (per-monitor DPI and monitor selection are later config; stated now to preempt WPF layered-window coordinate and click-through hit-testing bugs).
 - Fallback when a timer has no usable `WarningValue` (`0`, or `≥` total): escalate at a **fraction of total duration** (e.g. the last 25%), not a fixed number of seconds — a fixed default would make a short timer permanently Imminent and scales badly across timer durations. If total duration is *also* unavailable, last-resort to an **absolute threshold** (e.g. the final 10s).
 
 ### Plugin configuration surface (Phase 1)
