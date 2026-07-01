@@ -519,6 +519,10 @@ Expected: the run **succeeds**, produces `dist/eq2auras.dll` + `dist/eq2auras.Co
 
 If the MSBuild step fails with an unresolved type in `Advanced_Combat_Tracker` naming another assembly, copy that DLL from the Windows ACT folder into `ThirdParty/`, add a matching `<Reference>` block (same `Private=False`) to `eq2auras.Plugin.csproj`, `git add -f` it, commit, and push again. Repeat until the build is green. (Expected: not needed — all API types live in the exe.)
 
+- [ ] **Step 4: Contingency — WPF markup compilation fails (the Task-2b probe's whole point)** **[MAC]**
+
+If MSBuild fails on XAML compilation itself (errors like missing `BuildProbe.g.cs`, `MarkupCompilePass1/2`, or `GenerateTemporaryTargetAssembly`), the SDK-style + `net472` + `UseWPF` combination is not working on the runner's SDK — this is the anticipated project-format risk, and it surfaces here at CI, cheaply, before any UI work. Fallback: **convert `eq2auras.Plugin` to a legacy (non-SDK) csproj** — `<Project ToolsVersion="...">` importing `Microsoft.CSharp.targets`, with explicit `<Page Include="...xaml">`/`<Compile>` items, the WPF assembly references (`PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml`), and (if needed) `packages.config`. This is the proven path for net472 WPF ACT plugins (Triggernometry, Hojoring, ActStatter all use legacy csproj). The `Core` and test projects stay SDK-style; only the WPF plugin converts. Re-run CI until green before proceeding to Task 4.
+
 ---
 
 ## Task 4: First manual install + load in ACT (bootstrap + log path)
