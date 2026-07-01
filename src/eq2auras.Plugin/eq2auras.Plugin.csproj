@@ -18,9 +18,9 @@
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Security" />
+    <!-- Task 9 (self-updater) adds its own references for HTTP/JSON/DPAPI. They are
+         deliberately NOT here: System.Web.Extensions drags in System.Web, which breaks
+         the WPF XAML markup compiler's assembly resolution (seen in CI run 28545971312). -->
   </ItemGroup>
 
   <ItemGroup>
