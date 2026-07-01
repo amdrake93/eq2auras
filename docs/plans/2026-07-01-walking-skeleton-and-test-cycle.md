@@ -287,13 +287,13 @@ git commit -m "Core: TimerSnapshotRecord + JSONL serializer (Mac-testable)"
 dotnet tool install -g ilspycmd
 ```
 
-- [ ] **Step 2: Confirm ACT's bitness** **[MAC]**
+- [ ] **Step 2: Note ACT's bitness (informational — gates no code)** **[MAC]**
 
 ```bash
 cd /Users/Alex/repos/eq2auras
 file "ThirdParty/Advanced Combat Tracker.exe"
 ```
-`PE32 executable` = **32-bit (x86)** → the overlay click-through P/Invoke must use the int `GetWindowLong`/`SetWindowLong` exports (the plan already does; the `...Ptr` variants would throw `EntryPointNotFoundException`). `PE32+ executable` = **64-bit**. Record the result in the spike-findings note.
+Caveat: `file` reads the **PE header**, which is *not* reliable for a managed (.NET) exe — an **AnyCPU** assembly emits a `PE32` header yet runs as a **64-bit** process on a 64-bit OS (the CLR JITs to host bitness). Treat `PE32`/`PE32+` as a hint only. For the definitive answer, read the CLR header's `32BITREQUIRED`/`32BITPREF` CorFlags — `corflags "Advanced Combat Tracker.exe"` on Windows, or the CorFlags shown in the `ilspycmd` dump on the Mac. Record it in the findings note. **This is informational only:** click-through uses the int `GetWindowLong`/`SetWindowLong` exports, which are correct on both 32- and 64-bit, so no code depends on the result.
 
 - [ ] **Step 3: Decompile the ACT types we touch** **[MAC]**
 
