@@ -33,7 +33,7 @@ The suite is deliberately layered so that each new overlay idea is a module on c
 
 ### Packaging
 
-Ships as a **single ACT plugin** — one `.NET Framework 4.x` `.dll` dropped into ACT's `Plugins` folder. Features are individually toggleable, so a teammate can install the package and enable only what they want. Splitting into sibling plugin DLLs later (for fault isolation or standalone sharing) remains possible because the core is a separate library; it is explicitly **not** required for Phase 1.
+Ships as a **single ACT plugin** — one `.dll` dropped into ACT's `Plugins` folder (the `Core` and `Plugin` projects are ILRepacked into one self-contained assembly at package time; see Development & test cycle). Features are individually toggleable, so a teammate can install the package and enable only what they want. Splitting into sibling plugin DLLs later (for fault isolation or standalone sharing) remains possible because the core is a separate project; it is explicitly **not** required for Phase 1.
 
 ### Platform facts
 
@@ -159,9 +159,32 @@ The configuration editor; per-timer / per-category customization; import/export 
 
 ## Part III — Cross-cutting
 
+### Development & test cycle
+
+Development happens on **macOS** (with Claude); ACT and EQ2 run on a **separate Windows machine that stays a passive test target** — no build toolchain, no dev work, nothing installed beyond ACT and this plugin. That split is forced by one constraint and enabled by one architectural response.
+
+**Constraint:** ACT plugins are Windows + .NET Framework only (WPF, .NET Framework, and ACT itself do not run on macOS). The build must happen on Windows — but not on the dev Mac (can't) and not on the personal Windows box (kept clean), so it happens in **cloud CI**.
+
+**Project split** (the concrete form of the core/module architecture):
+- **`eq2auras.Core`** — pure logic (state model, escalation rules, per-tick snapshot types, config). Target **.NET Standard 2.0**, so it **builds and unit-tests on the Mac** with `dotnet test`. Most TDD lives here.
+- **`eq2auras.Plugin`** — the Windows-only shell (`IActPluginV1`, timer adapter, WPF overlay, self-updater). Target **.NET Framework 4.7.2** (consumes the netstandard2.0 Core, satisfies ACT's runtime). Compiles and runs only on Windows.
+
+**Referencing ACT:** the plugin references `Advanced Combat Tracker.exe` itself (namespace `Advanced_Combat_Tracker`) via a relative `HintPath` with `SpecificVersion=False` and `Private=False` (not copied to output). The exe is committed to `ThirdParty/` in the **private** repo so CI can compile against it without redistribution concerns.
+
+**Build & publish (CI):** a GitHub Actions `windows-latest` workflow, on push, runs **`msbuild`** (not `dotnet build` — WPF's XAML compile requires MSBuild), **ILRepacks `Core` + `Plugin` into one self-contained DLL**, and publishes it as the asset of a rolling prerelease (tag = version). Single-DLL matters: ACT can hot-swap one self-contained assembly live, but forces a restart if *bundled* assemblies change — merging keeps it to one file.
+
+**Deploy & reload (in-plugin self-update):** the plugin updates itself (the proven `ACT_Adder` pattern) — on startup / a "check for updates" action it queries the GitHub release, and if newer: downloads the DLL, strips the Windows mark-of-the-web (or ACT refuses to load it), overwrites its own file, and toggles its Enabled checkbox (`ActPluginData.cbEnabled`) off→on to drive `DeInitPlugin()`→`InitPlugin()` — reloading live, no ACT restart. This needs no ACT-assigned plugin ID and works from an arbitrary URL. Downloading a **private** repo's release asset needs a GitHub token, stored once in the plugin's local config on the Windows box; thereafter it is hands-off.
+
+**The loop:** edit on Mac → `dotnet test` Core locally → push → CI builds & publishes → plugin self-updates in ACT (a few minutes end to end). The fast inner loop is the local Core tests; the CI round-trip is only for the WPF/ACT shell, which can only be exercised on Windows anyway.
+
+**Escape hatch (faster inner loop):** if the CI round-trip drags, a **self-hosted GitHub Actions runner** on the Windows box can build on push and copy the DLL straight into `%APPDATA%\Advanced Combat Tracker\Plugins` (~1–2 min, no fetch). It costs a background runner service on the personal machine, so it's opt-in, not the default. (Self-hosted runners must never run on a public repo.)
+
+**Teardown discipline** (see Platform facts) is what makes live reload safe: `DeInitPlugin()` must fully release windows, timers, event subscriptions, and log handles, or repeated hot-reloads leak.
+
 ### Testing strategy
 
 - **Verification spike is the first implementation task.** A barebones plugin that subscribes to the four `OnSpellTimer*` events and polls `GetTimerFrames()`, writing the diagnostic log described above. Run it against synthetic timers and a real fight to *observe* — not guess — exactly: when ACT drops a frame (the `RemoveValue` behavior we inherit), whether `TimeLeft` goes negative or clamps at zero (which decides how the Overdue count-up is measured), and what a reset looks like in the data. This confirms the removal timing and the Overdue measurement. It also reports the **distribution of `WarningValue`** across the team's real timer set — validating the central premise that timers carry meaningful warning values before we build on it (if most lack one, escalation would flood the center via the fallback). The diagnostic-logging feature and this spike are the same code.
+- **Reload validation (same early spike).** Confirm whether ACT permits overwriting the loaded plugin DLL while running, and that the `cbEnabled` off→on toggle cleanly drives `DeInitPlugin()`→`InitPlugin()` without leaking windows/timers/subscriptions — this decides live-reload vs. download-then-restart-prompt in the self-updater (see Development & test cycle).
 - **Synthetic timers for desk development.** We drive test timers without being in a raid — via ACT manual triggers and/or `FormSpellTimers.NotifySpell` — so the overlay can be developed and tuned at the desk.
 - Standard unit tests for the state model / transition logic (pure functions over sequences of `(TimeLeft, WarningValue)` readings).
 
@@ -172,6 +195,7 @@ Flagged by API research as documented-but-unconfirmed; the spike resolves them:
 - Whether ACT exposes a distinct warning **color** or hardcodes the warning tint (only the threshold + sound are in the API).
 - `RemoveValue` semantics precisely (counts from `0`? from `-RemoveValue`? when does `OnSpellTimerRemoved` fire?).
 - Contents/keys of `SpellTimer.ExtraInfo` (where captured regex groups / per-target labels live).
+- Whether ACT locks the loaded plugin DLL on disk while running — i.e. can the self-updater overwrite it live, or must it stage the new DLL and prompt an ACT restart? Inferred from .NET Framework semantics, not documented; decides live-reload vs. restart-prompt.
 
 The design tolerates whatever the spike finds because eq2auras owns its own (small, bounded) state; the findings only tune the Overdue measurement, the identity key, and the snapshot/threading approach — not the overall model.
 
