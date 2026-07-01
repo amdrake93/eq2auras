@@ -30,11 +30,15 @@
   cd /Users/Alex/repos/eq2auras
   mkdir -p ThirdParty
   # copy the exe into ThirdParty/, then:
-  git add -f "ThirdParty/Advanced Combat Tracker.exe"
+  git add "ThirdParty/Advanced Combat Tracker.exe"
   git commit -m "Add ACT reference assembly for compilation"
   ```
-  Note: `.gitignore` ignores `*.exe`; the `-f` forces this intentional exception.
+  Note: `.gitignore` ignores `*.dll`/`*.pdb` and `bin/`/`obj/`, but **not** `*.exe`, and `ThirdParty/` is not ignored — a normal `git add` works (no `-f` needed).
 - [ ] **P4 — Fine-grained PAT (used in Task 9).** In GitHub → Settings → Developer settings → **Fine-grained tokens**, create a token **scoped to only the `eq2auras` repo**, permission **Contents: Read-only**. Save the value somewhere safe; it is entered into the plugin on the Windows box in Task 9. Do **not** commit it.
+- [ ] **P5 — `gh` authenticated.** Several steps use `gh run watch`; authenticate the GitHub CLI against the account:
+  ```bash
+  gh auth login
+  ```
 
 ---
 
@@ -154,6 +158,18 @@ public class TimerSnapshotRecordTests
             "\"combatant\":\"\",\"timeLeft\":-3,\"warningValue\":0,\"totalValue\":0}",
             json);
     }
+
+    [Fact]
+    public void ToJsonl_emits_null_for_NaN_timeLeft()
+    {
+        var record = new TimerSnapshotRecord
+        {
+            Kind = "poll", TimestampUnixMs = 5, Name = "x", Combatant = "",
+            TimeLeft = double.NaN, WarningValue = 0, TotalValue = 0
+        };
+
+        Assert.Contains("\"timeLeft\":null", record.ToJsonl());
+    }
 }
 ```
 
@@ -233,7 +249,9 @@ namespace Eq2Auras.Core.Diagnostics
             sb.Append(",\"ts\":").Append(TimestampUnixMs);
             sb.Append(",\"name\":\"").Append(Json.Escape(Name)).Append("\"");
             sb.Append(",\"combatant\":\"").Append(Json.Escape(Combatant)).Append("\"");
-            sb.Append(",\"timeLeft\":").Append(Json.Number(TimeLeft));
+            sb.Append(",\"timeLeft\":");
+            if (double.IsNaN(TimeLeft)) sb.Append("null");            // invalid JSON otherwise — keeps the spike log parseable
+            else sb.Append(Json.Number(TimeLeft));
             sb.Append(",\"warningValue\":").Append(WarningValue);
             sb.Append(",\"totalValue\":").Append(TotalValue);
             sb.Append("}");
@@ -255,6 +273,44 @@ Expected: PASS — 2 passed.
 ```bash
 git add eq2auras.sln src/eq2auras.Core tests/eq2auras.Core.Tests
 git commit -m "Core: TimerSnapshotRecord + JSONL serializer (Mac-testable)"
+```
+
+---
+
+## Task 1.5: Confirm ACT API shapes on the Mac (reconnaissance)
+
+`TimerProbe` (Task 5) hardcodes several ACT members the spec flags `[U]`. The committed `ThirdParty/Advanced Combat Tracker.exe` is right here on the Mac — decompile it locally to confirm the real names/types **before** Task 5 depends on them, instead of discovering mistakes through slow CI round-trips. This front-loads the spec's reconnaissance onto the fast machine.
+
+- [ ] **Step 1: Install a decompiler** **[MAC]**
+
+```bash
+dotnet tool install -g ilspycmd
+```
+
+- [ ] **Step 2: Decompile the ACT types we touch** **[MAC]**
+
+```bash
+cd /Users/Alex/repos/eq2auras
+ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.FormSpellTimers > /tmp/act-FormSpellTimers.cs
+ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.TimerFrame > /tmp/act-TimerFrame.cs
+ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.SpellTimer > /tmp/act-SpellTimer.cs
+ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.TimerData > /tmp/act-TimerData.cs
+```
+
+- [ ] **Step 3: Confirm the members TimerProbe/TestWindow/SelfUpdater will use** **[MAC]**
+
+```bash
+grep -nE "GetTimerFrames|OnSpellTimer|TimeLeft|WarningValue|TimerValue|Combatant|SpellTimers|TimerData|AppDataFolder|PluginGetSelfData|cbEnabled" /tmp/act-*.cs
+```
+Confirm and note the exact spelling/type of: `FormSpellTimers.GetTimerFrames()` return type (expect `List<TimerFrame>`); the `OnSpellTimer*` delegate signature (expect `void (TimerFrame)`); `TimerFrame.Name`/`.Combatant` (types); `TimerFrame.SpellTimers` element type; `TimerFrame.TimerData`; `SpellTimer.TimeLeft` (**`int` or `double`?**); `TimerData.WarningValue`/`.TimerValue` (types).
+
+- [ ] **Step 4: Reconcile this plan's code with reality** **[MAC]**
+
+If any member name or type differs from what Tasks 5/7/9 assume, edit those code blocks now (and, if `SpellTimer.TimeLeft` is `int`, change `TimerSnapshotRecord.TimeLeft` to `int` and its test expectations together). Record confirmed shapes in a `docs/plans/2026-07-01-spike-findings.md` note.
+
+```bash
+git add docs/plans
+git commit -m "Recon: confirmed ACT API shapes from the decompiled exe"
 ```
 
 ---
@@ -341,6 +397,32 @@ namespace Eq2Auras.Plugin
 }
 ```
 
+- [ ] **Step 2b: Add a throwaway XAML to force WPF markup compilation early** **[MAC]** (authoring)
+
+The plugin csproj is SDK-style with `UseWPF` on `net472` — a combination **not officially guaranteed** for XAML markup compilation; it can fail depending on SDK version. Prove it compiles in CI *now* (Task 3), not five tasks deep at Task 7. Create `src/eq2auras.Plugin/BuildProbe.xaml`:
+
+```xml
+<UserControl x:Class="Eq2Auras.Plugin.BuildProbe"
+             xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" />
+```
+
+and `src/eq2auras.Plugin/BuildProbe.xaml.cs`:
+
+```csharp
+using System.Windows.Controls;
+
+namespace Eq2Auras.Plugin
+{
+    public partial class BuildProbe : UserControl
+    {
+        public BuildProbe() { InitializeComponent(); }
+    }
+}
+```
+
+Nothing references it — its only job is to exercise the XAML compiler in the first CI build. Task 7 deletes it once the real window proves the same path.
+
 - [ ] **Step 3: Add the Plugin project to the solution** **[MAC]**
 
 ```bash
@@ -399,8 +481,8 @@ jobs:
       - name: Run Core unit tests
         run: dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj -c Release
 
-      - name: Build (MSBuild — required for WPF)
-        run: msbuild eq2auras.sln -restore -p:Configuration=Release -p:Version=${{ steps.ver.outputs.version }}
+      - name: Build the plugin (MSBuild — required for WPF; plugin only — tests already ran via dotnet)
+        run: msbuild src/eq2auras.Plugin/eq2auras.Plugin.csproj -restore -p:Configuration=Release -p:Version=${{ steps.ver.outputs.version }}
 
       - name: Stage plugin artifacts
         shell: bash
@@ -746,7 +828,7 @@ Adds the rendering-stack probe: a transparent, always-on-top, click-through WPF 
 
 - [ ] **Step 1: The window markup** **[MAC]** (authoring)
 
-Create `src/eq2auras.Plugin/Overlay/TestWindow.xaml`:
+First delete the Task-2b throwaway (`src/eq2auras.Plugin/BuildProbe.xaml` and `BuildProbe.xaml.cs`) — the real window now exercises the XAML path. Then create `src/eq2auras.Plugin/Overlay/TestWindow.xaml`:
 
 ```xml
 <Window x:Class="Eq2Auras.Plugin.Overlay.TestWindow"
@@ -794,11 +876,15 @@ namespace Eq2Auras.Plugin.Overlay
         // ▲▲
 
         private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
+        private const long WS_EX_LAYERED = 0x80000;
+        private const long WS_EX_TRANSPARENT = 0x20;
 
-        [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
-        [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
+        // 64-bit-clean: modern ACT is a 64-bit process, so use the ...Ptr variants.
+        // (For a 32-bit host, swap to the int GetWindowLong/SetWindowLong exports.)
+        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
+        private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
+        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
+        private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr newStyle);
 
         public TestWindow()
         {
@@ -810,8 +896,8 @@ namespace Eq2Auras.Plugin.Overlay
         private void MakeClickThrough(object sender, EventArgs e)
         {
             var hwnd = new WindowInteropHelper(this).Handle;
-            int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+            long ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
+            SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_LAYERED | WS_EX_TRANSPARENT));
         }
     }
 }
@@ -851,6 +937,11 @@ namespace Eq2Auras.Plugin.Overlay
             _thread.Start();
             ready.Wait(TimeSpan.FromSeconds(5));
         }
+
+        // Thread-model note: this uses a dedicated STA thread + its own Dispatcher (the spec
+        // left ACT-UI-thread vs. dedicated-STA open). If the window misbehaves over the game
+        // (topmost/focus loss), the fallback is to create it on ACT's own WinForms UI thread
+        // (already STA) via ActGlobals.oFormActMain.BeginInvoke(...). The spike settles which.
 
         public void Dispose()
         {
@@ -897,7 +988,7 @@ Expected: CI green. If MSBuild errors on WPF (`GenerateTemporaryTargetAssembly`,
 
 - [ ] **Step 6: Install and observe over the game** **[WIN]**
 
-Update the plugin (Task 8 mechanics), launch EQ2 in **borderless-windowed** mode.
+Update the plugin on the Windows box (download the new DLLs, `Unblock-File`, then disable → copy both DLLs → re-enable, as in Task 4 Steps 1–3), launch EQ2 in **borderless-windowed** mode.
 Expected: a pulsing sky-blue rounded rectangle floats over the game; **clicks pass through it** to the game; it stays on top. Record: transparency ✅, click-through ✅, animation smooth ✅, and that the dedicated-STA-thread model works (no cross-thread exceptions in ACT). If click-through or transparency fails, note it — this is the WPF thread-model / layered-window finding the spec wanted.
 
 ---
@@ -933,7 +1024,7 @@ Whether or not Step 3 succeeded: if it failed, disable the plugin, copy both new
 - [ ] **Step 5: Test the two-DLL question** **[WIN]**
 
 Repeat Steps 2–4 but this time change **only Core** (add a field to `TimerSnapshotRecord` and reference it in the log) so a *new `eq2auras.Core.dll`* is required. Observe whether the dependent DLL swaps/reloads or blocks.
-Record: does an un-merged `Core.dll` block reload? (Answers the ILRepack premise — if it blocks and Step 4 was otherwise red, that argues for ILRepack or restart-prompt.)
+Record: does an un-merged `Core.dll` block reload? (Answers the ILRepack premise — if it blocks and Step 4 was otherwise red, that argues for ILRepack or restart-prompt.) **Dependency caveat:** this sub-test is only meaningful if Step 4 was *red* (live reload works at all). If Step 4 was blue, a "Core change did nothing" result is inconclusive — don't over-interpret it.
 
 - [ ] **Step 6: Record the verdict** **[MAC]**
 
@@ -1161,3 +1252,4 @@ git push
 - **The reload verdict (Task 8) gates Task 9's shape** — do Task 8 before writing the Task-9 apply branch.
 - **No feature code.** If you find yourself adding a timer list, escalation, pies, or the center zone, stop — that belongs to the next plan.
 - **`<your-user>`** appears in `SelfUpdater.cs` and the P2 remote URL — replace with the real GitHub account.
+- **Branching:** commits go straight to `main` throughout — a deliberate departure from the usual `<ticket>-<branch>` convention, since eq2auras is a solo personal repo with no ticket tracker. Switch to feature branches if that changes.
