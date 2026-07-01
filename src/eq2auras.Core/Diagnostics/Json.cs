@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 
 namespace Eq2Auras.Core.Diagnostics
@@ -26,8 +25,5 @@ namespace Eq2Auras.Core.Diagnostics
             }
             return sb.ToString();
         }
-
-        public static string Number(double d) =>
-            d.ToString("0.############", CultureInfo.InvariantCulture);
     }
 }

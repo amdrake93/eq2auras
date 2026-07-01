@@ -11,7 +11,9 @@ namespace Eq2Auras.Core.Diagnostics
         public long TimestampUnixMs { get; set; }
         public string Name { get; set; }
         public string Combatant { get; set; }
-        public double TimeLeft { get; set; }
+        // ACT's SpellTimer.TimeLeft is int seconds (goes negative after expiry, no clamp).
+        // Null represents a frame with no live timer.
+        public int? TimeLeft { get; set; }
         public int WarningValue { get; set; }
         public int TotalValue { get; set; }
 
@@ -23,8 +25,8 @@ namespace Eq2Auras.Core.Diagnostics
             sb.Append(",\"name\":\"").Append(Json.Escape(Name)).Append("\"");
             sb.Append(",\"combatant\":\"").Append(Json.Escape(Combatant)).Append("\"");
             sb.Append(",\"timeLeft\":");
-            if (double.IsNaN(TimeLeft)) sb.Append("null");            // invalid JSON otherwise — keeps the spike log parseable
-            else sb.Append(Json.Number(TimeLeft));
+            if (TimeLeft.HasValue) sb.Append(TimeLeft.Value);      // int — no locale formatting concern
+            else sb.Append("null");                                // keeps the JSONL parseable when no live timer
             sb.Append(",\"warningValue\":").Append(WarningValue);
             sb.Append(",\"totalValue\":").Append(TotalValue);
             sb.Append("}");

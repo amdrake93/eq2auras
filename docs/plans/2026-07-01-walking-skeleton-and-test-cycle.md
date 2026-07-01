@@ -682,8 +682,9 @@ namespace Eq2Auras.Plugin.Act
         private void LogFrame(string kind, TimerFrame frame)
         {
             // Copy primitives out of ACT's live objects immediately (snapshot).
+            // Task 1.5 confirmed SpellTimer.TimeLeft is int (negative after expiry); null = no live timer.
             var timers = frame.SpellTimers;
-            double timeLeft = timers != null && timers.Count > 0 ? timers[0].TimeLeft : double.NaN;
+            int? timeLeft = timers != null && timers.Count > 0 ? timers[0].TimeLeft : (int?)null;
             _log.Write(new TimerSnapshotRecord
             {
                 Kind = kind,
@@ -734,7 +735,7 @@ namespace Eq2Auras.Plugin.Act
 }
 ```
 
-> Note: `TimeLeft`, `WarningValue`, `TimerValue`, `Combatant` are used per the spec's data table; if CI reveals a type mismatch (e.g. `TimeLeft` is `int`, `Combatant` is not `string`), adjust the copy in this file and the record field type in `TimerSnapshotRecord` together. This is expected reconnaissance, not a plan defect — the spec flags these as `[U]`.
+> Note: Task 1.5 confirmed these member types from the decompiled exe — `TimeLeft` is `int` (→ `TimerSnapshotRecord.TimeLeft` is `int?`), `Combatant`/`Name` are `string`, `WarningValue`/`TimerValue` are `int`. See `docs/plans/2026-07-01-spike-findings.md`. (The Task 1 code blocks above show the original `double` draft; the committed source and this Task-5 block reflect the reconciled `int?`.)
 
 - [ ] **Step 3: Wire probe + writer into the plugin lifecycle** **[MAC]** (authoring)
 

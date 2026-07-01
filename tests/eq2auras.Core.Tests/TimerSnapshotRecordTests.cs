@@ -4,7 +4,7 @@ using Xunit;
 public class TimerSnapshotRecordTests
 {
     [Fact]
-    public void ToJsonl_serializes_all_fields_with_invariant_numbers()
+    public void ToJsonl_serializes_all_fields()
     {
         var record = new TimerSnapshotRecord
         {
@@ -12,7 +12,7 @@ public class TimerSnapshotRecordTests
             TimestampUnixMs = 1750000000000,
             Name = "Tank Buster",
             Combatant = "Big Bad",
-            TimeLeft = 12.5,
+            TimeLeft = 12,
             WarningValue = 10,
             TotalValue = 30
         };
@@ -21,12 +21,12 @@ public class TimerSnapshotRecordTests
 
         Assert.Equal(
             "{\"kind\":\"poll\",\"ts\":1750000000000,\"name\":\"Tank Buster\"," +
-            "\"combatant\":\"Big Bad\",\"timeLeft\":12.5,\"warningValue\":10,\"totalValue\":30}",
+            "\"combatant\":\"Big Bad\",\"timeLeft\":12,\"warningValue\":10,\"totalValue\":30}",
             json);
     }
 
     [Fact]
-    public void ToJsonl_escapes_quotes_backslashes_and_control_chars()
+    public void ToJsonl_escapes_quotes_backslashes_and_control_chars_and_negative_timeLeft()
     {
         var record = new TimerSnapshotRecord
         {
@@ -34,7 +34,7 @@ public class TimerSnapshotRecordTests
             TimestampUnixMs = 1,
             Name = "He said \"hi\"\tand\\left",
             Combatant = "",
-            TimeLeft = -3.0,
+            TimeLeft = -3,
             WarningValue = 0,
             TotalValue = 0
         };
@@ -48,12 +48,12 @@ public class TimerSnapshotRecordTests
     }
 
     [Fact]
-    public void ToJsonl_emits_null_for_NaN_timeLeft()
+    public void ToJsonl_emits_null_for_missing_timeLeft()
     {
         var record = new TimerSnapshotRecord
         {
             Kind = "poll", TimestampUnixMs = 5, Name = "x", Combatant = "",
-            TimeLeft = double.NaN, WarningValue = 0, TotalValue = 0
+            TimeLeft = null, WarningValue = 0, TotalValue = 0
         };
 
         Assert.Contains("\"timeLeft\":null", record.ToJsonl());
