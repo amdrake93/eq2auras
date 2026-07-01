@@ -19,6 +19,12 @@ All member names/types the plan's `TimerProbe` assumes are confirmed (only `Time
 
 `file` reports `PE32 executable (GUI) Intel 80386 Mono/.Net assembly`. For a managed AnyCPU exe the PE32 header is not conclusive, but a **separate `ACTx86.exe` ships alongside** the main exe, which indicates the main `Advanced Combat Tracker.exe` is the AnyCPU/64-bit build. **This gates no code** — overlay click-through uses the int `GetWindowLong`/`SetWindowLong` exports, correct on both bitnesses.
 
+## Build / CI (Task 3, confirmed in the cloud)
+
+- **SDK-style WPF on `net472` compiles in GitHub Actions** (run `28546103013`) — the XAML `MarkupCompilePass` runs and succeeds. **The legacy-csproj fallback (Task 3 Step 4) is NOT needed.** The #1 project-format risk is retired.
+- **`System.Web.Extensions` breaks the WPF XAML markup compiler** (run `28545971312`): it drags in `System.Web`, which the markup compiler's metadata assembly-resolver can't resolve → `Could not find assembly 'System.Web…'`. **Consequence for Task 9:** the self-updater must **not** use `System.Web.Extensions`/`JavaScriptSerializer` for JSON. Parse the GitHub API response another way (e.g. `DataContractJsonSerializer` from `System.Runtime.Serialization`, or minimal hand-parsing) — anything that avoids pulling `System.Web` into a project that also does WPF markup compilation.
+- `dotnet test` of the net10.0 Core tests runs green on `windows-latest` too (via `actions/setup-dotnet@v4` `10.0.x`).
+
 ## Live behaviour (Task 6 / Task 8) — PENDING
 
 - [ ] Does `TimeLeft` reported via `GetTimerFrames()` actually go negative live (confirming the decompiled formula)?

@@ -359,9 +359,9 @@ Create `src/eq2auras.Plugin/eq2auras.Plugin.csproj`:
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
-    <Reference Include="System.Web.Extensions" />
-    <Reference Include="System.Net.Http" />
-    <Reference Include="System.Security" />
+    <!-- Task 9 (self-updater) adds its own HTTP/JSON/DPAPI references. They are NOT here:
+         System.Web.Extensions drags in System.Web, which breaks the WPF XAML markup
+         compiler's assembly resolution (CI run 28545971312). See spike-findings.md. -->
   </ItemGroup>
 
   <ItemGroup>
@@ -535,6 +535,8 @@ Expected: the run **succeeds**, produces `dist/eq2auras.dll` + `dist/eq2auras.Co
 If the MSBuild step fails with an unresolved type in `Advanced_Combat_Tracker` naming another assembly, copy that DLL from the Windows ACT folder into `ThirdParty/`, add a matching `<Reference>` block (same `Private=False`) to `eq2auras.Plugin.csproj`, `git add -f` it, commit, and push again. Repeat until the build is green. (Expected: not needed — all API types live in the exe.)
 
 - [ ] **Step 4: Contingency — WPF markup compilation fails (the Task-2b probe's whole point)** **[MAC]**
+
+> **Not triggered.** CI run `28546103013` confirmed SDK-style WPF on `net472` compiles cleanly — the legacy-csproj fallback below was **not** needed. Kept for the record in case a future SDK bump regresses it.
 
 If MSBuild fails on XAML compilation itself (errors like missing `BuildProbe.g.cs`, `MarkupCompilePass1/2`, or `GenerateTemporaryTargetAssembly`), the SDK-style + `net472` + `UseWPF` combination is not working on the runner's SDK — this is the anticipated project-format risk, and it surfaces here at CI, cheaply, before any UI work. Fallback: **convert `eq2auras.Plugin` to a legacy (non-SDK) csproj** — `<Project ToolsVersion="...">` importing `Microsoft.CSharp.targets`, with explicit `<Page Include="...xaml">`/`<Compile>` items, the WPF assembly references (`PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml`), and (if needed) `packages.config`. This is the proven path for net472 WPF ACT plugins (Triggernometry, Hojoring, ActStatter all use legacy csproj). The `Core` and test projects stay SDK-style; only the WPF plugin converts. Two stacking gotchas to expect immediately after converting:
   - **netstandard facade:** a net472 *legacy* project consuming the netstandard2.0 `Core` usually needs an explicit `<Reference Include="netstandard" />` and `<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>` (SDK-style adds these implicitly; legacy does not). Without them you get type-load/facade errors that look unrelated to the format switch.
@@ -1110,7 +1112,9 @@ namespace Eq2Auras.Plugin.SelfUpdate
 
 - [ ] **Step 2: The updater** **[MAC]** (authoring)
 
-Create `src/eq2auras.Plugin/SelfUpdate/SelfUpdater.cs`. Runs on a background thread; parses the GitHub release JSON with the framework's `JavaScriptSerializer` (no external dependency); downloads private-repo assets via the asset API URL with `Accept: application/octet-stream` (an `HttpClient` download carries no mark-of-the-web).
+Create `src/eq2auras.Plugin/SelfUpdate/SelfUpdater.cs`. Runs on a background thread; downloads private-repo assets via the asset API URL with `Accept: application/octet-stream` (an `HttpClient` download carries no mark-of-the-web).
+
+> **⚠ JSON approach — do NOT use `JavaScriptSerializer`/`System.Web.Extensions`.** CI proved (run `28545971312`) that referencing `System.Web.Extensions` drags in `System.Web` and **breaks the WPF XAML markup compiler**. The code below uses it and **must be rewritten** when Task 9 is implemented — parse the GitHub release JSON with `DataContractJsonSerializer` (`System.Runtime.Serialization`) or minimal hand-parsing instead, and add only the needed refs (`System.Net.Http`, `System.Security` for DPAPI) to the csproj. See `docs/plans/2026-07-01-spike-findings.md`. The block below is retained as intent, not final code.
 
 ```csharp
 using System;
