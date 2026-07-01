@@ -55,7 +55,7 @@ Phase 1 ships the **general engine with a single baked-in preset** (constants), 
 
 Everything is one loop, run on a render tick (target ~15–30 fps):
 
-> **read timer data → diff against tracked state → update visuals (and emit diagnostics)**
+> **read timer data → derive each timer's state → update visuals (and emit diagnostics)**
 
 Each tick reads `ActGlobals.oFormSpellTimers.GetTimerFrames()` (a `List<TimerFrame>`) for a smooth live countdown. ACT's lifecycle events (`OnSpellTimerNotify` / `Warning` / `Expire` / `Removed`, each handing us the whole `TimerFrame`) are available and may be used for precise transition moments, but polling covers Phase 1.
 
@@ -81,19 +81,17 @@ ACT exposes **no per-timer icon/image**, **no `CategoryData` object** (category 
 
 We do **not** invent thresholds. Each timer already carries its own `WarningValue` (the team sets it per-timer in ACT). Escalation pivots on it. This keeps Phase 1 honest with the "configuration in mind" principle — the threshold is real data we read.
 
-### The timer lifecycle (state model)
+### The timer lifecycle
 
-Because we must *hold onto* a timer past the point where ACT would drop it (see Overdue), eq2auras is **not** a stateless mirror of `GetTimerFrames()`. The overlay maintains a small **state model** keyed by timer identity across ticks. Each tracked timer is in one of three states:
+Escalation state is derived from each timer's live `TimeLeft` versus its `WarningValue`, evaluated every tick. A timer is in one of three states:
 
-1. **Calm** — `TimeLeft > WarningValue`. Shown as a row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
+1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
 2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. **Removed from the list** and promoted to a **big center radial pie** (escalation Model A: one focus at a time). See pie semantics below. Pulses.
-3. **Overdue** — `TimeLeft ≤ 0`. The ability is *late* — we have lost a deterministic countdown, which is the scariest state. **Escalated further** beyond the pie (see Overdue visual). We **keep showing it even after ACT drops the frame at `RemoveValue`**.
+3. **Overdue** — `TimeLeft ≤ 0`. The ability is *late* — a deterministic countdown is lost, the scariest state. Escalated further (see Overdue visual). It remains **only as long as ACT keeps the frame**; when ACT removes it at `RemoveValue` (its normal behavior), it disappears. **Phase 1 does not override ACT's removal** — the overdue element behaves as ACT does today, just louder.
 
-**Transitions:**
-- Calm → Imminent → Overdue as `TimeLeft` decreases.
-- **Reset-to-full → Calm** is the *only* de-escalation path, and it is how ACT signals *the ability actually fired*. Detected either as (a) a tracked frame's `TimeLeft` jumping back up toward its full duration, or (b) a frame with the same identity reappearing at full duration after ACT had dropped it. A reset from *any* state returns the timer to Calm.
+**Transitions** follow `TimeLeft` directly: Calm → Imminent → Overdue as it decreases. When the ability fires, ACT resets the timer to full duration, so `TimeLeft` jumps back above `WarningValue` and the timer returns to **Calm** on the next tick. No special reset-detection is needed — a reset is simply a high `TimeLeft` reading.
 
-**Why the state model:** ACT will drop an overdue frame from `GetTimerFrames()` at `RemoveValue` (its "give up and remove" behavior). eq2auras overrides that — an overdue timer is held and escalated until a reset arrives, because "the tank buster is overdue and could land any second" is exactly what a player must not lose track of.
+**On state and removal.** Because Phase 1 respects ACT's removal, the overlay is close to a **stateless mirror** of `GetTimerFrames()`: presence, escalation, and de-escalation all fall out of the per-tick readings. The one place minimal per-timer state may be needed is the Overdue count-up (see below), and only if the spike shows ACT clamps `TimeLeft` at zero instead of reporting negative values.
 
 ### The escalated radial pie — warning-window semantics
 
@@ -106,7 +104,9 @@ A 90s timer with a 10s warning escalates at 10s-left and gives a full, fast-drai
 
 ### The Overdue visual
 
-Since there is no meaningful countdown once `TimeLeft < 0`, the element flips to a **count-up "LATE +Ns"** state — empty/red, fast pulse, strong emphasis (candidate: screen-edge flash) — conveying *how overdue* the ability is and that timing is lost. It persists until reset-to-full (or an escape hatch fires — see Open Decisions). Exact styling is a tunable Phase 1 constant.
+A count-*up* pie would be odd — the pie represents the draining *warning window*, which is meaningless once time is negative — so Overdue **drops the pie** and instead shows a **pulsing, escalated alert with a "LATE" tag and a count-up of how late it is** (e.g. `LATE +5s`): red, fast pulse, strong emphasis (candidate: screen-edge flash). It conveys that timing is lost and how overdue the ability now is, and it disappears when ACT removes the frame at `RemoveValue`. Exact styling is a tunable Phase 1 constant.
+
+Lateness is `−TimeLeft` when ACT reports negative `TimeLeft`; otherwise it is measured from the tick the timer first crossed zero (the only per-timer state Phase 1 may keep). The spike settles which.
 
 ### Diagnostic logging (first-class Phase 1 feature)
 
@@ -132,7 +132,7 @@ The configuration editor; per-timer / per-category customization; import/export 
 
 ### Testing strategy
 
-- **Verification spike is the first implementation task.** A barebones plugin that subscribes to the four `OnSpellTimer*` events and polls `GetTimerFrames()`, writing the diagnostic log described above. Run it against synthetic timers and a real fight to *observe* — not guess — exactly: when ACT drops a frame, what `TimeLeft` reads while negative, and what a reset looks like in the data. This locks the reset-detection and overdue-hold rules. The diagnostic-logging feature and this spike are the same code.
+- **Verification spike is the first implementation task.** A barebones plugin that subscribes to the four `OnSpellTimer*` events and polls `GetTimerFrames()`, writing the diagnostic log described above. Run it against synthetic timers and a real fight to *observe* — not guess — exactly: when ACT drops a frame (the `RemoveValue` behavior we inherit), whether `TimeLeft` goes negative or clamps at zero (which decides how the Overdue count-up is measured), and what a reset looks like in the data. This confirms the removal timing and the Overdue measurement. The diagnostic-logging feature and this spike are the same code.
 - **Synthetic timers for desk development.** We drive test timers without being in a raid — via ACT manual triggers and/or `FormSpellTimers.NotifySpell` — so the overlay can be developed and tuned at the desk.
 - Standard unit tests for the state model / transition logic (pure functions over sequences of `(TimeLeft, WarningValue)` readings).
 
@@ -152,10 +152,12 @@ The design tolerates whatever the spike finds because eq2auras owns its own stat
 2. **Open the knobs** — expose the baked-in constants as per-timer / per-category configuration; a config surface (config strings first, then an in-ACT editor with live preview).
 3. **Sharing** — import/export configuration strings, so overlay layouts travel the way timers do today.
 4. **Richer elements** — more display types (icon w/ cooldown swipe, plain text, alternate bar styles), an intermediate "approaching" visual tier, animations.
-5. **Icons** — a name→icon mapping; possibly sourcing art from EQ2's own game files (never from live game memory).
-6. **Parse Meter module** — replace ACT's "mini parse" window (combatant/DPS), on the same core via an encounter adapter.
+5. **Hold overdue until reset** — optionally override ACT's `RemoveValue` removal so an overdue timer is *held and escalated* until the ability actually fires (a reset), for abilities a player must not lose track of. Deferred from Phase 1 (which keeps ACT's removal) because it reintroduces the cross-removal state model and a "never resets" escape hatch.
+6. **Icons** — a name→icon mapping; possibly sourcing art from EQ2's own game files (never from live game memory).
+7. **Parse Meter module** — replace ACT's "mini parse" window (combatant/DPS), on the same core via an encounter adapter.
 
 ### Open decisions
 
-- **Overdue escape hatch.** If a timer goes overdue and the reset *never* comes (e.g. the mob died), the overdue element would linger forever. Candidate resolutions: clear overdue timers on encounter end / zone change (recommended — matches "the fight's over"); a max-overdue-linger constant; or both. To be settled with input from the spike (what ACT itself does around encounter end).
 - **Multiple simultaneous Imminent timers** — how several big center pies arrange at once (stack, row, prioritize one). Minor; decide during Phase 1.
+
+> *Resolved:* the overdue "escape hatch" is a non-issue for Phase 1 — an overdue timer disappears when ACT removes it at `RemoveValue`, exactly as ACT behaves today. See the roadmap for the deferred "hold until reset" aspiration.
