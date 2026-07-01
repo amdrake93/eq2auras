@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/eq2auras.Core/eq2auras.Core.csproj" />
+    <Project Path="src/eq2auras.Plugin/eq2auras.Plugin.csproj" />
   </Folder>
   <Folder Name="/tests/">
     <Project Path="tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj" />
