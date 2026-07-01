@@ -287,30 +287,41 @@ git commit -m "Core: TimerSnapshotRecord + JSONL serializer (Mac-testable)"
 dotnet tool install -g ilspycmd
 ```
 
-- [ ] **Step 2: Decompile the ACT types we touch** **[MAC]**
+- [ ] **Step 2: Confirm ACT's bitness** **[MAC]**
 
 ```bash
 cd /Users/Alex/repos/eq2auras
+file "ThirdParty/Advanced Combat Tracker.exe"
+```
+`PE32 executable` = **32-bit (x86)** → the overlay click-through P/Invoke must use the int `GetWindowLong`/`SetWindowLong` exports (the plan already does; the `...Ptr` variants would throw `EntryPointNotFoundException`). `PE32+ executable` = **64-bit**. Record the result in the spike-findings note.
+
+- [ ] **Step 3: Decompile the ACT types we touch** **[MAC]**
+
+```bash
 ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.FormSpellTimers > /tmp/act-FormSpellTimers.cs
 ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.TimerFrame > /tmp/act-TimerFrame.cs
 ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.SpellTimer > /tmp/act-SpellTimer.cs
 ilspycmd "ThirdParty/Advanced Combat Tracker.exe" -t Advanced_Combat_Tracker.TimerData > /tmp/act-TimerData.cs
 ```
+If `-t` errors (the flag varies across `ilspycmd` versions), decompile the whole assembly once and rely on the Step-4 grep instead:
+```bash
+ilspycmd "ThirdParty/Advanced Combat Tracker.exe" > /tmp/act-all.cs
+```
 
-- [ ] **Step 3: Confirm the members TimerProbe/TestWindow/SelfUpdater will use** **[MAC]**
+- [ ] **Step 4: Confirm the members TimerProbe/TestWindow/SelfUpdater will use** **[MAC]**
 
 ```bash
 grep -nE "GetTimerFrames|OnSpellTimer|TimeLeft|WarningValue|TimerValue|Combatant|SpellTimers|TimerData|AppDataFolder|PluginGetSelfData|cbEnabled" /tmp/act-*.cs
 ```
 Confirm and note the exact spelling/type of: `FormSpellTimers.GetTimerFrames()` return type (expect `List<TimerFrame>`); the `OnSpellTimer*` delegate signature (expect `void (TimerFrame)`); `TimerFrame.Name`/`.Combatant` (types); `TimerFrame.SpellTimers` element type; `TimerFrame.TimerData`; `SpellTimer.TimeLeft` (**`int` or `double`?**); `TimerData.WarningValue`/`.TimerValue` (types).
 
-- [ ] **Step 4: Reconcile this plan's code with reality** **[MAC]**
+- [ ] **Step 5: Reconcile this plan's code with reality** **[MAC]**
 
-If any member name or type differs from what Tasks 5/7/9 assume, edit those code blocks now (and, if `SpellTimer.TimeLeft` is `int`, change `TimerSnapshotRecord.TimeLeft` to `int` and its test expectations together). Record confirmed shapes in a `docs/plans/2026-07-01-spike-findings.md` note.
+If any member name or type differs from what Tasks 5/7/9 assume, edit those code blocks now (and, if `SpellTimer.TimeLeft` is `int`, change `TimerSnapshotRecord.TimeLeft` to `int` and its test expectations together). Record confirmed shapes + the bitness in `docs/plans/2026-07-01-spike-findings.md`.
 
 ```bash
 git add docs/plans
-git commit -m "Recon: confirmed ACT API shapes from the decompiled exe"
+git commit -m "Recon: confirmed ACT API shapes + bitness from the decompiled exe"
 ```
 
 ---
@@ -521,7 +532,11 @@ If the MSBuild step fails with an unresolved type in `Advanced_Combat_Tracker` n
 
 - [ ] **Step 4: Contingency — WPF markup compilation fails (the Task-2b probe's whole point)** **[MAC]**
 
-If MSBuild fails on XAML compilation itself (errors like missing `BuildProbe.g.cs`, `MarkupCompilePass1/2`, or `GenerateTemporaryTargetAssembly`), the SDK-style + `net472` + `UseWPF` combination is not working on the runner's SDK — this is the anticipated project-format risk, and it surfaces here at CI, cheaply, before any UI work. Fallback: **convert `eq2auras.Plugin` to a legacy (non-SDK) csproj** — `<Project ToolsVersion="...">` importing `Microsoft.CSharp.targets`, with explicit `<Page Include="...xaml">`/`<Compile>` items, the WPF assembly references (`PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml`), and (if needed) `packages.config`. This is the proven path for net472 WPF ACT plugins (Triggernometry, Hojoring, ActStatter all use legacy csproj). The `Core` and test projects stay SDK-style; only the WPF plugin converts. Re-run CI until green before proceeding to Task 4.
+If MSBuild fails on XAML compilation itself (errors like missing `BuildProbe.g.cs`, `MarkupCompilePass1/2`, or `GenerateTemporaryTargetAssembly`), the SDK-style + `net472` + `UseWPF` combination is not working on the runner's SDK — this is the anticipated project-format risk, and it surfaces here at CI, cheaply, before any UI work. Fallback: **convert `eq2auras.Plugin` to a legacy (non-SDK) csproj** — `<Project ToolsVersion="...">` importing `Microsoft.CSharp.targets`, with explicit `<Page Include="...xaml">`/`<Compile>` items, the WPF assembly references (`PresentationCore`/`PresentationFramework`/`WindowsBase`/`System.Xaml`), and (if needed) `packages.config`. This is the proven path for net472 WPF ACT plugins (Triggernometry, Hojoring, ActStatter all use legacy csproj). The `Core` and test projects stay SDK-style; only the WPF plugin converts. Two stacking gotchas to expect immediately after converting:
+  - **netstandard facade:** a net472 *legacy* project consuming the netstandard2.0 `Core` usually needs an explicit `<Reference Include="netstandard" />` and `<AutoGenerateBindingRedirects>true</AutoGenerateBindingRedirects>` (SDK-style adds these implicitly; legacy does not). Without them you get type-load/facade errors that look unrelated to the format switch.
+  - **CI restore:** `msbuild …csproj -restore` restores `PackageReference`, **not** `packages.config`. All the plugin's non-Core references (`System.Web.Extensions`, `System.Net.Http`, `System.Security`, the WPF assemblies) are framework/GAC refs needing no package — so **avoid a `packages.config`** entirely and `-restore` keeps working; only add a separate `nuget restore` step if a real package sneaks in.
+
+  Re-run CI until green before proceeding to Task 4.
 
 ---
 
@@ -880,15 +895,16 @@ namespace Eq2Auras.Plugin.Overlay
         // ▲▲
 
         private const int GWL_EXSTYLE = -20;
-        private const long WS_EX_LAYERED = 0x80000;
-        private const long WS_EX_TRANSPARENT = 0x20;
+        private const int WS_EX_LAYERED = 0x80000;
+        private const int WS_EX_TRANSPARENT = 0x20;
 
-        // 64-bit-clean: modern ACT is a 64-bit process, so use the ...Ptr variants.
-        // (For a 32-bit host, swap to the int GetWindowLong/SetWindowLong exports.)
-        [DllImport("user32.dll", EntryPoint = "GetWindowLongPtr")]
-        private static extern IntPtr GetWindowLongPtr(IntPtr hwnd, int index);
-        [DllImport("user32.dll", EntryPoint = "SetWindowLongPtr")]
-        private static extern IntPtr SetWindowLongPtr(IntPtr hwnd, int index, IntPtr newStyle);
+        // Ex-style is a 32-bit value, so the int GetWindowLong/SetWindowLong are correct AND
+        // portable on both 32- and 64-bit Windows. Do NOT use the ...Ptr variants here: they
+        // are only needed for pointer-sized indices (GWLP_WNDPROC, etc.) and are not exported
+        // on 32-bit hosts, so they throw EntryPointNotFoundException on a 32-bit ACT.
+        // ACT's bitness is confirmed in Task 1.5.
+        [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
+        [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
 
         public TestWindow()
         {
@@ -900,8 +916,8 @@ namespace Eq2Auras.Plugin.Overlay
         private void MakeClickThrough(object sender, EventArgs e)
         {
             var hwnd = new WindowInteropHelper(this).Handle;
-            long ex = GetWindowLongPtr(hwnd, GWL_EXSTYLE).ToInt64();
-            SetWindowLongPtr(hwnd, GWL_EXSTYLE, new IntPtr(ex | WS_EX_LAYERED | WS_EX_TRANSPARENT));
+            int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
+            SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
         }
     }
 }
