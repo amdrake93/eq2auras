@@ -69,7 +69,7 @@ eq2auras/
 │           ├── TokenStore.cs                # DPAPI-protected token at rest
 │           └── SelfUpdater.cs               # GitHub release fetch → swap → reload
 ├── tests/
-│   └── eq2auras.Core.Tests/                 # net8.0, xUnit — runs on the Mac
+│   └── eq2auras.Core.Tests/                 # net10.0, xUnit — runs on the Mac
 │       ├── eq2auras.Core.Tests.csproj
 │       └── TimerSnapshotRecordTests.cs
 ├── .github/workflows/build.yml              # windows-latest, msbuild, publish prerelease
@@ -98,7 +98,7 @@ The first real Core type is the raw diagnostic record the spike emits. It record
 cd /Users/Alex/repos/eq2auras
 dotnet new sln -n eq2auras
 dotnet new classlib -n eq2auras.Core -o src/eq2auras.Core -f netstandard2.0
-dotnet new xunit -n eq2auras.Core.Tests -o tests/eq2auras.Core.Tests -f net8.0
+dotnet new xunit -n eq2auras.Core.Tests -o tests/eq2auras.Core.Tests -f net10.0
 rm src/eq2auras.Core/Class1.cs tests/eq2auras.Core.Tests/UnitTest1.cs
 dotnet sln add src/eq2auras.Core/eq2auras.Core.csproj
 dotnet sln add tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj
@@ -488,6 +488,10 @@ jobs:
         run: echo "version=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - uses: microsoft/setup-msbuild@v3
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
 
       - name: Run Core unit tests
         run: dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj -c Release
