@@ -1,0 +1,51 @@
+name: build
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write   # needed to create/update the rolling prerelease
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compute version
+        id: ver
+        shell: bash
+        run: echo "version=0.1.${{ github.run_number }}" >> "$GITHUB_OUTPUT"
+
+      - uses: microsoft/setup-msbuild@v3
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Run Core unit tests
+        run: dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj -c Release
+
+      - name: Build the plugin (MSBuild — required for WPF; plugin only — tests already ran via dotnet)
+        run: msbuild src/eq2auras.Plugin/eq2auras.Plugin.csproj -restore -p:Configuration=Release -p:Version=${{ steps.ver.outputs.version }}
+
+      - name: Stage plugin artifacts
+        shell: bash
+        run: |
+          mkdir dist
+          cp "src/eq2auras.Plugin/bin/Release/net472/eq2auras.dll" dist/
+          cp "src/eq2auras.Plugin/bin/Release/net472/eq2auras.Core.dll" dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: eq2auras-${{ steps.ver.outputs.version }}
+          path: dist/*
+
+      - name: Publish rolling prerelease
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: dev-latest
+          name: dev-latest
+          prerelease: true
+          files: dist/*
