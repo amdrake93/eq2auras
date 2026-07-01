@@ -66,9 +66,11 @@ Drawing the overlay is the hard part, and the choice drives whether the pulse/fl
 
 - **WPF layered window** *(recommended)* — a borderless `Window` with `AllowsTransparency=true` (per-pixel alpha), `Topmost=true`, and click-through added via `WS_EX_LAYERED`/`WS_EX_TRANSPARENT` on its `HwndSource`. WPF's retained-mode compositor gives smooth alpha-blended pulse/fade/scale animation essentially for free — exactly what the escalation visuals need — and it hosts fine as a standalone window launched from the WinForms ACT plugin.
 - **Transparent WinForms + GDI+** — the most common ACT-overlay precedent (Triggernometry), but `TransparencyKey` is 1-bit (no true per-pixel alpha); smooth alpha animation requires a hand-composited `UpdateLayeredWindow` bitmap — more code than WPF for a worse result.
-- **Direct2D/SharpDX or CefSharp (HTML/CSS)** — maximum control or full CSS animation respectively, but each adds a heavyweight dependency out of proportion to Phase 1.
+- **Direct2D/SharpDX or CefSharp (HTML/CSS)** — maximum control or full CSS animation respectively, but each adds a heavyweight dependency out of proportion to Phase 1 (CefSharp bundles ~100+ MB of Chromium).
 
 **Decision: WPF layered window**, validated in the spike (which opens a window anyway — it renders a pulsing test element over the game to confirm transparency, click-through, always-on-top over borderless EQ2, and animation smoothness before any real UI is built). Fall back to WinForms + `UpdateLayeredWindow` only if WPF interop inside ACT proves troublesome.
+
+**CEF/HTML is a deliberate future upgrade path, not just an alternative.** When the customization/authoring capabilities arrive (Phase 2+ — a config editor, per-element theming, import/export strings), web tech is the natural fit and the Chromium weight becomes justified. It is out of proportion for a Phase 1 timer overlay, so WPF starts; a later migration to CEF for the authoring era is anticipated, and the core's rendering-primitive boundary is meant to make that swap feasible.
 
 ### Concurrency with ACT's live data
 
