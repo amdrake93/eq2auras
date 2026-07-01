@@ -46,7 +46,7 @@
 
 ```
 eq2auras/
-├── eq2auras.sln
+├── eq2auras.slnx
 ├── ThirdParty/
 │   └── Advanced Combat Tracker.exe        # P3, committed, reference-only
 ├── src/
@@ -85,7 +85,7 @@ eq2auras/
 The first real Core type is the raw diagnostic record the spike emits. It records **raw ACT readings** (no derived state — the spike observes ACT's behaviour, it does not impose our model yet). Dependency-free so the payload stays minimal.
 
 **Files:**
-- Create: `eq2auras.sln`
+- Create: `eq2auras.slnx`
 - Create: `src/eq2auras.Core/eq2auras.Core.csproj`
 - Create: `src/eq2auras.Core/Diagnostics/Json.cs`
 - Create: `src/eq2auras.Core/Diagnostics/TimerSnapshotRecord.cs`
@@ -271,7 +271,7 @@ Expected: PASS — 2 passed.
 - [ ] **Step 7: Commit** **[MAC]**
 
 ```bash
-git add eq2auras.sln src/eq2auras.Core tests/eq2auras.Core.Tests
+git add eq2auras.slnx src/eq2auras.Core tests/eq2auras.Core.Tests
 git commit -m "Core: TimerSnapshotRecord + JSONL serializer (Mac-testable)"
 ```
 
@@ -446,12 +446,12 @@ dotnet sln add src/eq2auras.Plugin/eq2auras.Plugin.csproj
 ```bash
 dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj
 ```
-Expected: PASS — building the test project pulls in only Core, not the net472 Plugin. (Do **not** run `dotnet build eq2auras.sln` on the Mac — the WPF/net472 project cannot build here; that is CI's job.)
+Expected: PASS — building the test project pulls in only Core, not the net472 Plugin. (Do **not** run `dotnet build eq2auras.slnx` on the Mac — the WPF/net472 project cannot build here; that is CI's job.)
 
 - [ ] **Step 5: Commit** **[MAC]**
 
 ```bash
-git add src/eq2auras.Plugin eq2auras.sln
+git add src/eq2auras.Plugin eq2auras.slnx
 git commit -m "Plugin: minimal IActPluginV1 skeleton (loads, labels, teardown)"
 ```
 
