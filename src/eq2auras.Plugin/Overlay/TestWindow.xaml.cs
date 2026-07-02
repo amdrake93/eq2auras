@@ -10,7 +10,7 @@ namespace Eq2Auras.Plugin.Overlay
     public partial class TestWindow : Window
     {
         // ▼▼ RELOAD INDICATOR: change this colour + push to test live self-update ▼▼
-        private static readonly Color BuildColor = Colors.DeepSkyBlue;
+        private static readonly Color BuildColor = Colors.LimeGreen;
         // ▲▲
 
         private const int GWL_EXSTYLE = -20;
