@@ -1,0 +1,8 @@
+<Window x:Class="Eq2Auras.Plugin.Overlay.TimerListWindow"
+        xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        WindowStyle="None" AllowsTransparency="True" Background="Transparent"
+        Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
+        SizeToContent="Height" Width="260" Left="80" Top="160">
+    <StackPanel x:Name="RowsPanel" />
+</Window>

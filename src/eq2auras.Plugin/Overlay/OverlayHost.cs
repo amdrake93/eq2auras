@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Threading;
+using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Overlay
 {
@@ -8,7 +10,7 @@ namespace Eq2Auras.Plugin.Overlay
     {
         private Thread _thread;
         private Dispatcher _dispatcher;
-        private TestWindow _window;
+        private TimerListWindow _window;
 
         public void Start()
         {
@@ -16,7 +18,7 @@ namespace Eq2Auras.Plugin.Overlay
             _thread = new Thread(() =>
             {
                 _dispatcher = Dispatcher.CurrentDispatcher;
-                _window = new TestWindow();
+                _window = new TimerListWindow();
                 _window.Show();
                 ready.Set();
                 Dispatcher.Run();
@@ -27,10 +29,13 @@ namespace Eq2Auras.Plugin.Overlay
             ready.Wait(TimeSpan.FromSeconds(5));
         }
 
-        // Thread-model note: this uses a dedicated STA thread + its own Dispatcher (the spec
-        // left ACT-UI-thread vs. dedicated-STA open). If the window misbehaves over the game
-        // (topmost/focus loss), the fallback is to create it on ACT's own WinForms UI thread
-        // (already STA) via ActGlobals.oFormActMain.BeginInvoke(...). The spike settles which.
+        /// Callable from any thread (the poll runs on ACT's UI thread).
+        public void UpdateRows(List<TimerRow> rows)
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() => _window?.RenderRows(rows)));
+        }
 
         public void Dispose()
         {
