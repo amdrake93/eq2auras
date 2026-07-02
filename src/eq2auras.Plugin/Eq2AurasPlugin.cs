@@ -32,7 +32,7 @@ namespace Eq2Auras.Plugin
             _tracker = new EscalationTracker();   // touched only on ACT's UI thread (the poll)
             _probe = new TimerProbe(_log,
                 readings => _overlay.UpdateFrame(
-                    _tracker.Tick(readings, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())));
+                    _tracker.Tick(readings)));
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);

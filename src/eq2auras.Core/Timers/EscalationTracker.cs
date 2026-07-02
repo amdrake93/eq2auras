@@ -4,55 +4,41 @@ using System.Linq;
 
 namespace Eq2Auras.Core.Timers
 {
-    /// The escalation state machine. Stateful but bounded (SPEC): per-key memory of
-    /// "was escalated last tick" plus active LATE floors — nothing unbounded. Call
-    /// Tick once per poll from a single thread with a monotonic nowMs.
+    /// The escalation policy: a pure per-tick mapping from ACT's readings to display
+    /// elements. Deliberately STATELESS — every state (calm / imminent pie / overdue
+    /// LATE) derives from the data ACT reports this tick, and nothing on screen ever
+    /// outlives the data.
     public sealed class EscalationTracker
     {
         private const int CenterSlots = 3;          // future config knob
-        private const long LateFloorMs = 2000;      // minimum LATE display (measured: ACT gives <1s)
 
-        private sealed class LateEntry
-        {
-            public long CreatedMs;
-            public string Name;
-            public string Combatant;
-            public int FillArgb;
-        }
-
-        private readonly Dictionary<string, bool> _wasEscalated = new Dictionary<string, bool>();
-        private readonly Dictionary<string, LateEntry> _lates = new Dictionary<string, LateEntry>();
-
-        public OverlayFrame Tick(IReadOnlyList<TimerReading> readings, long nowMs)
+        public OverlayFrame Tick(IReadOnlyList<TimerReading> readings)
         {
             // A re-firing trigger ADDS a SpellTimer instance to the same frame — but ACT's
             // engine kills the WHOLE frame when the soonest instance expires (measured:
             // `removed` fired at tL=2 with a live second instance). So the SOONEST instance
             // per (Name|Combatant) key is the only truthful countdown — the same one ACT's
-            // native window shows. Selecting it BEFORE the live-filter means the key goes
-            // LATE honestly when the governing instance crosses zero, with no phantom
-            // leftover from newer instances.
+            // native window shows.
             var governing = readings
                 .GroupBy(KeyOf)
                 .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
                 .ToList();
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
-            var liveKeys = new HashSet<string>(live.Select(KeyOf));
 
-            CancelLatesWithLiveReadings(liveKeys);
-            CreateLatesForVanishedEscalatedKeys(readings, liveKeys, nowMs);
-            ExpireLates(nowMs);
-            RememberEscalationState(live, liveKeys);
-
-            var lates = _lates.Values
-                .OrderByDescending(l => l.CreatedMs)
-                .Select(l => new CenterElement
+            // Overdue is DATA-DRIVEN: the timer's own RemoveValue config decides whether
+            // an overdue window exists (remove-at-0 => LATE never appears; a negative
+            // remove value => ACT keeps reporting negative TimeLeft and LATE counts up
+            // for exactly that window). No artificial floor.
+            var lates = governing
+                .Where(r => r.TimeLeft <= 0)
+                .OrderBy(r => -r.TimeLeft)
+                .Select(r => new CenterElement
                 {
                     Kind = CenterElementKind.Late,
-                    Name = l.Name,
-                    Combatant = l.Combatant,
-                    LateSeconds = (int)((nowMs - l.CreatedMs) / 1000),
-                    FillArgb = l.FillArgb
+                    Name = r.Name,
+                    Combatant = r.Combatant,
+                    LateSeconds = -r.TimeLeft,
+                    FillArgb = r.FillArgb
                 })
                 .ToList();
 
@@ -80,54 +66,6 @@ namespace Eq2Auras.Core.Timers
                 ListRows = TimerListBuilder.Build(live.Except(centered)),
                 CenterElements = lates.Concat(pies).ToList()
             };
-        }
-
-        private void CancelLatesWithLiveReadings(HashSet<string> liveKeys)
-        {
-            foreach (var key in _lates.Keys.Where(liveKeys.Contains).ToList())
-            {
-                _lates.Remove(key);
-            }
-        }
-
-        private void CreateLatesForVanishedEscalatedKeys(
-            IReadOnlyList<TimerReading> readings, HashSet<string> liveKeys, long nowMs)
-        {
-            foreach (var pair in _wasEscalated.Where(p => p.Value && !liveKeys.Contains(p.Key)).ToList())
-            {
-                if (_lates.ContainsKey(pair.Key)) continue;
-
-                var lastSeen = readings.FirstOrDefault(r => KeyOf(r) == pair.Key);
-                var parts = pair.Key.Split(new[] { '|' }, 2);
-                _lates[pair.Key] = new LateEntry
-                {
-                    CreatedMs = nowMs,
-                    Name = parts[0],
-                    Combatant = parts.Length > 1 ? parts[1] : "",
-                    FillArgb = lastSeen != null ? lastSeen.FillArgb : 0
-                };
-            }
-        }
-
-        private void ExpireLates(long nowMs)
-        {
-            foreach (var key in _lates.Where(p => nowMs - p.Value.CreatedMs >= LateFloorMs)
-                                      .Select(p => p.Key).ToList())
-            {
-                _lates.Remove(key);
-            }
-        }
-
-        private void RememberEscalationState(List<TimerReading> live, HashSet<string> liveKeys)
-        {
-            foreach (var key in _wasEscalated.Keys.Where(k => !liveKeys.Contains(k)).ToList())
-            {
-                _wasEscalated.Remove(key);
-            }
-            foreach (var group in live.GroupBy(KeyOf))
-            {
-                _wasEscalated[group.Key] = group.Any(r => r.TimeLeft <= TimerMath.EffectiveWarning(r));
-            }
         }
 
         private static string KeyOf(TimerReading r) => r.Name + "|" + r.Combatant;

@@ -5,7 +5,6 @@ using Xunit;
 
 public class EscalationTrackerTests
 {
-    private const long T0 = 1_000_000;
 
     private static TimerReading Reading(string name, int timeLeft,
         int warning = 10, int total = 30, string combatant = "none")
@@ -21,7 +20,7 @@ public class EscalationTrackerTests
     [Fact]
     public void Calm_timers_stay_in_the_list_and_center_is_empty()
     {
-        var frame = new EscalationTracker().Tick(R(Reading("a", 25), Reading("b", 18)), T0);
+        var frame = new EscalationTracker().Tick(R(Reading("a", 25), Reading("b", 18)));
 
         Assert.Equal(2, frame.ListRows.Count);
         Assert.Empty(frame.CenterElements);
@@ -30,7 +29,7 @@ public class EscalationTrackerTests
     [Fact]
     public void Imminent_timer_leaves_the_list_and_becomes_a_pie()
     {
-        var frame = new EscalationTracker().Tick(R(Reading("boss", 8), Reading("calm", 25)), T0);
+        var frame = new EscalationTracker().Tick(R(Reading("boss", 8), Reading("calm", 25)));
 
         Assert.Single(frame.ListRows);
         Assert.Equal("calm", frame.ListRows[0].Name);
@@ -45,7 +44,7 @@ public class EscalationTrackerTests
     [Fact]
     public void Pie_is_full_at_the_moment_of_escalation()
     {
-        var frame = new EscalationTracker().Tick(R(Reading("boss", 10)), T0);
+        var frame = new EscalationTracker().Tick(R(Reading("boss", 10)));
 
         Assert.Equal(1.0, frame.CenterElements[0].PieFraction, 2);
     }
@@ -54,7 +53,7 @@ public class EscalationTrackerTests
     public void Overflow_imminents_wait_in_the_list_as_highlighted_rows()
     {
         var frame = new EscalationTracker().Tick(
-            R(Reading("a", 2), Reading("b", 4), Reading("c", 6), Reading("d", 8), Reading("calm", 25)), T0);
+            R(Reading("a", 2), Reading("b", 4), Reading("c", 6), Reading("d", 8), Reading("calm", 25)));
 
         Assert.Equal(3, frame.CenterElements.Count);   // cap
         Assert.Equal(new[] { "a", "b", "c" }, frame.CenterElements.Select(e => e.Name).ToArray());
@@ -64,56 +63,42 @@ public class EscalationTrackerTests
     }
 
     [Fact]
-    public void Escalated_key_that_vanishes_becomes_a_LATE_on_the_floor()
+    public void Vanished_key_shows_nothing_gone_means_gone()
     {
+        // Overdue is DATA-DRIVEN: the timer's own RemoveValue config decides whether an
+        // overdue window exists. Once ACT stops reporting the timer, we show nothing —
+        // no artificial floor outliving the data.
         var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 1)), T0);                       // escalated
-        var frame = tracker.Tick(R(), T0 + 500);                        // gone (ACT dropped it)
+        tracker.Tick(R(Reading("boss", 1)));                       // escalated
+        var frame = tracker.Tick(R());                        // ACT removed it
 
+        Assert.Empty(frame.CenterElements);
+        Assert.Empty(frame.ListRows);
+    }
+
+    [Fact]
+    public void Negative_TimeLeft_in_the_data_shows_LATE_counting_up()
+    {
+        // A timer configured to linger past zero (negative RemoveValue) keeps being
+        // reported by ACT with negative TimeLeft — LATE shows for exactly that window.
+        var frame = new EscalationTracker().Tick(R(Reading("boss", -3)));
+
+        Assert.Empty(frame.ListRows);
         var late = Assert.Single(frame.CenterElements);
         Assert.Equal(CenterElementKind.Late, late.Kind);
         Assert.Equal("boss", late.Name);
-        Assert.Equal(0, late.LateSeconds);
+        Assert.Equal(3, late.LateSeconds);                              // -TimeLeft, directly
+    }
 
-        frame = tracker.Tick(R(), T0 + 1600);                           // still on the floor
-        Assert.Equal(1, Assert.Single(frame.CenterElements).LateSeconds);
+    [Fact]
+    public void Reset_replaces_LATE_with_the_fresh_countdown()
+    {
+        var tracker = new EscalationTracker();
+        tracker.Tick(R(Reading("boss", -1)));                       // overdue in the data
+        var frame = tracker.Tick(R(Reading("boss", 30)));     // new frame after removal
 
-        frame = tracker.Tick(R(), T0 + 2600);                           // floor expired (2000ms)
         Assert.Empty(frame.CenterElements);
-    }
-
-    [Fact]
-    public void Readings_at_or_below_zero_count_as_not_live_and_trigger_LATE()
-    {
-        var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 1)), T0);
-        var frame = tracker.Tick(R(Reading("boss", -1)), T0 + 400);     // frame lingers at -1 (measured)
-
-        Assert.Empty(frame.ListRows);
-        Assert.Equal(CenterElementKind.Late, Assert.Single(frame.CenterElements).Kind);
-    }
-
-    [Fact]
-    public void Reset_supersedes_the_floor_instantly()
-    {
-        var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 1)), T0);
-        tracker.Tick(R(), T0 + 500);                                    // LATE created
-        var frame = tracker.Tick(R(Reading("boss", 30)), T0 + 900);     // ability fired -> reset
-
-        Assert.Empty(frame.CenterElements);                             // LATE cancelled
-        Assert.Equal("boss", Assert.Single(frame.ListRows).Name);       // calm row back
-    }
-
-    [Fact]
-    public void A_surviving_second_instance_suppresses_LATE()
-    {
-        var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 1), Reading("boss", 12)), T0);
-        var frame = tracker.Tick(R(Reading("boss", 12)), T0 + 500);     // first instance expired
-
-        Assert.Empty(frame.CenterElements.Where(e => e.Kind == CenterElementKind.Late));
-        Assert.Single(frame.ListRows);
+        Assert.Equal("boss", Assert.Single(frame.ListRows).Name);
     }
 
     [Fact]
@@ -124,7 +109,7 @@ public class EscalationTrackerTests
         // a live second instance). The soonest instance is therefore the only truthful
         // countdown — exactly what ACT's own window shows. Never display the newer one.
         var frame = new EscalationTracker().Tick(
-            R(Reading("boss", 5), Reading("boss", 30)), T0);
+            R(Reading("boss", 5), Reading("boss", 30)));
 
         Assert.Empty(frame.ListRows);                              // 5s governs -> escalated
         var pie = Assert.Single(frame.CenterElements);
@@ -136,8 +121,8 @@ public class EscalationTrackerTests
     public void Governing_instance_at_zero_goes_LATE_even_if_a_newer_instance_lingers()
     {
         var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 3), Reading("boss", 20)), T0);          // 3s governs
-        var frame = tracker.Tick(R(Reading("boss", -1), Reading("boss", 16)), T0 + 400);
+        tracker.Tick(R(Reading("boss", 3), Reading("boss", 20)));          // 3s governs
+        var frame = tracker.Tick(R(Reading("boss", -1), Reading("boss", 16)));
 
         Assert.Empty(frame.ListRows);                              // no phantom 16s row
         Assert.Equal(CenterElementKind.Late, Assert.Single(frame.CenterElements).Kind);
@@ -147,7 +132,7 @@ public class EscalationTrackerTests
     public void Distinct_combatants_are_not_collapsed()
     {
         var frame = new EscalationTracker().Tick(
-            R(Reading("boss", 20, combatant: "MobA"), Reading("boss", 25, combatant: "MobB")), T0);
+            R(Reading("boss", 20, combatant: "MobA"), Reading("boss", 25, combatant: "MobB")));
 
         Assert.Equal(2, frame.ListRows.Count);
     }
@@ -156,8 +141,8 @@ public class EscalationTrackerTests
     public void Calm_key_vanishing_produces_nothing()
     {
         var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 25)), T0);
-        var frame = tracker.Tick(R(), T0 + 500);
+        tracker.Tick(R(Reading("boss", 25)));
+        var frame = tracker.Tick(R());
 
         Assert.Empty(frame.CenterElements);
         Assert.Empty(frame.ListRows);
@@ -166,10 +151,9 @@ public class EscalationTrackerTests
     [Fact]
     public void LATEs_rank_ahead_of_pies_and_consume_center_slots()
     {
-        var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("dead1", 1), Reading("dead2", 1, combatant: "other")), T0);
-        var frame = tracker.Tick(
-            R(Reading("p1", 2), Reading("p2", 4), Reading("p3", 6)), T0 + 500);
+        var frame = new EscalationTracker().Tick(
+            R(Reading("dead1", -1), Reading("dead2", -2, combatant: "other"),
+              Reading("p1", 2), Reading("p2", 4), Reading("p3", 6)));
 
         Assert.Equal(3, frame.CenterElements.Count);
         Assert.Equal(2, frame.CenterElements.Count(e => e.Kind == CenterElementKind.Late));
