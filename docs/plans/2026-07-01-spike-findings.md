@@ -1,5 +1,11 @@
 # Spike Findings — ACT API reconnaissance + live behaviour
 
+> **SLICE 2 LIVE + TUNED (2026-07-01/02):** full escalation working — calm bars → center radial pie at each timer's own `WarningValue` → gone (or LATE for linger-configured timers). Tuned via **controlled testing: one custom trigger, deliberately re-fired, on an idle log** — NOT raid conditions. **Still unvalidated: raid-scale behavior** (many concurrent timers, constant log flow — where ACT's log-driven clock behaves differently than the idle-log regime these fixes were tuned in). Lessons, each live-confirmed under test conditions:
+> - **Soonest instance governs** a frame's life; re-fires add instances that die with the frame — render soonest per key (ACT-native behavior), never newest ("phantom reset" bug).
+> - **Overdue window = the timer's own `RemoveValue`** — remove-at-0 timers must show nothing past zero (ACT lags reporting removal by 1-2s; displaying that lag reads as a bug). No artificial floor.
+> - **ACT's clock is log-driven** — `TimeLeft`/`LastEstimatedTime` advance only as log lines arrive; idle it lurches. **The wall clock owns the visuals** (raw `StartTime + TimerFinalDuration` remaining); clamping smooth values to ACT's integer produces a sawtooth.
+> - **WPF rendering: retain elements, animate properties** — rebuilding visuals per tick strangles animations (pulses restart 10×/s); one linear drain-to-zero animation per element, re-targeted only past a generous drift tolerance (~0.75s), is buttery.
+
 > **FIRST FEATURE SLICE LIVE (2026-07-01, plan `first-live-timer`):** real ACT timers render as sorted, ACT-colored, draining bars in the click-through overlay — delivered via one-button self-update (single-assembly `core=E` build). Live observation: the row effectively vanishes at 0 (the ≤1s Overdue window is a blink) — visceral confirmation that slice 2's **minimum-display floor** carries the LATE UX entirely.
 
 > **PHASE 0 COMPLETE (2026-07-01).** Final demo: token saved (DPAPI) → one click of "Check for updates" → both DLLs downloaded from the private `dev-latest` release, swapped in place, plugin self-reloaded live → crimson box + `core=D`. The entire dev loop (Mac edit → CI → self-update in ACT) is one button. Remaining passives: `WarningValue` distribution gathering; scan-safety structural decision for the feature plan.
