@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
+using Eq2Auras.Core.Timers;
 using Eq2Auras.Plugin.Act;
 using Eq2Auras.Plugin.Diagnostics;
 using Eq2Auras.Plugin.Overlay;
@@ -26,9 +27,10 @@ namespace Eq2Auras.Plugin
                 ?? "unknown";
 
             _log = new JsonlLogWriter();
-            _probe = new TimerProbe(_log);
             _overlay = new OverlayHost();
             _overlay.Start();
+            _probe = new TimerProbe(_log,
+                readings => _overlay.UpdateRows(TimerListBuilder.Build(readings)));
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);
@@ -38,10 +40,10 @@ namespace Eq2Auras.Plugin
 
         public void DeInitPlugin()
         {
-            _overlay?.Dispose();
-            _overlay = null;
             _probe?.Dispose();
             _probe = null;
+            _overlay?.Dispose();
+            _overlay = null;
             _log?.Dispose();
             _log = null;
             if (_statusLabel != null) _statusLabel.Text = "eq2auras unloaded";
