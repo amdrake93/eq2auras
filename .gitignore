@@ -23,6 +23,8 @@ packages/
 # Runtime diagnostic logs produced by the plugin
 /logs/
 *.jsonl
+# ...except logs deliberately ferried in for analysis
+!spike-data/*.jsonl
 
 # OS
 .DS_Store
