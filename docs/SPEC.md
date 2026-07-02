@@ -109,7 +109,9 @@ We do **not** invent thresholds. Each timer already carries its own `WarningValu
 Escalation state is derived from each timer's live `TimeLeft` versus its `WarningValue`, evaluated every tick. A timer is in one of three states:
 
 1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
-2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. **Removed from the list** (except on overflow — see §The center escalation zone) and promoted into the **center escalation zone** as a big radial pie (escalation Model A: escalated timers leave the list and move toward center). See the pie semantics and the zone layout below. Pulses.
+2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. Presentation follows the **`EscalationStyle` knob**:
+   - **`CenterRadial` (default, the brainstorm's Model A):** the timer is **removed from the list** (except on overflow — see §The center escalation zone) and promoted into the **center escalation zone** as a big pulsing radial pie. See the pie semantics and zone layout below.
+   - **`HighlightInPlace` (Model C):** the timer **stays in the list**, escalated by its highlight outline — the same treatment overflow rows already get. The center zone stays unused for pies; overdue timers (linger-configured) render as LATE-styled rows in the list. (The original brainstorm explicitly kept both models available as configuration — this knob is that decision landing.)
 3. **Overdue** — `TimeLeft ≤ 0` *while ACT still reports the timer*. The ability is *late* — a deterministic countdown is lost. Escalated further (see Overdue visual). **The overdue window is the timer's own `RemoveValue` config** — the same inherited-not-invented principle as `WarningValue`: a timer set to remove at 0 never shows an overdue state at all; a timer set to linger (negative `RemoveValue`) keeps being reported with negative `TimeLeft`, and LATE shows for exactly that configured window. Nothing on screen ever outlives the data.
 
 **Transitions** follow `TimeLeft` directly: Calm → Imminent → Overdue as it decreases. When the ability fires, ACT resets the timer to full duration, so `TimeLeft` jumps back above `WarningValue` and the timer returns to **Calm** on the next tick. No special reset-detection is needed — a reset is simply a high `TimeLeft` reading.
@@ -147,7 +149,7 @@ Because the whole thing is one "read → diff → update" loop, tapping that loo
 
 ### Baked-in constants for Phase 1
 
-These are the values that become configuration later. Phase 1 fixes them:
+These are the values that become knobs later (promoted one at a time into `Settings` — see §Configuration). Phase 1 fixes them:
 - List anchor position, size, orientation, and sort (soonest-to-expire).
 - Bar styling (fill, font, colors derived from `FillColor`).
 - Center-pie size and position; pulse animation parameters.
@@ -156,9 +158,23 @@ These are the values that become configuration later. Phase 1 fixes them:
 - Target display & DPI: **primary monitor, system DPI** for Phase 1 (per-monitor DPI and monitor selection are later config; stated now to preempt WPF layered-window coordinate and click-through hit-testing bugs).
 - Fallback when a timer has no usable `WarningValue` (`0`, or `≥` total): escalate at a **fraction of total duration** (e.g. the last 25%), not a fixed number of seconds — a fixed default would make a short timer permanently Imminent and scales badly across timer durations. If total duration is *also* unavailable, last-resort to an **absolute threshold** (e.g. the final 10s).
 
-### Plugin configuration surface (Phase 1)
+### Configuration: the knob model
 
-ACT hands the plugin a `TabPage` in `InitPlugin(TabPage, Label)` — that tab is the home for the handful of controls Phase 1 needs: enable/disable the Timer Overlay feature, toggle diagnostic logging (and its verbosity), and the self-update controls (fine-grained token entry, "check for updates"). This is deliberately **not** the WeakAuras-style per-timer editor (deferred to the config phase) — just the toggles the plugin itself requires.
+Every tunable behavior is a **knob**: a typed value with a baked-in default, held in one plain `Settings` object in Core. The abstraction is deliberately thin — no framework, no reflection — but it is the single source of truth every later configuration phase builds on (per-timer overrides, the visual editor, import/export sharing strings all read/write the same store).
+
+- **Store:** `Settings` (Core, pure, serializable) persisted to `%APPDATA%\Advanced Combat Tracker\eq2auras\settings.json` via `DataContractJsonSerializer` (never `System.Web.Extensions` — breaks the WPF markup compiler). Missing file or missing fields → defaults, so old settings files survive new knobs (forward-compatible).
+- **Consumption:** Core policy (tracker, builder, color assignment) takes the `Settings` instance as input — keeping policy pure and Mac-testable. Renderers read display knobs the same way.
+- **Surface:** minimal WinForms controls on the plugin's ACT tab, added per knob as needs arise — alongside the existing self-update controls (token entry, "check for updates"). This is deliberately **not** the WeakAuras-style editor; that later phase edits the same `Settings`.
+- **Current knobs:** `ColorSource` — `Palette (default) | Greyscale | ActColor`; `EscalationStyle` — `CenterRadial (default) | HighlightInPlace`. Everything still listed under *Baked-in constants* is a future knob awaiting promotion into `Settings`.
+
+### Timer colors: session-stable palette assignment
+
+ACT's per-timer `FillColor` is user data that overwhelmingly sits at the default blue, so it fails as a visual identity. Default color policy (`ColorSource = Palette`):
+
+- A predefined palette of **N distinguishable, pleasant colors** (a constant list; itself a future knob).
+- Colors are assigned **per timer key, in the order keys first fire**, and an assignment is **stable for the plugin-instance lifetime** — the same trigger keeps its color across fights, wipes, and re-pulls within an ACT session. Explicitly per-ACT-instance; never synchronized across users. Past N keys the palette cycles.
+- `Greyscale` uses the same assignment mechanism over a grey ramp. `ActColor` restores the timer's own `FillColor`.
+- The slate-soften pass applies to whatever source is active.
 
 ### Explicitly out of scope for Phase 1
 
@@ -222,7 +238,7 @@ Still open (non-blocking, gathered during normal play / next phase):
 ### Roadmap (later phases, same core)
 
 1. **Timer Overlay Phase 1** — this spec.
-2. **Open the knobs** — expose the baked-in constants as per-timer / per-category configuration; a config surface (config strings first, then an in-ACT editor with live preview).
+2. **Open the knobs** — *(started, on guild feedback: the knob model with `ColorSource` and `EscalationStyle` as the first knobs — see §Configuration)* — expose the remaining baked-in constants, then per-timer / per-category overrides; a richer config surface (config strings, then an in-ACT editor with live preview) reading the same `Settings`.
 3. **Sharing** — import/export configuration strings, so overlay layouts travel the way timers do today.
 4. **Richer elements** — more display types (icon w/ cooldown swipe, plain text, alternate bar styles), an intermediate "approaching" visual tier, animations.
 5. **Hold overdue until reset** — optionally override ACT's `RemoveValue` removal so an overdue timer is *held and escalated* until the ability actually fires (a reset), for abilities a player must not lose track of. Deferred from Phase 1 (which keeps ACT's removal) because it reintroduces the cross-removal state model and a "never resets" escape hatch.
