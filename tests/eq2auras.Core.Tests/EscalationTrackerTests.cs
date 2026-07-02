@@ -117,17 +117,30 @@ public class EscalationTrackerTests
     }
 
     [Fact]
-    public void Refired_timer_replaces_its_older_instance_rather_than_duplicating()
+    public void Refire_does_not_extend_the_governing_countdown()
     {
-        // A trigger re-firing while its timer runs adds a SECOND SpellTimer instance to
-        // the same frame (measured; AbsoluteTiming off). Semantically the ability fired,
-        // so the old countdown is void: render only the newest instance per key.
+        // A re-fire adds a second SpellTimer instance, but ACT's engine kills the whole
+        // frame when the SOONEST instance expires (measured: `removed` fired at tL=2 with
+        // a live second instance). The soonest instance is therefore the only truthful
+        // countdown — exactly what ACT's own window shows. Never display the newer one.
         var frame = new EscalationTracker().Tick(
             R(Reading("boss", 5), Reading("boss", 30)), T0);
 
-        Assert.Empty(frame.CenterElements);                        // old 5s must NOT pie up
-        var row = Assert.Single(frame.ListRows);
-        Assert.Equal(30, row.TimeLeft);
+        Assert.Empty(frame.ListRows);                              // 5s governs -> escalated
+        var pie = Assert.Single(frame.CenterElements);
+        Assert.Equal(CenterElementKind.Pie, pie.Kind);
+        Assert.Equal(5, pie.SecondsLeft);                          // NOT 30
+    }
+
+    [Fact]
+    public void Governing_instance_at_zero_goes_LATE_even_if_a_newer_instance_lingers()
+    {
+        var tracker = new EscalationTracker();
+        tracker.Tick(R(Reading("boss", 3), Reading("boss", 20)), T0);          // 3s governs
+        var frame = tracker.Tick(R(Reading("boss", -1), Reading("boss", 16)), T0 + 400);
+
+        Assert.Empty(frame.ListRows);                              // no phantom 16s row
+        Assert.Equal(CenterElementKind.Late, Assert.Single(frame.CenterElements).Kind);
     }
 
     [Fact]

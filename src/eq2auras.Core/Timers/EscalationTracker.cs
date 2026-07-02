@@ -25,15 +25,18 @@ namespace Eq2Auras.Core.Timers
 
         public OverlayFrame Tick(IReadOnlyList<TimerReading> readings, long nowMs)
         {
-            // A re-firing trigger ADDS a SpellTimer instance to the same frame (measured,
-            // AbsoluteTiming off) — but semantically the ability fired and the old countdown
-            // is void. Newest instance (most time left) wins per (Name|Combatant) key; ACT's
-            // own window does the equivalent by drawing one row per frame.
-            var live = readings
-                .Where(r => r.TimeLeft > 0)
+            // A re-firing trigger ADDS a SpellTimer instance to the same frame — but ACT's
+            // engine kills the WHOLE frame when the soonest instance expires (measured:
+            // `removed` fired at tL=2 with a live second instance). So the SOONEST instance
+            // per (Name|Combatant) key is the only truthful countdown — the same one ACT's
+            // native window shows. Selecting it BEFORE the live-filter means the key goes
+            // LATE honestly when the governing instance crosses zero, with no phantom
+            // leftover from newer instances.
+            var governing = readings
                 .GroupBy(KeyOf)
-                .Select(g => g.OrderByDescending(TimerMath.PreciseOf).First())
+                .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
                 .ToList();
+            var live = governing.Where(r => r.TimeLeft > 0).ToList();
             var liveKeys = new HashSet<string>(live.Select(KeyOf));
 
             CancelLatesWithLiveReadings(liveKeys);
