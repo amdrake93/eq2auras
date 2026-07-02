@@ -1,5 +1,7 @@
 # Spike Findings — ACT API reconnaissance + live behaviour
 
+> **FIRST FEATURE SLICE LIVE (2026-07-01, plan `first-live-timer`):** real ACT timers render as sorted, ACT-colored, draining bars in the click-through overlay — delivered via one-button self-update (single-assembly `core=E` build). Live observation: the row effectively vanishes at 0 (the ≤1s Overdue window is a blink) — visceral confirmation that slice 2's **minimum-display floor** carries the LATE UX entirely.
+
 > **PHASE 0 COMPLETE (2026-07-01).** Final demo: token saved (DPAPI) → one click of "Check for updates" → both DLLs downloaded from the private `dev-latest` release, swapped in place, plugin self-reloaded live → crimson box + `core=D`. The entire dev loop (Mac edit → CI → self-update in ACT) is one button. Remaining passives: `WarningValue` distribution gathering; scan-safety structural decision for the feature plan.
 
 Running record of what we've confirmed about ACT's timer system. Sources: `[decompiled]` = read from `ThirdParty/Advanced Combat Tracker.exe` via `ilspycmd` on the Mac (Task 1.5); `[live]` = observed in a running ACT (Task 6 / Task 8) — pending.
