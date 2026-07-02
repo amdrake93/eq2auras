@@ -78,7 +78,7 @@ namespace Eq2Auras.Plugin.Overlay
             if (element.FillArgb != _fillArgb)
             {
                 _fillArgb = element.FillArgb;
-                var color = OverlayTheme.SoftTimerColor(element.FillArgb);
+                var color = OverlayTheme.FromArgbInt(element.FillArgb);   // Core resolved it
                 _ring.Stroke = new SolidColorBrush(Color.FromArgb(200, color.R, color.G, color.B));
                 _slice.Fill = new SolidColorBrush(Color.FromArgb(170, color.R, color.G, color.B));
             }

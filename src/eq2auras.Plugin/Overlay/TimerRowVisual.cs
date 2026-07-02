@@ -73,8 +73,11 @@ namespace Eq2Auras.Plugin.Overlay
         public void Update(TimerRow row)
         {
             _name.Text = row.Name;
-            // Wall-clock seconds so the text agrees with the smooth fill.
-            _time.Text = (int)Math.Max(0, Math.Ceiling(row.PreciseTimeLeft)) + "s";
+            // Wall-clock seconds so the text agrees with the smooth fill; overdue rows
+            // (HighlightInPlace mode, linger-configured timers) count up as LATE.
+            _time.Text = row.Urgency == TimerUrgency.Overdue
+                ? "LATE +" + (-row.TimeLeft) + "s"
+                : (int)Math.Max(0, Math.Ceiling(row.PreciseTimeLeft)) + "s";
 
             if (row.Urgency != _urgency)
             {
@@ -87,7 +90,7 @@ namespace Eq2Auras.Plugin.Overlay
             if (row.FillArgb != _fillArgb)
             {
                 _fillArgb = row.FillArgb;
-                var color = OverlayTheme.SoftTimerColor(row.FillArgb);
+                var color = OverlayTheme.FromArgbInt(row.FillArgb);   // Core resolved it
                 _fill.Background = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B));
             }
 

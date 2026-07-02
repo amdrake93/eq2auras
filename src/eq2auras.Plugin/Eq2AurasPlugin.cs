@@ -3,6 +3,7 @@ using System.IO;
 using System.Reflection;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
+using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Timers;
 using Eq2Auras.Plugin.Act;
 using Eq2Auras.Plugin.Diagnostics;
@@ -18,6 +19,7 @@ namespace Eq2Auras.Plugin
         private TimerProbe _probe;
         private OverlayHost _overlay;
         private EscalationTracker _tracker;
+        private Settings _settings;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
         {
@@ -29,7 +31,8 @@ namespace Eq2Auras.Plugin
             _log = new JsonlLogWriter();
             _overlay = new OverlayHost();
             _overlay.Start();
-            _tracker = new EscalationTracker();   // touched only on ACT's UI thread (the poll)
+            _settings = SettingsStore.Load();
+            _tracker = new EscalationTracker(_settings);   // touched only on ACT's UI thread (the poll)
             _probe = new TimerProbe(_log,
                 readings => _overlay.UpdateFrame(
                     _tracker.Tick(readings)));
@@ -71,9 +74,44 @@ namespace Eq2Auras.Plugin
             updateButton.Click += (s, e) =>
                 new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
 
+            // Knob controls (SPEC §Configuration) — dropdown changes apply live within a
+            // poll tick (the tracker reads the same Settings instance; controls and poll
+            // share ACT's UI thread) and persist immediately.
+            var colorLabel = new Label { Text = "Colors:", Left = 10, Top = 82, Width = 70 };
+            var colorBox = new ComboBox
+            {
+                Left = 85, Top = 78, Width = 150,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            colorBox.Items.AddRange(new object[] { "Palette", "Greyscale", "ACT colors" });
+            colorBox.SelectedIndex = (int)_settings.ColorSource;
+            colorBox.SelectedIndexChanged += (s, e) =>
+            {
+                _settings.ColorSource = (ColorSource)colorBox.SelectedIndex;
+                SettingsStore.Save(_settings);
+            };
+
+            var styleLabel = new Label { Text = "Escalation:", Left = 10, Top = 112, Width = 70 };
+            var styleBox = new ComboBox
+            {
+                Left = 85, Top = 108, Width = 150,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            styleBox.Items.AddRange(new object[] { "Center radial", "Highlight in place" });
+            styleBox.SelectedIndex = (int)_settings.EscalationStyle;
+            styleBox.SelectedIndexChanged += (s, e) =>
+            {
+                _settings.EscalationStyle = (EscalationStyle)styleBox.SelectedIndex;
+                SettingsStore.Save(_settings);
+            };
+
             tab.Controls.Add(tokenBox);
             tab.Controls.Add(saveTokenButton);
             tab.Controls.Add(updateButton);
+            tab.Controls.Add(colorLabel);
+            tab.Controls.Add(colorBox);
+            tab.Controls.Add(styleLabel);
+            tab.Controls.Add(styleBox);
         }
 
         private void SetStatusThreadSafe(string message)

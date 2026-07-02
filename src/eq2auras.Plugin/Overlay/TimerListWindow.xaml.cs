@@ -23,7 +23,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         // TEMPORARY feedback aid: shows the candidate palette as labeled boxes under the
         // list so the guild can judge the colors live, in context. Flip off after verdict.
-        private const bool ShowPalettePreview = true;
+        private const bool ShowPalettePreview = false;   // palette now visible on real timers
 
         public TimerListWindow()
         {
