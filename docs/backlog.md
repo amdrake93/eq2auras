@@ -28,13 +28,8 @@ Some users prefer the escalating timer to **stay in the calm list with the highl
 - Calm countdown text visibility fix (was accent-dark-on-dark).
 - **Spark**: bright timer-colored leading edge (45% toward white, 3px) riding the bar drain. Tuning levers if revisited: width, white-blend %, glow.
 
-### NEXT UP — drag-to-move + persisted positions
-Move the overlay windows (list, center zone) by dragging, and save positions to `Settings` (per-window Left/Top knobs). Design note to resolve: the windows are **click-through by design**, so moving needs an explicit **unlock/move mode** (e.g. a "Move overlay" toggle on the tab that disables `WS_EX_TRANSPARENT`, shows drag handles/outlines, then re-locks) — the WeakAuras unlock-frames pattern.
-
-### Dual panels (ACT Panel A / Panel B) — two calm lists; escalation convergence needs a brainstorm
-ACT timers route to two panels (per-timer config in the triggers window), and players use them semantically: **Panel A = fight/boss timers, Panel B = personal cooldowns & buff durations** (gameplay-decision timers). Request: maintain **two calm lists**, one per panel — then *decide* how they converge on escalation.
-- **Data hooks (from the decompile):** `TimerData.Panel1Display` / `Panel2Display` (booleans — carry per reading); `FormSpellTimers.AllowPanel2`; `GetTimerFrames(int PanelNum)`. ~~Panel-0 latent-bug worry~~ **cleared: live-tested 2026-07-02, Panel B timers DO show via the no-arg poll.**
-- **Alex's stated direction (pre-brainstorm seed):** don't converge them — **Panel A and Panel B become two independent instances of the same configurable list**: each with its own position, own knobs (incl. own `EscalationStyle`), user-arranged. Generalizes the overlay toward "N configurable timer groups" (very WeakAuras). Folds into drag-to-move + persisted-positions work (two windows = two positions).
+### NEXT UP — timer groups (dual panels) + drag-to-move — SPEC'D 2026-07-02, plan pending
+Brainstormed as one combined design; the spec now holds it (SPEC §Timer groups, §Moving the overlay, §Configuration). Shape: N-ready groups model — `OverlayEngine` in Core builds one tracker per `PanelSettings` entry and routes by source; two groups ship, fed by ACT's `Panel1Display`/`Panel2Display` booleans (mirror ACT: both → both, neither → nowhere; `AllowPanel2` ignored). Full duplication per group — own list window, own center zone, own knobs, own dragged/persisted positions; the only global is the name→slot color map. Unlock/move mode = tab checkbox → move chrome + `DragMove`, save on drag-end + re-lock. Escalation convergence question resolved: no convergence — per-group center zones (full duplication was the explicit direction).
 
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.

@@ -2,7 +2,7 @@
 
 **A personal ACT overlay suite for EverQuest 2.** This document is the source of truth for what eq2auras is and how it works. It is organized as: the suite vision and architecture (Part I), then the Phase 1 feature — the Timer Overlay — in full (Part II), then cross-cutting concerns, unknowns, and the roadmap (Part III).
 
-Status: **pre-implementation design.** No code exists yet. Present-tense descriptions below describe the intended system; anything not yet built is scoped to a phase.
+Status: **live and iterating.** The timer overlay is shipped and guild-verified through slice 3 (escalation, knob model, palette colors). Present-tense descriptions below describe the system as designed; anything not yet built is scoped to a phase or the roadmap.
 
 ---
 
@@ -58,9 +58,21 @@ Phase 1 ships the **general engine with a single baked-in preset** (constants), 
 
 Everything is one loop, run on a **poll/state tick** (target ~15–30 fps):
 
-> **read timer data → derive each timer's state → update the view model (and emit diagnostics)**
+> **read timer data → route to timer groups → derive each timer's state per group → update the view model (and emit diagnostics)**
 
 Each tick reads `ActGlobals.oFormSpellTimers.GetTimerFrames()` (a `List<TimerFrame>`) for a smooth live countdown. The tick updates *state*, not pixels — WPF animates at display refresh off that state — so this is a poll/state rate, not a manual draw rate. ACT's lifecycle events (`OnSpellTimerNotify` / `Warning` / `Expire` / `Removed`, each handing us the whole `TimerFrame`) are available and may be used for precise transition moments, but polling covers Phase 1.
+
+### Timer groups: N instances of one pipeline
+
+The overlay is organized as **timer groups**. A group is a complete, independent instance of the escalation pipeline described in this Part — its own calm list window, its own center escalation zone, its own knobs (`ColorSource`, `EscalationStyle`), and its own persisted window positions (§Moving the overlay). Everything below described in the singular ("the list", "the center zone") applies per group.
+
+Each group has a **source**: a rule selecting which ACT timers feed it. The shipped configuration is **exactly two groups**, wired to the only routing data ACT exposes — the per-timer panel booleans (`TimerData.Panel1Display` / `Panel2Display`, set per timer in ACT's triggers window): **Panel A** (timers flagged for ACT panel 1) and **Panel B** (panel 2). In guild practice the panels carry semantics: A = fight/boss timers, B = personal cooldowns and buff durations.
+
+Routing mirrors ACT exactly: a timer appears in every group whose source matches — flagged for both panels → both groups; flagged for neither → shown nowhere. `FormSpellTimers.AllowPanel2` is ignored: it governs ACT's native window, not ours. (Measured 2026-07-02: the no-arg `GetTimerFrames()` poll reports panel-2 timers, so routing needs only the per-reading booleans.)
+
+In code, Core's `OverlayEngine` owns the whole multi-group policy: it builds one `EscalationTracker` per configured group (`Settings.Panels`), routes each tick's readings by source, and returns one frame per group. The plugin stays instantiator and data supplier — it reads ACT into readings and hosts a window pair per group. Group add/remove UI and richer sources (category, name match) are roadmap — the WeakAuras "N configurable groups" north star; growing there changes only the routing predicate, not the group model's shape.
+
+The one deliberately global piece across groups is **color identity** — a single name→slot palette map (§Timer colors), so an ability keeps one color everywhere it appears, while each group still applies its own `ColorSource`.
 
 ### Rendering technology
 
@@ -95,6 +107,7 @@ From each `TimerFrame` and its `TimerData` definition + live `SpellTimer` instan
 | `FillColor` | `TimerData.FillColor` | Element color (the only color ACT exposes) |
 | `Category` | `TimerData.Category` | Grouping (future) |
 | `RadialDisplay` | `TimerData` / `TimerFrame` | ACT's bar-vs-radial preference |
+| `Panel1Display` / `Panel2Display` | `TimerData` | Group routing (§Timer groups) |
 
 ACT exposes **no per-timer icon/image**, **no `CategoryData` object** (category is a bare string), and **no separate warning color** (only the threshold + an optional warning sound). Icons and per-category theming are therefore owned by eq2auras in later phases, not inherited.
 
@@ -141,7 +154,7 @@ Lateness is `−TimeLeft`, read directly from ACT's (measured: unclamped, negati
 
 ### The center escalation zone
 
-Model A moves escalated timers out of the list and toward center — but in a real raid several timers routinely cross their `WarningValue` in the same window, so this is the normal case, not an edge case, and the arrangement is a **Phase 1 design decision**, not a deferred one. All escalated elements — Imminent pies **and** Overdue LATE alerts — share one **center escalation zone**, arranged **most-urgent first** (Overdue ahead of Imminent, then soonest-to-expire). Provisional layout (a Phase 1 constant): a vertical stack anchored near screen-center, growing outward, capped at a small count. Overflow imminent timers (lowest priority) have already left the list conceptually, but with no center slot free they **wait as escalated/highlighted rows in the side list** — visually promoted, not yet centered — and move into the zone in most-urgent-first order as slots free. This keeps "one thing screaming" in the common single-escalation case while degrading sanely when several fire together, and it resolves where Overdue alerts sit relative to Imminent pies (same zone, ranked first). **Confirmed for Phase 1: a vertical stack** — chosen to get the state handling built; the arrangement is a swappable constant we can revisit later (horizontal row, one-big-plus-smaller, etc.).
+Model A moves escalated timers out of the list and toward center — but in a real raid several timers routinely cross their `WarningValue` in the same window, so this is the normal case, not an edge case, and the arrangement is a **Phase 1 design decision**, not a deferred one. All escalated elements — Imminent pies **and** Overdue LATE alerts — share one **center escalation zone**, arranged **most-urgent first** (Overdue ahead of Imminent, then soonest-to-expire). Provisional layout (a Phase 1 constant): a vertical stack anchored near screen-center, growing outward, capped at a small count. Overflow imminent timers (lowest priority) have already left the list conceptually, but with no center slot free they **wait as escalated/highlighted rows in the side list** — visually promoted, not yet centered — and move into the zone in most-urgent-first order as slots free. This keeps "one thing screaming" in the common single-escalation case while degrading sanely when several fire together, and it resolves where Overdue alerts sit relative to Imminent pies (same zone, ranked first). **Confirmed for Phase 1: a vertical stack** — chosen to get the state handling built; the arrangement is a swappable constant we can revisit later (horizontal row, one-big-plus-smaller, etc.). Each timer group has its own center zone (§Timer groups): escalated timers converge within their group, never across groups.
 
 ### Diagnostic logging (first-class Phase 1 feature)
 
@@ -150,9 +163,9 @@ Because the whole thing is one "read → diff → update" loop, tapping that loo
 ### Baked-in constants for Phase 1
 
 These are the values that become knobs later (promoted one at a time into `Settings` — see §Configuration). Phase 1 fixes them:
-- List anchor position, size, orientation, and sort (soonest-to-expire).
+- List size, orientation, and sort (soonest-to-expire) — window *positions* are Settings knobs now (§Moving the overlay).
 - Bar styling (fill, font, colors derived from `FillColor`).
-- Center-pie size and position; pulse animation parameters.
+- Center-pie size; pulse animation parameters.
 - Overdue visual (count-up styling, flash).
 - Poll/state tick rate.
 - Target display & DPI: **primary monitor, system DPI** for Phase 1 (per-monitor DPI and monitor selection are later config; stated now to preempt WPF layered-window coordinate and click-through hit-testing bugs).
@@ -163,9 +176,20 @@ These are the values that become knobs later (promoted one at a time into `Setti
 Every tunable behavior is a **knob**: a typed value with a baked-in default, held in one plain `Settings` object in Core. The abstraction is deliberately thin — no framework, no reflection — but it is the single source of truth every later configuration phase builds on (per-timer overrides, the visual editor, import/export sharing strings all read/write the same store).
 
 - **Store:** `Settings` (Core, pure, serializable) persisted to `%APPDATA%\Advanced Combat Tracker\eq2auras\settings.json` via `DataContractJsonSerializer` (never `System.Web.Extensions` — breaks the WPF markup compiler). Missing file or missing fields → defaults, so old settings files survive new knobs (forward-compatible).
-- **Consumption:** Core policy (tracker, builder, color assignment) takes the `Settings` instance as input — keeping policy pure and Mac-testable. Renderers read display knobs the same way.
+- **Per-group settings:** `Settings.Panels` holds one `PanelSettings` per timer group — the group's knobs plus its four window-position values (list Left/Top, center-zone Left/Top). Positions are **nullable**: DCJS materializes missing numeric fields as `0` (a real screen corner), so `null` — never zero — means "unset, use the default layout". `Parse` normalizes the list to exactly the shipped two groups. **Legacy migration runs both directions:** an old flat file seeds Panel A from its top-level knobs; on save, the top-level knobs are written mirroring Panel A, so an older build reading a newer file stays sensible.
+- **Consumption:** Core policy (engine, tracker, builder, color assignment) takes the `Settings`/`PanelSettings` instance as input — keeping policy pure and Mac-testable. Renderers read display knobs the same way.
 - **Surface:** minimal WinForms controls on the plugin's ACT tab, added per knob as needs arise — alongside the existing self-update controls (token entry, "check for updates"). This is deliberately **not** the WeakAuras-style editor; that later phase edits the same `Settings`.
-- **Current knobs:** `ColorSource` — `Palette (default) | Greyscale | ActColor`; `EscalationStyle` — `CenterRadial (default) | HighlightInPlace`. Everything still listed under *Baked-in constants* is a future knob awaiting promotion into `Settings`.
+- **Current knobs (per group):** `ColorSource` — `Palette (default) | Greyscale | ActColor`; `EscalationStyle` — `CenterRadial (default) | HighlightInPlace`; the four window positions (set by dragging — §Moving the overlay). Everything still listed under *Baked-in constants* is a future knob awaiting promotion into `Settings`.
+
+### Moving the overlay: unlock/move mode
+
+The overlay windows are click-through by design, so repositioning needs an explicit mode — the WeakAuras "unlock frames" pattern. A **"Move overlay windows" checkbox on the plugin tab** unlocks every overlay window at once:
+
+- **Unlocked:** each window clears `WS_EX_TRANSPARENT` and shows move chrome — a dashed outline, a translucent fill, and a label chip naming the window ("Panel A — list", "Panel B — escalation"). The chrome is also the hit-test surface: a transparent WPF window is mouse-invisible even without the click-through style, and the fill gives empty windows (a quiet list, an idle center zone) a visible, grabbable footprint. Dragging anywhere on the window moves it (`DragMove`).
+- **Positions persist** into the group's `PanelSettings` on every drag-end and again on re-lock, so a crash while unlocked loses nothing. (Drag-end saves run on the overlay's STA thread while tab-knob saves run on ACT's UI thread — `SettingsStore.Save` serializes writers.)
+- **Locked (default):** chrome hidden, click-through restored.
+
+Positions are WPF device-independent units on the primary monitor (per the Phase 1 DPI stance). A null stored position means "use the built-in default layout": Panel A's windows where they have always been, Panel B's beside/below them, non-overlapping.
 
 ### Timer colors: session-stable palette assignment
 
@@ -173,13 +197,13 @@ ACT's per-timer `FillColor` is user data that overwhelmingly sits at the default
 
 - A predefined palette of **5 distinguishable, pleasant colors** (a constant list in `OverlayTheme.Palette`, guild-approved; itself a future knob).
 - **Color is keyed by normalized timer NAME — and nothing else.** The color's job is to identify *the ability as players think of it*, and the name is its stable proxy: the same ability cast by different boss variants (different `Combatant`s) or under zone-categorized trigger sets keeps one color. Keying by `(Name, Combatant)` or by category would recolor the same ability across boss versions/zones — exactly the confusion this feature exists to prevent. (If a user names zone-variant triggers differently, they get different colors — that's their expressed intent, fixable by renaming.)
-- Assignment is **first-fired order**: the first time a name fires in the session it takes the next palette slot, and keeps it for the **plugin-instance lifetime** — stable across wipes, re-pulls, and boss versions. Consistency is a *repeated-attempts* feature; a plugin reload (i.e. taking an update) resetting the map is accepted (one-shot kills never needed consistency). Past 5 names the palette cycles. Explicitly per-ACT-instance; never synchronized across users.
+- Assignment is **first-fired order**: the first time a name fires in the session it takes the next palette slot, and keeps it for the **plugin-instance lifetime** — stable across wipes, re-pulls, and boss versions. Consistency is a *repeated-attempts* feature; a plugin reload (i.e. taking an update) resetting the map is accepted (one-shot kills never needed consistency). Past 5 names the palette cycles. Explicitly per-ACT-instance; never synchronized across users. The map is also **global across timer groups** — one map per plugin instance, so a dual-flagged timer keeps one color in both panels (each group still applies its own `ColorSource` to the shared slot).
 - **Display identity is unchanged** — rows/dedupe still key on `(Name, Combatant)`; two mobs casting the same ability get two rows that *share* the ability's color, which is correct under this model.
 - `Greyscale` uses the same assignment mechanism over a grey ramp. `ActColor` restores the timer's own `FillColor` (with the slate-soften pass). Palette/greyscale colors are designed and render as-is.
 
 ### Explicitly out of scope for Phase 1
 
-The configuration editor; per-timer / per-category customization; import/export sharing strings; element types beyond bar + radial; game icons/art; reading the combat log directly; multiple layout groups; the Parse Meter module. All are later phases on the same core.
+The configuration editor; per-timer / per-category customization; import/export sharing strings; element types beyond bar + radial; game icons/art; reading the combat log directly; group add/remove UI and non-panel routing sources (two ACT-panel-fed groups ship — §Timer groups); the Parse Meter module. All are later phases on the same core.
 
 ---
 
@@ -239,7 +263,7 @@ Still open (non-blocking, gathered during normal play / next phase):
 ### Roadmap (later phases, same core)
 
 1. **Timer Overlay Phase 1** — this spec.
-2. **Open the knobs** — *(started, on guild feedback: the knob model with `ColorSource` and `EscalationStyle` as the first knobs — see §Configuration)* — expose the remaining baked-in constants, then per-timer / per-category overrides; a richer config surface (config strings, then an in-ACT editor with live preview) reading the same `Settings`.
+2. **Open the knobs** — *(started, on guild feedback: the knob model with `ColorSource` and `EscalationStyle` as the first knobs, now per-group with dragged window positions — see §Configuration, §Timer groups)* — expose the remaining baked-in constants, then per-timer / per-category overrides; a richer config surface (config strings, then an in-ACT editor with live preview) reading the same `Settings`; **group management** — add/remove timer groups and richer sources (category, name match) beyond the two ACT-panel-fed groups.
 3. **Sharing** — import/export configuration strings, so overlay layouts travel the way timers do today.
 4. **Richer elements** — more display types (icon w/ cooldown swipe, plain text, alternate bar styles), an intermediate "approaching" visual tier, animations.
 5. **Hold overdue until reset** — optionally override ACT's `RemoveValue` removal so an overdue timer is *held and escalated* until the ability actually fires (a reset), for abilities a player must not lose track of. Deferred from Phase 1 (which keeps ACT's removal) because it reintroduces the cross-removal state model and a "never resets" escape hatch.
