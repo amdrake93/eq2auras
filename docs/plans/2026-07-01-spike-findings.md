@@ -42,8 +42,9 @@ Still pending:
   - **`timeLeft` goes negative** — `30→…→0→−1` confirms the decompiled `duration − elapsed` (no clamp).
   - **`warning` fires at `tL=10`** (= `warningValue`), **`expire` at `tL=0`**.
   - **Reset observed** — `timeLeft` jumped back to `30` on re-fire (ability fired again). Reset = jump toward `total`.
-- [ ] **`RemoveValue=-15` decay NOT cleanly observed** — reached only `−1` before a re-trigger interrupted; `removed` events fired at `tL=2/1` (muddied by overlap). Needs a single timer left to fully expire untouched (~20s).
-- [ ] **`WarningValue` distribution** — only one timer type observed; needs more variety.
+- [x] **Removal timing measured — and it CONTRADICTS the `-15` expectation.** Three clean untouched lifecycles, all identical: `30/notify → … → 10/warning → … → 0/expire → −1 → removed`. **The frame vanishes ~1s after zero, not ~15s** — `TimerData.RemoveValue = -15` does not govern frame lifetime for a standard trigger timer. The `removed` event fires with an already-empty `SpellTimers` list (`timeLeft=null`). **Design consequence: the Overdue state gets ~1s of ACT data; the spec's minimum-display floor is the entire mechanism carrying the LATE alert, not a polish item.**
+- [x] **Logging is real-time** — poll cadence median 109 ms (min 95 / max 124) vs the 100 ms target, measured from record `ts` deltas across 853 polls.
+- [ ] **`WarningValue` distribution** — only one timer type observed; needs more variety. Non-blocking; gather passively during normal play.
 
 ### Design inputs for the NEXT (feature) plan — surfaced by two near-simultaneous triggers of the same timer
 - **Identity key `(Name, Combatant)` is insufficient when `combatant="none"`** (timer not tied to a caster/target) — two concurrent instances become indistinguishable. The real overlay needs a per-instance key.

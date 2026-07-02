@@ -108,7 +108,7 @@ Escalation state is derived from each timer's live `TimeLeft` versus its `Warnin
 
 1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
 2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. **Removed from the list** (except on overflow — see §The center escalation zone) and promoted into the **center escalation zone** as a big radial pie (escalation Model A: escalated timers leave the list and move toward center). See the pie semantics and the zone layout below. Pulses.
-3. **Overdue** — `TimeLeft ≤ 0`. The ability is *late* — a deterministic countdown is lost, the scariest state. Escalated further (see Overdue visual). It remains **only as long as ACT keeps the frame**; when ACT removes it at `RemoveValue` (its normal behavior), it disappears. **Phase 1 does not override ACT's removal** — the overdue element behaves as ACT does today, just louder.
+3. **Overdue** — `TimeLeft ≤ 0`. The ability is *late* — a deterministic countdown is lost, the scariest state. Escalated further (see Overdue visual). It remains **only as long as ACT keeps the frame** — and the spike measured that to be **~1 second past zero** for a standard trigger timer (not the documented `RemoveValue = -15`). **Phase 1 does not override ACT's removal** — the LATE alert's on-screen life beyond that ~1s is carried entirely by the minimum-display floor (below).
 
 **Transitions** follow `TimeLeft` directly: Calm → Imminent → Overdue as it decreases. When the ability fires, ACT resets the timer to full duration, so `TimeLeft` jumps back above `WarningValue` and the timer returns to **Calm** on the next tick. No special reset-detection is needed — a reset is simply a high `TimeLeft` reading.
 
@@ -129,11 +129,11 @@ A 90s timer with a 10s warning escalates at 10s-left and gives a full, fast-drai
 
 ### The Overdue visual
 
-A count-*up* pie would be odd — the pie represents the draining *warning window*, which is meaningless once time is negative — so Overdue **drops the pie** and instead shows a **pulsing, escalated alert with a "LATE" tag and a count-up of how late it is** (e.g. `LATE +5s`): red, fast pulse, strong emphasis (candidate: screen-edge flash). It conveys that timing is lost and how overdue the ability now is, and it disappears when ACT removes the frame at `RemoveValue`. Exact styling is a tunable Phase 1 constant.
+A count-*up* pie would be odd — the pie represents the draining *warning window*, which is meaningless once time is negative — so Overdue **drops the pie** and instead shows a **pulsing, escalated alert with a "LATE" tag and a count-up of how late it is** (e.g. `LATE +5s`): red, fast pulse, strong emphasis (candidate: screen-edge flash). It conveys that timing is lost and how overdue the ability now is; ACT itself drops the frame ~1s after zero (measured), after which the floor governs. Exact styling is a tunable Phase 1 constant.
 
 Lateness is `−TimeLeft` when ACT reports negative `TimeLeft`; otherwise it is measured from the tick the timer first crossed zero. The spike settles which.
 
-**Minimum-display floor.** Because Phase 1 respects ACT's removal, the loudest state is also potentially the shortest-lived — if `RemoveValue` is small, the LATE alert could flash and vanish before it registers. Mitigation (a Phase 1 constant): once shown, the LATE alert is guaranteed a **minimum on-screen duration** (e.g. ≥ 2s) even if ACT drops the frame sooner — a bounded fade-out, *not* the deferred hold-until-reset (a fixed floor, not an unbounded hold). This is the one deliberate, bounded exception to the stateless-mirror model. The count-up **freezes** at its last value during the fade — ACT has dropped the frame, so there is no live data to keep counting from. **A reset supersedes the floor:** if the ability re-fires (a fresh frame for the same `(Name, Combatant)`) while a LATE alert is in its fade, the reset cancels the fade immediately and the timer returns to Calm — a Calm row and a stale LATE alert for the same key never coexist.
+**Minimum-display floor.** Because Phase 1 respects ACT's removal, the loudest state is also the shortest-lived — **measured: ACT drops the frame ~1 second after zero**, so without a floor the LATE alert would flash and vanish before it registers. Mitigation (a Phase 1 constant): once shown, the LATE alert is guaranteed a **minimum on-screen duration** (e.g. ≥ 2s) even if ACT drops the frame sooner — a bounded fade-out, *not* the deferred hold-until-reset (a fixed floor, not an unbounded hold). This is the one deliberate, bounded exception to the stateless-mirror model. The count-up **freezes** at its last value during the fade — ACT has dropped the frame, so there is no live data to keep counting from. **A reset supersedes the floor:** if the ability re-fires (a fresh frame for the same `(Name, Combatant)`) while a LATE alert is in its fade, the reset cancels the fade immediately and the timer returns to Calm — a Calm row and a stale LATE alert for the same key never coexist.
 
 ### The center escalation zone
 
@@ -201,17 +201,21 @@ Development happens on **macOS** (with Claude); ACT and EQ2 run on a **separate 
 - **Synthetic timers for desk development.** We drive test timers without being in a raid — via ACT manual triggers and/or `FormSpellTimers.NotifySpell` — so the overlay can be developed and tuned at the desk.
 - Standard unit tests for the state model / transition logic (pure functions over sequences of `(TimeLeft, WarningValue)` readings).
 
-### Unverified items to confirm against a live ACT build
+### Resolved by the Phase-0 spike (measured, 2026-07-01 — details in `docs/plans/2026-07-01-spike-findings.md`)
 
-Flagged by API research as documented-but-unconfirmed; the spike resolves them:
-- Exact runtime type of `SpellTimer.TimeLeft` (doc says "seconds"; confirm `double` vs `int`).
-- Whether ACT exposes a distinct warning **color** or hardcodes the warning tint (only the threshold + sound are in the API).
-- `RemoveValue` semantics precisely (counts from `0`? from `-RemoveValue`? when does `OnSpellTimerRemoved` fire?).
-- Contents/keys of `SpellTimer.ExtraInfo` (where captured regex groups / per-target labels live).
-- Whether ACT locks the loaded plugin DLL on disk while running (can the updater overwrite it at all), **and — decisively — whether re-enabling the plugin loads the new bytes or re-runs the stale in-memory assembly** (does ACT `Assembly.Load(byte[])` / re-read the file at enable-time?). Inferred from .NET Framework semantics, not documented; selects live-self-update vs. loader-plugin vs. restart-prompt.
-- Whether an un-merged dependent DLL (`Core.dll`) blocks reload — the sole premise behind ILRepack; if it doesn't, ship two files and drop the merge. Plus whether ILRepack of netstandard2.0 into a .NET Framework WPF assembly is viable at all (CI bring-up).
+- **`SpellTimer.TimeLeft` is `int`** (whole seconds), `duration − elapsed`, **no clamp — goes negative after expiry** (observed `… 1 → 0 → −1`). Overdue lateness = `−TimeLeft` directly.
+- **Removal timing — measured, and it contradicts the documented `-15`:** a standard trigger timer's frame vanishes **~1 second after zero** (three clean lifecycles: `expire` at `tL=0`, `removed` ~1s later with an already-empty `SpellTimers` list). `TimerData.RemoveValue = -15` does not govern frame lifetime here. **Consequence: the Overdue state receives ~1s of ACT data — the minimum-display floor is the mechanism that carries the LATE alert, not a polish item.**
+- **Events fire exactly as modeled**: `warning` at `tL = WarningValue`, `expire` at `tL = 0`; a **reset** appears as `TimeLeft` jumping back to full.
+- **Reload requires an ACT restart.** ACT keeps the plugin assembly resident by identity ("duplicate plugin found… restart ACT"); toggling Enabled does not load new bytes. **Self-update = download-then-prompt-restart.** The ILRepack question is moot (no hot-swap path to preserve); **two DLLs + an `AppDomain.AssemblyResolve` handler** is the shipping shape — ACT does not probe the Plugins folder for a plugin's *dependencies* (it loads the plugin from bytes), so the plugin registers a resolver as its first act.
+- **WPF confirmed live over the game**: transparent, top-most, click-through, storyboard-animated, on a **dedicated STA thread + Dispatcher** — inside ACT's WinForms process. SDK-style `net472` + `UseWPF` builds in CI (no legacy csproj needed). One CI landmine: `System.Web.Extensions` breaks the WPF markup compiler — the self-updater must parse JSON without it.
+- **Diagnostic logging is real-time**: ~109 ms measured poll cadence; JSONL is BOM-less UTF-8.
 
-The design tolerates whatever the spike finds because eq2auras owns its own (small, bounded) state; the findings only tune the Overdue measurement, the identity key, and the snapshot/threading approach — not the overall model.
+Still open (non-blocking, gathered during normal play / next phase):
+- `SpellTimer.ExtraInfo` contents (per-instance identity for the feature plan — see below).
+- `WarningValue` distribution across the team's real timer set (one timer type sampled so far).
+- Whether ACT exposes a distinct warning color (irrelevant to us — we never inherit it).
+
+**Feature-plan inputs surfaced by live data:** timers not bound to a caster report `Combatant = "none"`, so the provisional `(Name, Combatant)` key cannot distinguish two concurrent instances of the same timer; and concurrent instances share **one `TimerFrame`** whose `SpellTimers` is a list — the overlay must render **all** instances in the list, not `[0]`.
 
 ### Roadmap (later phases, same core)
 
