@@ -39,4 +39,5 @@ Still pending:
 - [ ] **Click-through** — do clicks pass through the box to what's behind it?
 - [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns.
 - [ ] Does `TimeLeft` go negative live; exact `TimeLeft` at frame drop (`RemoveValue` moment); reset shape; `WarningValue` distribution (Task 6, from the JSONL).
-- [ ] Does re-enabling run NEW bytes (reload verdict, Task 8); does an un-merged `Core.dll` block reload (ILRepack premise, Task 8).
+- [x] **Reload verdict (Task 8) — RESTART REQUIRED.** On trying to re-add an updated plugin, ACT reported *"duplicate plugin found, file already loaded into memory, restart ACT."* ACT keeps the plugin assembly resident by identity; neither re-adding nor (by the same reasoning) toggling Enabled swaps in new bytes. **A new build requires a full ACT restart to load.** ⇒ **Task 9 self-update = download-then-prompt-restart, NOT live hot-swap** (matches the predicted WPF outcome). The two-DLL vs ILRepack "blocks reload" question is moot for hot-reload (there is none); AssemblyResolve handles the dependency at load time, so two DLLs is fine.
+- [ ] Confirm the green build actually loads after a restart (verifies both the resolver fix and the restart-to-update path).
