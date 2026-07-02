@@ -1,4 +1,6 @@
+using System;
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
 using Eq2Auras.Plugin.Act;
@@ -31,7 +33,20 @@ namespace Eq2Auras.Plugin
             _overlay.Start();
 
             pluginScreenSpace.Text = "eq2auras";
-            _statusLabel.Text = "eq2auras v" + version + " loaded — logging to " + _log.FilePath;
+            _statusLabel.Text = "eq2auras v" + version + " | core=" + ReadCoreMarkerSafe()
+                + " | logging to " + _log.FilePath;
+        }
+
+        // Reload-probe tracer: if a live reload serves a stale cached Core, the new
+        // CoreBuildInfo member won't exist there and the JIT throws when this method
+        // is compiled — NoInlining keeps that failure catchable at the call site.
+        [MethodImpl(MethodImplOptions.NoInlining)]
+        private static string ReadCoreMarker() => Eq2Auras.Core.CoreBuildInfo.Marker;
+
+        private static string ReadCoreMarkerSafe()
+        {
+            try { return ReadCoreMarker(); }
+            catch (Exception) { return "STALE"; }
         }
 
         public void DeInitPlugin()
