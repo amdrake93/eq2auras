@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Reflection;
 using Advanced_Combat_Tracker;
@@ -32,11 +33,25 @@ namespace Eq2Auras.Plugin
             AppDomain.CurrentDomain.AssemblyResolve -= Resolve;
         }
 
+        private static readonly Dictionary<string, Assembly> _loaded = new Dictionary<string, Assembly>();
+
         private static Assembly Resolve(object sender, ResolveEventArgs args)
         {
             var simpleName = new AssemblyName(args.Name).Name;
-            var candidate = Path.Combine(_pluginDir, simpleName + ".dll");
-            return File.Exists(candidate) ? Assembly.LoadFrom(candidate) : null;
+            lock (_loaded)
+            {
+                if (_loaded.TryGetValue(simpleName, out var cached)) return cached;
+
+                var candidate = Path.Combine(_pluginDir, simpleName + ".dll");
+                if (!File.Exists(candidate)) return null;
+
+                // Byte-load, never LoadFrom: LoadFrom keeps the file LOCKED for the process
+                // lifetime (blocking live updates of the dependency) and path-caches (serving
+                // a stale assembly across reloads). Byte arrays also carry no mark-of-the-web.
+                var asm = Assembly.Load(File.ReadAllBytes(candidate));
+                _loaded[simpleName] = asm;
+                return asm;
+            }
         }
     }
 }
