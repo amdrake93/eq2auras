@@ -17,8 +17,8 @@ namespace Eq2Auras.Plugin.Overlay
 
         private static readonly Color CalmBackground = Color.FromArgb(150, 18, 24, 34);
         private static readonly Color CalmBorder = Color.FromArgb(200, 51, 64, 79);
-        private static readonly Color ImminentBorder = Color.FromArgb(255, 229, 181, 58);
-        private static readonly Color OverdueBorder = Color.FromArgb(255, 255, 77, 77);
+        private static readonly Color ImminentBorder = Colors.Gold;
+        private static readonly Color OverdueBorder = Colors.Crimson;
 
         private const int GWL_EXSTYLE = -20;
         private const int WS_EX_LAYERED = 0x80000;
@@ -52,7 +52,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private static UIElement BuildRow(TimerRow row)
         {
-            var timerColor = ColorFromArgb(row.FillArgb);
+            var timerColor = Soften(ColorFromArgb(row.FillArgb));
 
             var border = new Border
             {
@@ -119,5 +119,18 @@ namespace Eq2Auras.Plugin.Overlay
         private static Color ColorFromArgb(int argb) => Color.FromArgb(
             (byte)((argb >> 24) & 0xFF), (byte)((argb >> 16) & 0xFF),
             (byte)((argb >> 8) & 0xFF), (byte)(argb & 0xFF));
+
+        /// ACT timer colors are user data and default to maximum-saturation primaries
+        /// (pure #0000FF blue) — blend 35% toward slate so the fill reads pleasant
+        /// while keeping the timer's hue recognizable. A future config knob.
+        private static Color Soften(Color c)
+        {
+            const double keep = 0.65;
+            const byte slateR = 110, slateG = 118, slateB = 130;
+            return Color.FromArgb(255,
+                (byte)(c.R * keep + slateR * (1 - keep)),
+                (byte)(c.G * keep + slateG * (1 - keep)),
+                (byte)(c.B * keep + slateB * (1 - keep)));
+        }
     }
 }

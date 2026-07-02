@@ -28,13 +28,26 @@ public class TimerListBuilderTests
     [InlineData(11, TimerUrgency.Calm)]
     [InlineData(10, TimerUrgency.Imminent)]   // at WarningValue -> warning state
     [InlineData(1, TimerUrgency.Imminent)]
-    [InlineData(0, TimerUrgency.Overdue)]     // measured: expire fires at 0
-    [InlineData(-3, TimerUrgency.Overdue)]    // measured: TimeLeft goes negative
     public void Urgency_pivots_on_the_timers_own_WarningValue(int timeLeft, TimerUrgency expected)
     {
         var rows = TimerListBuilder.Build(new List<TimerReading> { Reading("t", timeLeft, warning: 10, total: 30) });
 
         Assert.Equal(expected, rows[0].Urgency);
+    }
+
+    [Fact]
+    public void Rows_at_or_past_zero_are_excluded()
+    {
+        // ACT drops the frame <1s after zero (measured), so a data-driven LATE state is
+        // a sub-second flicker — noise. Overdue presentation returns deliberately with
+        // the slice-2 minimum-display floor; until then, zero means gone.
+        var rows = TimerListBuilder.Build(new List<TimerReading>
+        {
+            Reading("expired", 0), Reading("overdue", -3), Reading("live", 5)
+        });
+
+        Assert.Single(rows);
+        Assert.Equal("live", rows[0].Name);
     }
 
     [Theory]
@@ -54,7 +67,6 @@ public class TimerListBuilderTests
 
     [Theory]
     [InlineData(15, 30, 0.5)]
-    [InlineData(-3, 30, 0.0)]   // overdue clamps empty
     [InlineData(45, 30, 1.0)]   // >total clamps full
     [InlineData(10, 0, 0.0)]    // unusable total -> empty fill, no divide-by-zero
     public void FillFraction_is_timeLeft_over_total_clamped(int timeLeft, int total, double expected)

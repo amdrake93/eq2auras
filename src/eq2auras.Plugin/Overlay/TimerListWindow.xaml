@@ -3,6 +3,6 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
-        SizeToContent="Height" Width="260" Left="80" Top="160">
+        SizeToContent="Height" Width="260" Left="160" Top="320">
     <StackPanel x:Name="RowsPanel" />
 </Window>

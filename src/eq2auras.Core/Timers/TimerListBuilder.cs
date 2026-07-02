@@ -14,7 +14,11 @@ namespace Eq2Auras.Core.Timers
 
         public static List<TimerRow> Build(IEnumerable<TimerReading> readings)
         {
+            // TimeLeft <= 0 is excluded: ACT drops the frame <1s after zero (measured),
+            // so a data-driven LATE state is a sub-second flicker. Overdue presentation
+            // returns deliberately with the slice-2 minimum-display floor.
             return readings
+                .Where(r => r.TimeLeft > 0)
                 .Select(ToRow)
                 .OrderBy(r => r.TimeLeft)
                 .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
