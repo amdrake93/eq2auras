@@ -11,6 +11,7 @@ namespace Eq2Auras.Core.Timers
         public string Name { get; set; }
         public string Combatant { get; set; }
         public int SecondsLeft { get; set; }      // Pie: seconds remaining
+        public double PreciseSecondsLeft { get; set; } // Pie: sub-second, drives the smooth drain
         public double PieFraction { get; set; }   // Pie: remaining share of the warning window
         public int LateSeconds { get; set; }      // Late: seconds since it went overdue
         public int FillArgb { get; set; }

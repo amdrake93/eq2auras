@@ -77,6 +77,18 @@ public class TimerListBuilderTests
     }
 
     [Fact]
+    public void Rows_carry_precise_time_and_total_for_smooth_rendering()
+    {
+        var reading = Reading("t", 15);
+        reading.RawPreciseTimeLeft = 15.5;
+
+        var row = TimerListBuilder.Build(new List<TimerReading> { reading })[0];
+
+        Assert.Equal(15.5, row.PreciseTimeLeft, 3);
+        Assert.Equal(30, row.TotalSeconds);
+    }
+
+    [Fact]
     public void Multiple_instances_of_the_same_timer_each_get_a_row()
     {
         var rows = TimerListBuilder.Build(new List<TimerReading>

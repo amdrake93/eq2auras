@@ -67,6 +67,7 @@ namespace Eq2Auras.Core.Timers
                 Name = r.Name,
                 Combatant = r.Combatant,
                 SecondsLeft = r.TimeLeft,
+                PreciseSecondsLeft = TimerMath.PreciseOf(r),
                 PieFraction = Math.Min(1.0, TimerMath.PreciseOf(r) / TimerMath.EffectiveWarning(r)),
                 FillArgb = r.FillArgb
             });

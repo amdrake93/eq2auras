@@ -29,6 +29,8 @@ namespace Eq2Auras.Core.Timers
                 Name = reading.Name,
                 Combatant = reading.Combatant,
                 TimeLeft = reading.TimeLeft,
+                PreciseTimeLeft = TimerMath.PreciseOf(reading),
+                TotalSeconds = reading.TotalSeconds,
                 FillFraction = FillFraction(reading),
                 FillArgb = reading.FillArgb,
                 Urgency = UrgencyOf(reading)

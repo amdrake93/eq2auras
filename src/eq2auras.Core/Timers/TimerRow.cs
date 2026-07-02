@@ -8,6 +8,8 @@ namespace Eq2Auras.Core.Timers
         public string Name { get; set; }
         public string Combatant { get; set; }
         public int TimeLeft { get; set; }
+        public double PreciseTimeLeft { get; set; } // sub-second, drives the smooth drain animation
+        public int TotalSeconds { get; set; }
         public double FillFraction { get; set; }  // 0..1 share of total duration remaining
         public int FillArgb { get; set; }
         public TimerUrgency Urgency { get; set; }

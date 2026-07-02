@@ -39,6 +39,7 @@ public class EscalationTrackerTests
         Assert.Equal("boss", pie.Name);
         Assert.Equal(8, pie.SecondsLeft);
         Assert.Equal(0.8, pie.PieFraction, 2);   // 8s left of a 10s warning window
+        Assert.Equal(8.0, pie.PreciseSecondsLeft, 2);  // drives the smooth drain animation
     }
 
     [Fact]

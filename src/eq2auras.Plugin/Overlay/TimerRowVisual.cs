@@ -1,0 +1,103 @@
+using System;
+using System.Windows;
+using System.Windows.Controls;
+using System.Windows.Media;
+using System.Windows.Media.Animation;
+using Eq2Auras.Core.Timers;
+
+namespace Eq2Auras.Plugin.Overlay
+{
+    /// One retained list row. Created once per timer and UPDATED across ticks — never
+    /// rebuilt — so WPF animations (the smooth fill drain) survive and run at display
+    /// refresh. The poll only re-targets the animation when reality drifts (reset,
+    /// clock skew), detected by comparing the animated width with the expected one.
+    internal sealed class TimerRowVisual
+    {
+        private const double RowHeight = 26;
+        private const double RowWidth = 250;
+        private const double DriftTolerancePx = 12;   // ~5% of the row
+
+        private readonly Border _root;
+        private readonly Border _fill;
+        private readonly TextBlock _name;
+        private readonly TextBlock _time;
+        private int _fillArgb = int.MinValue;
+        private TimerUrgency _urgency = (TimerUrgency)(-1);
+
+        public UIElement Root => _root;
+
+        public TimerRowVisual()
+        {
+            _fill = new Border
+            {
+                HorizontalAlignment = HorizontalAlignment.Left,
+                CornerRadius = new CornerRadius(3)
+            };
+            _name = new TextBlock
+            {
+                Foreground = new SolidColorBrush(OverlayTheme.Text),
+                FontSize = 13,
+                Margin = new Thickness(8, 0, 0, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            _time = new TextBlock
+            {
+                FontSize = 13,
+                FontWeight = FontWeights.SemiBold,
+                Margin = new Thickness(0, 0, 8, 0),
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+
+            var grid = new Grid();
+            grid.Children.Add(_fill);
+            grid.Children.Add(_name);
+            grid.Children.Add(_time);
+
+            _root = new Border
+            {
+                Width = RowWidth,
+                Height = RowHeight,
+                Margin = new Thickness(0, 0, 0, 4),
+                CornerRadius = new CornerRadius(4),
+                Background = new SolidColorBrush(OverlayTheme.CalmBackground),
+                BorderThickness = new Thickness(1),
+                ClipToBounds = true,
+                Child = grid
+            };
+        }
+
+        public void Update(TimerRow row)
+        {
+            _name.Text = row.Name;
+            _time.Text = row.TimeLeft + "s";
+
+            if (row.Urgency != _urgency)
+            {
+                _urgency = row.Urgency;
+                var accent = OverlayTheme.AccentFor(row.Urgency);
+                _root.BorderBrush = new SolidColorBrush(accent);
+                _time.Foreground = new SolidColorBrush(accent);
+            }
+
+            if (row.FillArgb != _fillArgb)
+            {
+                _fillArgb = row.FillArgb;
+                var color = OverlayTheme.SoftTimerColor(row.FillArgb);
+                _fill.Background = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B));
+            }
+
+            double desired = row.TotalSeconds > 0
+                ? Math.Max(0, Math.Min(1, row.PreciseTimeLeft / row.TotalSeconds)) * (RowWidth - 2)
+                : 0;
+            double current = _fill.Width;   // reflects the animated value
+            if (double.IsNaN(current) || Math.Abs(current - desired) > DriftTolerancePx)
+            {
+                var drain = new DoubleAnimation(desired, 0,
+                    TimeSpan.FromSeconds(Math.Max(0.05, row.PreciseTimeLeft)));
+                _fill.BeginAnimation(FrameworkElement.WidthProperty, drain);
+            }
+        }
+    }
+}
