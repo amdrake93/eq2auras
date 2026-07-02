@@ -18,9 +18,11 @@
       <SpecificVersion>False</SpecificVersion>
       <Private>False</Private>
     </Reference>
-    <!-- Task 9 (self-updater) adds its own references for HTTP/JSON/DPAPI. They are
-         deliberately NOT here: System.Web.Extensions drags in System.Web, which breaks
-         the WPF XAML markup compiler's assembly resolution (seen in CI run 28545971312). -->
+    <!-- Self-updater deps. NEVER add System.Web.Extensions here: it drags in System.Web,
+         which breaks the WPF XAML markup compiler (CI run 28545971312) — JSON parsing
+         uses DataContractJsonSerializer in Core instead. -->
+    <Reference Include="System.Net.Http" />
+    <Reference Include="System.Security" />
   </ItemGroup>
 
   <ItemGroup>
