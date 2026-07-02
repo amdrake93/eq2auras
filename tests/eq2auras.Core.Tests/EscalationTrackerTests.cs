@@ -116,6 +116,29 @@ public class EscalationTrackerTests
     }
 
     [Fact]
+    public void Refired_timer_replaces_its_older_instance_rather_than_duplicating()
+    {
+        // A trigger re-firing while its timer runs adds a SECOND SpellTimer instance to
+        // the same frame (measured; AbsoluteTiming off). Semantically the ability fired,
+        // so the old countdown is void: render only the newest instance per key.
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 5), Reading("boss", 30)), T0);
+
+        Assert.Empty(frame.CenterElements);                        // old 5s must NOT pie up
+        var row = Assert.Single(frame.ListRows);
+        Assert.Equal(30, row.TimeLeft);
+    }
+
+    [Fact]
+    public void Distinct_combatants_are_not_collapsed()
+    {
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 20, combatant: "MobA"), Reading("boss", 25, combatant: "MobB")), T0);
+
+        Assert.Equal(2, frame.ListRows.Count);
+    }
+
+    [Fact]
     public void Calm_key_vanishing_produces_nothing()
     {
         var tracker = new EscalationTracker();
