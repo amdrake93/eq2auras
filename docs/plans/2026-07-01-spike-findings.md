@@ -36,8 +36,8 @@ Confirmed live in ACT:
   - **Bonus for Task 8:** ACT loading plugins from bytes is the exact precondition under which the overwrite-file + toggle-`cbEnabled` reload can run *new* bytes. Encouraging sign for live self-update, still to be confirmed.
 
 Still pending:
-- [ ] **Click-through** — do clicks pass through the box to what's behind it?
-- [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns.
+- [x] **Click-through confirmed** — clicks pass through the box to the game behind it (WS_EX_LAYERED|WS_EX_TRANSPARENT works).
+- [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns. (Implicitly exercised during testing; confirm explicitly.)
 - [ ] Does `TimeLeft` go negative live; exact `TimeLeft` at frame drop (`RemoveValue` moment); reset shape; `WarningValue` distribution (Task 6, from the JSONL).
 - [x] **Reload verdict (Task 8) — RESTART REQUIRED.** On trying to re-add an updated plugin, ACT reported *"duplicate plugin found, file already loaded into memory, restart ACT."* ACT keeps the plugin assembly resident by identity; neither re-adding nor (by the same reasoning) toggling Enabled swaps in new bytes. **A new build requires a full ACT restart to load.** ⇒ **Task 9 self-update = download-then-prompt-restart, NOT live hot-swap** (matches the predicted WPF outcome). The two-DLL vs ILRepack "blocks reload" question is moot for hot-reload (there is none); AssemblyResolve handles the dependency at load time, so two DLLs is fine.
 - [x] **Green build loads after ACT restart** (confirms the restart-to-update path) and **a timer counting down no longer throws** — the `AssemblyResolve` fix is verified live. Dependency-resolution bug closed.
