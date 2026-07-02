@@ -7,6 +7,19 @@ namespace Eq2Auras.Plugin.Overlay
     /// Phase-1 constants (future config knobs).
     internal static class OverlayTheme
     {
+        /// Session-stable timer palette (SPEC §Timer colors): 5 distinguishable, pleasant
+        /// hues — blue/orange anchor pair for colorblind separation, then teal/pink/violet
+        /// split by lightness. Deliberately avoids Gold (imminent accent) and Crimson
+        /// (overdue accent) territory. Rendered as-is (no soften — these are designed).
+        public static readonly Color[] Palette =
+        {
+            Color.FromRgb(0x56, 0xB4, 0xE9), // sky
+            Color.FromRgb(0xE6, 0x9F, 0x00), // amber
+            Color.FromRgb(0x00, 0x9E, 0x73), // teal
+            Color.FromRgb(0xCC, 0x79, 0xA7), // orchid
+            Color.FromRgb(0x9A, 0x77, 0xCF), // violet
+        };
+
         public static readonly Color CalmBackground = Color.FromArgb(150, 18, 24, 34);
         public static readonly Color CalmBorder = Color.FromArgb(200, 51, 64, 79);
         public static readonly Color ImminentAccent = Colors.Gold;

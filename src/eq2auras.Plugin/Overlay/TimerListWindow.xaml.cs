@@ -21,10 +21,40 @@ namespace Eq2Auras.Plugin.Overlay
         // drain animations run continuously at display refresh.
         private readonly Dictionary<string, TimerRowVisual> _rows = new Dictionary<string, TimerRowVisual>();
 
+        // TEMPORARY feedback aid: shows the candidate palette as labeled boxes under the
+        // list so the guild can judge the colors live, in context. Flip off after verdict.
+        private const bool ShowPalettePreview = true;
+
         public TimerListWindow()
         {
             InitializeComponent();
             SourceInitialized += MakeClickThrough;
+            if (ShowPalettePreview) BuildPalettePreview();
+        }
+
+        private void BuildPalettePreview()
+        {
+            for (int i = 0; i < OverlayTheme.Palette.Length; i++)
+            {
+                var swatch = new System.Windows.Controls.Border
+                {
+                    Width = 44,
+                    Height = 30,
+                    Margin = new Thickness(0, 0, 6, 0),
+                    CornerRadius = new CornerRadius(4),
+                    Background = new System.Windows.Media.SolidColorBrush(OverlayTheme.Palette[i]),
+                    Child = new System.Windows.Controls.TextBlock
+                    {
+                        Text = (i + 1).ToString(),
+                        FontSize = 12,
+                        FontWeight = FontWeights.Bold,
+                        Foreground = System.Windows.Media.Brushes.Black,
+                        HorizontalAlignment = HorizontalAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center
+                    }
+                };
+                PreviewPanel.Children.Add(swatch);
+            }
         }
 
         private void MakeClickThrough(object sender, EventArgs e)
