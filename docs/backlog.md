@@ -31,6 +31,11 @@ Some users prefer the escalating timer to **stay in the calm list with the highl
 ### NEXT UP — drag-to-move + persisted positions
 Move the overlay windows (list, center zone) by dragging, and save positions to `Settings` (per-window Left/Top knobs). Design note to resolve: the windows are **click-through by design**, so moving needs an explicit **unlock/move mode** (e.g. a "Move overlay" toggle on the tab that disables `WS_EX_TRANSPARENT`, shows drag handles/outlines, then re-locks) — the WeakAuras unlock-frames pattern.
 
+### Dual panels (ACT Panel A / Panel B) — two calm lists; escalation convergence needs a brainstorm
+ACT timers route to two panels (per-timer config in the triggers window), and players use them semantically: **Panel A = fight/boss timers, Panel B = personal cooldowns & buff durations** (gameplay-decision timers). Request: maintain **two calm lists**, one per panel — then *decide* how they converge on escalation.
+- **Data hooks (from the decompile):** `TimerData.Panel1Display` / `Panel2Display` (booleans — carry per reading); `FormSpellTimers.AllowPanel2`; and `GetTimerFrames(int PanelNum)` — **the no-arg `GetTimerFrames()` we poll is `GetTimerFrames(0)`. ⚠ Verify whether panel-0 means "all" or "Panel A only" — if the latter, Panel-B-only timers are invisible in the overlay TODAY (latent bug; check the decompile / test live).**
+- **Escalation-convergence options for the brainstorm:** (a) one shared center zone, most-urgent-first across both panels; (b) **per-panel `EscalationStyle`** — e.g. Panel A escalates to the center radial while Panel B highlights in place (the semantics almost demand this pairing, and the knob model extends naturally to per-panel knobs); (c) Panel B never escalates. Also: two list windows = two positions → folds into the drag-to-move + persisted-positions work.
+
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.
 - Phase-1 odds: feature enable/disable + diagnostics toggle on the tab; diagnostic log size/age rotation.
