@@ -16,8 +16,8 @@ namespace Eq2Auras.Plugin.Overlay
             Color.FromRgb(0x56, 0xB4, 0xE9), // sky
             Color.FromRgb(0xE6, 0x9F, 0x00), // amber
             Color.FromRgb(0x00, 0x9E, 0x73), // teal
-            Color.FromRgb(0xCC, 0x79, 0xA7), // orchid
-            Color.FromRgb(0x9A, 0x77, 0xCF), // violet
+            Color.FromRgb(0xE3, 0x7D, 0xA4), // rose
+            Color.FromRgb(0x5E, 0x6B, 0xD8), // indigo
         };
 
         public static readonly Color CalmBackground = Color.FromArgb(150, 18, 24, 34);
