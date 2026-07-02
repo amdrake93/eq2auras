@@ -33,7 +33,10 @@ namespace Eq2Auras.Plugin.Overlay
             _fill = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
-                CornerRadius = new CornerRadius(3)
+                CornerRadius = new CornerRadius(3),
+                // The spark: a bright right-edge border riding the animated fill width —
+                // marks the moving edge of the countdown. Width is a future knob.
+                BorderThickness = new Thickness(0, 0, 3, 0)
             };
             _name = new TextBlock
             {
@@ -96,6 +99,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _fillArgb = row.FillArgb;
                 var color = OverlayTheme.FromArgbInt(row.FillArgb);   // Core resolved it
                 _fill.Background = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B));
+                _fill.BorderBrush = new SolidColorBrush(OverlayTheme.Spark(color));
             }
 
             if (row.TotalSeconds <= 0) return;

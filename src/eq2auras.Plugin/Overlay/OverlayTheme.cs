@@ -44,5 +44,16 @@ namespace Eq2Auras.Plugin.Overlay
 
         // Note: no soften here — Core's ColorPolicy resolves final display colors
         // (soften applies only to ActColor mode, inside Core). Renderers paint as-is.
+
+        /// Spark: the bright leading-edge color for a draining fill — the timer's own
+        /// color pushed toward white so the moving edge pops against the translucent fill.
+        public static Color Spark(Color c)
+        {
+            const double keep = 0.55;
+            return Color.FromArgb(255,
+                (byte)(c.R * keep + 255 * (1 - keep)),
+                (byte)(c.G * keep + 255 * (1 - keep)),
+                (byte)(c.B * keep + 255 * (1 - keep)));
+        }
     }
 }
