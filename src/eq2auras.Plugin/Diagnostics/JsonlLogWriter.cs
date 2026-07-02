@@ -23,7 +23,8 @@ namespace Eq2Auras.Plugin.Diagnostics
             Directory.CreateDirectory(dir);
             FilePath = Path.Combine(dir, "spike-" + DateTime.Now.ToString("yyyyMMdd-HHmmss") + ".jsonl");
             _writer = new StreamWriter(
-                new FileStream(FilePath, FileMode.Create, FileAccess.Write, FileShare.Read), Encoding.UTF8)
+                new FileStream(FilePath, FileMode.Create, FileAccess.Write, FileShare.Read),
+                new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)) // no BOM — keeps JSONL clean
             {
                 AutoFlush = true
             };

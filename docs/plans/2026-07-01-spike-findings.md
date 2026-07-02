@@ -38,6 +38,18 @@ Confirmed live in ACT:
 Still pending:
 - [x] **Click-through confirmed** — clicks pass through the box to the game behind it (WS_EX_LAYERED|WS_EX_TRANSPARENT works).
 - [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns. (Implicitly exercised during testing; confirm explicitly.)
-- [ ] Does `TimeLeft` go negative live; exact `TimeLeft` at frame drop (`RemoveValue` moment); reset shape; `WarningValue` distribution (Task 6, from the JSONL).
+- [x] **Live timer data captured** (`spike-20260701-192959.jsonl`, timer `Holy Shield` warn=10 total=30):
+  - **`timeLeft` goes negative** — `30→…→0→−1` confirms the decompiled `duration − elapsed` (no clamp).
+  - **`warning` fires at `tL=10`** (= `warningValue`), **`expire` at `tL=0`**.
+  - **Reset observed** — `timeLeft` jumped back to `30` on re-fire (ability fired again). Reset = jump toward `total`.
+- [ ] **`RemoveValue=-15` decay NOT cleanly observed** — reached only `−1` before a re-trigger interrupted; `removed` events fired at `tL=2/1` (muddied by overlap). Needs a single timer left to fully expire untouched (~20s).
+- [ ] **`WarningValue` distribution** — only one timer type observed; needs more variety.
+
+### Design inputs for the NEXT (feature) plan — surfaced by two near-simultaneous triggers of the same timer
+- **Identity key `(Name, Combatant)` is insufficient when `combatant="none"`** (timer not tied to a caster/target) — two concurrent instances become indistinguishable. The real overlay needs a per-instance key.
+- **Concurrent instances share ONE `TimerFrame`** — `TimerFrame.SpellTimers` is a `List`; the probe logs only `[0]`, losing the others (seen as `8→7→8` flicker and odd `removed tL=2/1`). The overlay must iterate all `SpellTimers`, not just `[0]`.
+
+### Minor bug fixed
+- Log had a **UTF-8 BOM** (`StreamWriter(..., Encoding.UTF8)`) → JSONL parse needed `utf-8-sig`. Fixed to `new UTF8Encoding(false)` (BOM-less).
 - [x] **Reload verdict (Task 8) — RESTART REQUIRED.** On trying to re-add an updated plugin, ACT reported *"duplicate plugin found, file already loaded into memory, restart ACT."* ACT keeps the plugin assembly resident by identity; neither re-adding nor (by the same reasoning) toggling Enabled swaps in new bytes. **A new build requires a full ACT restart to load.** ⇒ **Task 9 self-update = download-then-prompt-restart, NOT live hot-swap** (matches the predicted WPF outcome). The two-DLL vs ILRepack "blocks reload" question is moot for hot-reload (there is none); AssemblyResolve handles the dependency at load time, so two DLLs is fine.
 - [x] **Green build loads after ACT restart** (confirms the restart-to-update path) and **a timer counting down no longer throws** — the `AssemblyResolve` fix is verified live. Dependency-resolution bug closed.
