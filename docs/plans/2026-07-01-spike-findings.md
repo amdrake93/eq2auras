@@ -25,12 +25,15 @@ All member names/types the plan's `TimerProbe` assumes are confirmed (only `Time
 - **`System.Web.Extensions` breaks the WPF XAML markup compiler** (run `28545971312`): it drags in `System.Web`, which the markup compiler's metadata assembly-resolver can't resolve → `Could not find assembly 'System.Web…'`. **Consequence for Task 9:** the self-updater must **not** use `System.Web.Extensions`/`JavaScriptSerializer` for JSON. Parse the GitHub API response another way (e.g. `DataContractJsonSerializer` from `System.Runtime.Serialization`, or minimal hand-parsing) — anything that avoids pulling `System.Web` into a project that also does WPF markup compilation.
 - `dotnet test` of the net10.0 Core tests runs green on `windows-latest` too (via `actions/setup-dotnet@v4` `10.0.x`).
 
-## Live behaviour (Task 6 / Task 8) — PENDING
+## Live behaviour (Task 4 / 6 / 7 / 8)
 
-- [ ] Does `TimeLeft` reported via `GetTimerFrames()` actually go negative live (confirming the decompiled formula)?
-- [ ] Exact `TimeLeft` value when a frame drops from `GetTimerFrames()` (the `RemoveValue` moment).
-- [ ] What a reset (ability fired) looks like — `TimeLeft` jumping back to full.
-- [ ] Distribution of `WarningValue` across the team's real timer set.
-- [ ] Does re-enabling the plugin run NEW bytes (reload verdict, Task 8)?
-- [ ] Does an un-merged `Core.dll` block reload (ILRepack premise, Task 8)?
-- [ ] WPF transparency/click-through/animation over the game; dedicated-STA thread model OK (Task 7).
+Confirmed live in ACT:
+- [x] **Plugin loads** (`eq2auras.dll` Browse-added) and `InitPlugin` runs fully — log dir + logger + probe + overlay all initialize. `Core.dll` (netstandard2.0) loads in ACT's .NET Framework host **without** a facade/binding-redirect problem — the netstandard worry is retired.
+- [x] **WPF renders inside ACT**: transparent layered window on a dedicated STA thread + Dispatcher, with storyboard animation (pulsing box), live. Dedicated-STA thread model works — no ACT-UI-thread fallback needed.
+- [x] Root cause of the earlier "core threw an error": `eq2auras.Core.dll` was Browse-added as a plugin (it's a dependency, not an `IActPluginV1`). Add only `eq2auras.dll`.
+
+Still pending:
+- [ ] **Click-through** — do clicks pass through the box to what's behind it?
+- [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns.
+- [ ] Does `TimeLeft` go negative live; exact `TimeLeft` at frame drop (`RemoveValue` moment); reset shape; `WarningValue` distribution (Task 6, from the JSONL).
+- [ ] Does re-enabling run NEW bytes (reload verdict, Task 8); does an un-merged `Core.dll` block reload (ILRepack premise, Task 8).
