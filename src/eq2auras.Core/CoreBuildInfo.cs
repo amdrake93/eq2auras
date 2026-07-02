@@ -5,6 +5,6 @@ namespace Eq2Auras.Core
     /// and the plugin's guarded read reports it. Bump the letter per reload test.
     public static class CoreBuildInfo
     {
-        public static string Marker => "B";
+        public static string Marker => "C";
     }
 }
