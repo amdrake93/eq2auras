@@ -57,7 +57,7 @@ ACT's plugin scan (`Assembly.GetTypes()`, to find `IActPluginV1`) runs **before 
 
 ### Design inputs for the NEXT (feature) plan — surfaced by two near-simultaneous triggers of the same timer
 - **Identity key `(Name, Combatant)` is insufficient when `combatant="none"`** (timer not tied to a caster/target) — two concurrent instances become indistinguishable. The real overlay needs a per-instance key.
-- **Concurrent instances share ONE `TimerFrame`** — `TimerFrame.SpellTimers` is a `List`; the probe logs only `[0]`, losing the others (seen as `8→7→8` flicker and odd `removed tL=2/1`). The overlay must iterate all `SpellTimers`, not just `[0]`.
+- **Concurrent instances share ONE `TimerFrame`** — `TimerFrame.SpellTimers` is a `List`. **Live-confirmed engine semantics (slice 2): the SOONEST-expiring instance governs the frame's life** — ACT kills the whole frame when it expires, even with a later instance still counting (the `removed tL=2/1` events were exactly this). Re-triggers add instances that never outlive the frame. Consequence: the overlay renders **one countdown per key: the soonest instance** (same as ACT's native window). A newest-wins policy was tried and produced phantom countdowns that vanished mid-count when the real (soonest) instance expired.
 
 ### Minor bug fixed
 - Log had a **UTF-8 BOM** (`StreamWriter(..., Encoding.UTF8)`) → JSONL parse needed `utf-8-sig`. Fixed to `new UTF8Encoding(false)` (BOM-less).
