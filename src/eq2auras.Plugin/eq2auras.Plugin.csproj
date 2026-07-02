@@ -26,7 +26,12 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\eq2auras.Core\eq2auras.Core.csproj" />
+    <!-- Shared-source Core (see SPEC Packaging): compiled INTO this assembly so ACT's
+         pre-InitPlugin type scan can always resolve every field type. Never reference
+         Core.dll and never add non-GAC assemblies whose types end up in fields. -->
+    <Compile Include="..\eq2auras.Core\**\*.cs"
+             Exclude="..\eq2auras.Core\obj\**;..\eq2auras.Core\bin\**"
+             LinkBase="CoreShared" />
   </ItemGroup>
 
 </Project>
