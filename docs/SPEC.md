@@ -171,10 +171,11 @@ Every tunable behavior is a **knob**: a typed value with a baked-in default, hel
 
 ACT's per-timer `FillColor` is user data that overwhelmingly sits at the default blue, so it fails as a visual identity. Default color policy (`ColorSource = Palette`):
 
-- A predefined palette of **N distinguishable, pleasant colors** (a constant list; itself a future knob).
-- Colors are assigned **per timer key, in the order keys first fire**, and an assignment is **stable for the plugin-instance lifetime** — the same trigger keeps its color across fights, wipes, and re-pulls within an ACT session. Explicitly per-ACT-instance; never synchronized across users. Past N keys the palette cycles.
-- `Greyscale` uses the same assignment mechanism over a grey ramp. `ActColor` restores the timer's own `FillColor`.
-- The slate-soften pass applies to whatever source is active.
+- A predefined palette of **5 distinguishable, pleasant colors** (a constant list in `OverlayTheme.Palette`, guild-approved; itself a future knob).
+- **Color is keyed by normalized timer NAME — and nothing else.** The color's job is to identify *the ability as players think of it*, and the name is its stable proxy: the same ability cast by different boss variants (different `Combatant`s) or under zone-categorized trigger sets keeps one color. Keying by `(Name, Combatant)` or by category would recolor the same ability across boss versions/zones — exactly the confusion this feature exists to prevent. (If a user names zone-variant triggers differently, they get different colors — that's their expressed intent, fixable by renaming.)
+- Assignment is **first-fired order**: the first time a name fires in the session it takes the next palette slot, and keeps it for the **plugin-instance lifetime** — stable across wipes, re-pulls, and boss versions. Consistency is a *repeated-attempts* feature; a plugin reload (i.e. taking an update) resetting the map is accepted (one-shot kills never needed consistency). Past 5 names the palette cycles. Explicitly per-ACT-instance; never synchronized across users.
+- **Display identity is unchanged** — rows/dedupe still key on `(Name, Combatant)`; two mobs casting the same ability get two rows that *share* the ability's color, which is correct under this model.
+- `Greyscale` uses the same assignment mechanism over a grey ramp. `ActColor` restores the timer's own `FillColor` (with the slate-soften pass). Palette/greyscale colors are designed and render as-is.
 
 ### Explicitly out of scope for Phase 1
 
