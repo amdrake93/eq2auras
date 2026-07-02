@@ -1,16 +1,26 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Eq2Auras.Core.Config;
 
 namespace Eq2Auras.Core.Timers
 {
-    /// The escalation policy: a pure per-tick mapping from ACT's readings to display
-    /// elements. Deliberately STATELESS — every state (calm / imminent pie / overdue
-    /// LATE) derives from the data ACT reports this tick, and nothing on screen ever
-    /// outlives the data.
+    /// The escalation policy: a per-tick mapping from ACT's readings to display
+    /// elements, parameterized by the Settings knobs. The only cross-tick state is the
+    /// palette assigner (session-stable color identity) — every display state (calm /
+    /// imminent / overdue) still derives from the data ACT reports this tick, and
+    /// nothing on screen ever outlives the data.
     public sealed class EscalationTracker
     {
         private const int CenterSlots = 3;          // future config knob
+
+        private readonly Settings _settings;
+        private readonly PaletteAssigner _palette = new PaletteAssigner();
+
+        public EscalationTracker(Settings settings = null)
+        {
+            _settings = settings ?? new Settings();
+        }
 
         public OverlayFrame Tick(IReadOnlyList<TimerReading> readings)
         {
@@ -23,33 +33,47 @@ namespace Eq2Auras.Core.Timers
                 .GroupBy(KeyOf)
                 .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
                 .ToList();
+
+            // Resolve every reading's final display color here — renderers just paint.
+            foreach (var reading in governing)
+            {
+                reading.FillArgb = ColorPolicy.Resolve(
+                    _settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb);
+            }
+
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
+            bool inPlace = _settings.EscalationStyle == EscalationStyle.HighlightInPlace;
 
             // Overdue is CONFIG-DRIVEN: the timer's own RemoveValue decides whether an
             // overdue window exists. Remove-at-0 timers show NOTHING past zero — even
             // while ACT's laggy clock still reports them at -1/-2 pending removal. Only
             // timers configured to linger (negative RemoveValue) earn a LATE count-up.
-            var lates = governing
-                .Where(r => r.TimeLeft <= 0 && r.RemoveValueSeconds < 0)
-                .OrderBy(r => -r.TimeLeft)
-                .Select(r => new CenterElement
-                {
-                    Kind = CenterElementKind.Late,
-                    Name = r.Name,
-                    Combatant = r.Combatant,
-                    LateSeconds = -r.TimeLeft,
-                    FillArgb = r.FillArgb
-                })
-                .ToList();
+            var lates = inPlace
+                ? new List<CenterElement>()
+                : governing
+                    .Where(r => r.TimeLeft <= 0 && r.RemoveValueSeconds < 0)
+                    .OrderBy(r => -r.TimeLeft)
+                    .Select(r => new CenterElement
+                    {
+                        Kind = CenterElementKind.Late,
+                        Name = r.Name,
+                        Combatant = r.Combatant,
+                        LateSeconds = -r.TimeLeft,
+                        FillArgb = r.FillArgb
+                    })
+                    .ToList();
 
-            var imminent = live
-                .Where(r => r.TimeLeft <= TimerMath.EffectiveWarning(r))
-                .OrderBy(TimerMath.PreciseOf)
-                .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var centered = new List<TimerReading>();
+            if (!inPlace)
+            {
+                var imminent = live
+                    .Where(r => r.TimeLeft <= TimerMath.EffectiveWarning(r))
+                    .OrderBy(TimerMath.PreciseOf)
+                    .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+                centered = imminent.Take(Math.Max(0, CenterSlots - lates.Count)).ToList();
+            }
 
-            var pieSlots = Math.Max(0, CenterSlots - lates.Count);
-            var centered = imminent.Take(pieSlots).ToList();
             var pies = centered.Select(r => new CenterElement
             {
                 Kind = CenterElementKind.Pie,
@@ -62,9 +86,10 @@ namespace Eq2Auras.Core.Timers
                 FillArgb = r.FillArgb
             });
 
+            var listSource = inPlace ? (IEnumerable<TimerReading>)governing : live.Except(centered);
             return new OverlayFrame
             {
-                ListRows = TimerListBuilder.Build(live.Except(centered)),
+                ListRows = TimerListBuilder.Build(listSource, includeOverdue: inPlace),
                 CenterElements = lates.Concat(pies).ToList()
             };
         }

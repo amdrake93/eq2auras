@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.Linq;
+using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Timers;
 using Xunit;
 
@@ -159,6 +160,63 @@ public class EscalationTrackerTests
 
         Assert.Empty(frame.CenterElements);
         Assert.Empty(frame.ListRows);
+    }
+
+    [Fact]
+    public void Palette_mode_assigns_stable_name_keyed_colors()
+    {
+        var tracker = new EscalationTracker();   // defaults: ColorSource.Palette
+        var first = tracker.Tick(R(Reading("Blanket", 25), Reading("Shield", 20)));
+        var again = tracker.Tick(R(Reading("Shield", 19), Reading("Blanket", 24)));
+
+        Assert.Equal(ColorPolicy.PaletteArgb[0], first.ListRows.Single(r => r.Name == "Blanket").FillArgb);
+        Assert.Equal(ColorPolicy.PaletteArgb[1], first.ListRows.Single(r => r.Name == "Shield").FillArgb);
+        // stable across ticks regardless of this tick's order
+        Assert.Equal(ColorPolicy.PaletteArgb[0], again.ListRows.Single(r => r.Name == "Blanket").FillArgb);
+        Assert.Equal(ColorPolicy.PaletteArgb[1], again.ListRows.Single(r => r.Name == "Shield").FillArgb);
+    }
+
+    [Fact]
+    public void ActColor_mode_keeps_the_timers_own_color_softened()
+    {
+        var tracker = new EscalationTracker(new Settings { ColorSource = ColorSource.ActColor });
+        var frame = tracker.Tick(R(Reading("t", 25)));
+
+        Assert.Equal(ColorPolicy.Soften(-16776961), frame.ListRows[0].FillArgb);
+    }
+
+    [Fact]
+    public void HighlightInPlace_keeps_imminents_in_the_list_and_center_empty()
+    {
+        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var frame = tracker.Tick(R(Reading("boss", 5), Reading("calm", 25)));
+
+        Assert.Empty(frame.CenterElements);
+        Assert.Equal(2, frame.ListRows.Count);
+        Assert.Equal(TimerUrgency.Imminent, frame.ListRows.Single(r => r.Name == "boss").Urgency);
+    }
+
+    [Fact]
+    public void HighlightInPlace_renders_linger_overdue_as_LATE_rows()
+    {
+        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var frame = tracker.Tick(R(Reading("boss", -2, removeValue: -15), Reading("calm", 25)));
+
+        Assert.Empty(frame.CenterElements);
+        var lateRow = frame.ListRows.Single(r => r.Name == "boss");
+        Assert.Equal(TimerUrgency.Overdue, lateRow.Urgency);
+        Assert.Equal(-2, lateRow.TimeLeft);
+        Assert.Equal("boss", frame.ListRows[0].Name);   // overdue sorts first (most urgent)
+    }
+
+    [Fact]
+    public void HighlightInPlace_still_hides_remove_at_zero_timers_past_zero()
+    {
+        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var frame = tracker.Tick(R(Reading("boss", -1, removeValue: 0)));
+
+        Assert.Empty(frame.ListRows);
+        Assert.Empty(frame.CenterElements);
     }
 
     [Fact]

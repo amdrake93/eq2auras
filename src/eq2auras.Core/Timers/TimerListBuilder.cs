@@ -9,13 +9,13 @@ namespace Eq2Auras.Core.Timers
     /// thresholds); fallbacks per SPEC when the timer lacks a usable one.
     public static class TimerListBuilder
     {
-        public static List<TimerRow> Build(IEnumerable<TimerReading> readings)
+        public static List<TimerRow> Build(IEnumerable<TimerReading> readings, bool includeOverdue = false)
         {
-            // TimeLeft <= 0 is excluded: ACT drops the frame <1s after zero (measured),
-            // so a data-driven LATE state is a sub-second flicker. Overdue presentation
-            // returns deliberately with the slice-2 minimum-display floor.
+            // TimeLeft <= 0 excluded by default (CenterRadial shows overdue as center
+            // LATE cards). HighlightInPlace mode includes linger-configured overdue
+            // timers as rows; ascending sort naturally puts them (negative) first.
             return readings
-                .Where(r => r.TimeLeft > 0)
+                .Where(r => r.TimeLeft > 0 || (includeOverdue && r.RemoveValueSeconds < 0))
                 .Select(ToRow)
                 .OrderBy(r => r.TimeLeft)
                 .ThenBy(r => r.Name, StringComparer.OrdinalIgnoreCase)
