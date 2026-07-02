@@ -7,11 +7,12 @@ public class EscalationTrackerTests
 {
 
     private static TimerReading Reading(string name, int timeLeft,
-        int warning = 10, int total = 30, string combatant = "none")
+        int warning = 10, int total = 30, string combatant = "none", int removeValue = -15)
         => new TimerReading
         {
             Name = name, Combatant = combatant, TimeLeft = timeLeft,
             WarningValue = warning, TotalSeconds = total,
+            RemoveValueSeconds = removeValue,
             RawPreciseTimeLeft = timeLeft, FillArgb = -16776961
         };
 
@@ -81,13 +82,25 @@ public class EscalationTrackerTests
     {
         // A timer configured to linger past zero (negative RemoveValue) keeps being
         // reported by ACT with negative TimeLeft — LATE shows for exactly that window.
-        var frame = new EscalationTracker().Tick(R(Reading("boss", -3)));
+        var frame = new EscalationTracker().Tick(R(Reading("boss", -3, removeValue: -15)));
 
         Assert.Empty(frame.ListRows);
         var late = Assert.Single(frame.CenterElements);
         Assert.Equal(CenterElementKind.Late, late.Kind);
         Assert.Equal("boss", late.Name);
         Assert.Equal(3, late.LateSeconds);                              // -TimeLeft, directly
+    }
+
+    [Fact]
+    public void Remove_at_zero_timers_never_show_LATE()
+    {
+        // The timer's own config says "gone at 0" — even while ACT's laggy clock still
+        // reports it at -1/-2 pending removal, we show nothing. The overdue window is
+        // the timer owner's RemoveValue choice.
+        var frame = new EscalationTracker().Tick(R(Reading("boss", -2, removeValue: 0)));
+
+        Assert.Empty(frame.ListRows);
+        Assert.Empty(frame.CenterElements);
     }
 
     [Fact]

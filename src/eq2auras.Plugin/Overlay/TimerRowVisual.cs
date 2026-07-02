@@ -15,7 +15,9 @@ namespace Eq2Auras.Plugin.Overlay
     {
         private const double RowHeight = 26;
         private const double RowWidth = 250;
-        private const double DriftTolerancePx = 12;   // ~5% of the row
+        // Wall-clock targets keep drift ~0; only a genuine reset (new frame/instance)
+        // should re-target the drain, so the tolerance is generous — in SECONDS.
+        private const double DriftToleranceSeconds = 0.75;
 
         private readonly Border _root;
         private readonly Border _fill;
@@ -71,7 +73,8 @@ namespace Eq2Auras.Plugin.Overlay
         public void Update(TimerRow row)
         {
             _name.Text = row.Name;
-            _time.Text = row.TimeLeft + "s";
+            // Wall-clock seconds so the text agrees with the smooth fill.
+            _time.Text = (int)Math.Max(0, Math.Ceiling(row.PreciseTimeLeft)) + "s";
 
             if (row.Urgency != _urgency)
             {
@@ -88,11 +91,11 @@ namespace Eq2Auras.Plugin.Overlay
                 _fill.Background = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B));
             }
 
-            double desired = row.TotalSeconds > 0
-                ? Math.Max(0, Math.Min(1, row.PreciseTimeLeft / row.TotalSeconds)) * (RowWidth - 2)
-                : 0;
+            if (row.TotalSeconds <= 0) return;
+            double pxPerSecond = (RowWidth - 2) / row.TotalSeconds;
+            double desired = Math.Max(0, Math.Min(1, row.PreciseTimeLeft / row.TotalSeconds)) * (RowWidth - 2);
             double current = _fill.Width;   // reflects the animated value
-            if (double.IsNaN(current) || Math.Abs(current - desired) > DriftTolerancePx)
+            if (double.IsNaN(current) || Math.Abs(current - desired) > pxPerSecond * DriftToleranceSeconds)
             {
                 var drain = new DoubleAnimation(desired, 0,
                     TimeSpan.FromSeconds(Math.Max(0.05, row.PreciseTimeLeft)));

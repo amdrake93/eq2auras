@@ -25,12 +25,12 @@ namespace Eq2Auras.Core.Timers
                 .ToList();
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
 
-            // Overdue is DATA-DRIVEN: the timer's own RemoveValue config decides whether
-            // an overdue window exists (remove-at-0 => LATE never appears; a negative
-            // remove value => ACT keeps reporting negative TimeLeft and LATE counts up
-            // for exactly that window). No artificial floor.
+            // Overdue is CONFIG-DRIVEN: the timer's own RemoveValue decides whether an
+            // overdue window exists. Remove-at-0 timers show NOTHING past zero — even
+            // while ACT's laggy clock still reports them at -1/-2 pending removal. Only
+            // timers configured to linger (negative RemoveValue) earn a LATE count-up.
             var lates = governing
-                .Where(r => r.TimeLeft <= 0)
+                .Where(r => r.TimeLeft <= 0 && r.RemoveValueSeconds < 0)
                 .OrderBy(r => -r.TimeLeft)
                 .Select(r => new CenterElement
                 {
@@ -55,9 +55,10 @@ namespace Eq2Auras.Core.Timers
                 Kind = CenterElementKind.Pie,
                 Name = r.Name,
                 Combatant = r.Combatant,
-                SecondsLeft = r.TimeLeft,
-                PreciseSecondsLeft = TimerMath.PreciseOf(r),
-                PieFraction = Math.Min(1.0, TimerMath.PreciseOf(r) / TimerMath.EffectiveWarning(r)),
+                SecondsLeft = (int)Math.Max(0, Math.Ceiling(TimerMath.PreciseOf(r))),
+                PreciseSecondsLeft = Math.Max(0, TimerMath.PreciseOf(r)),
+                PieFraction = Math.Max(0, Math.Min(1.0, TimerMath.PreciseOf(r) / TimerMath.EffectiveWarning(r))),
+                WarningSeconds = TimerMath.EffectiveWarning(r),
                 FillArgb = r.FillArgb
             });
 

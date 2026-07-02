@@ -21,12 +21,12 @@ public class TimerMathTests
         Assert.Equal(expected, TimerMath.EffectiveWarning(Reading(5, warning, total)));
     }
 
-    [Theory]
-    [InlineData(7, 7.4, 7.4)]    // in-window raw passes through
-    [InlineData(7, 12.0, 7.999)] // raw drifted high -> clamped just under next second
-    [InlineData(7, 3.0, 7.0)]    // raw drifted low -> clamped to the displayed second
-    public void PreciseOf_clamps_raw_into_the_displayed_second(int timeLeft, double raw, double expected)
+    [Fact]
+    public void PreciseOf_is_the_raw_wall_clock_value()
     {
-        Assert.Equal(expected, TimerMath.PreciseOf(Reading(timeLeft, rawPrecise: raw)), 3);
+        // The wall clock owns the visuals. Clamping to ACT's integer TimeLeft was tried
+        // and produced a sawtooth: ACT's clock only advances when log lines arrive, so
+        // idle it lags and kept yanking the smooth animation back up to a stale second.
+        Assert.Equal(6.3, TimerMath.PreciseOf(Reading(7, rawPrecise: 6.3)), 3);
     }
 }

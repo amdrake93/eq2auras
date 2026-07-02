@@ -58,6 +58,7 @@ namespace Eq2Auras.Plugin.Act
                         RawPreciseTimeLeft = instance.TimerFinalDuration
                             - (DateTime.Now - instance.StartTime).TotalSeconds,
                         WarningValue = data.WarningValue,
+                        RemoveValueSeconds = data.RemoveValue,
                         TotalSeconds = instance.TimerFinalDuration,
                         FillArgb = data.FillColor.ToArgb()
                     });

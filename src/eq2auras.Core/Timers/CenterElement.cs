@@ -10,9 +10,10 @@ namespace Eq2Auras.Core.Timers
         public CenterElementKind Kind { get; set; }
         public string Name { get; set; }
         public string Combatant { get; set; }
-        public int SecondsLeft { get; set; }      // Pie: seconds remaining
+        public int SecondsLeft { get; set; }      // Pie: seconds remaining (ceil of the wall-clock value)
         public double PreciseSecondsLeft { get; set; } // Pie: sub-second, drives the smooth drain
         public double PieFraction { get; set; }   // Pie: remaining share of the warning window
+        public int WarningSeconds { get; set; }   // Pie: the warning window size (drift math in the renderer)
         public int LateSeconds { get; set; }      // Late: seconds since it went overdue
         public int FillArgb { get; set; }
     }

@@ -14,7 +14,8 @@ namespace Eq2Auras.Plugin.Overlay
     internal sealed class PieVisual
     {
         private const double PieDiameter = 110;
-        private const double DriftToleranceFraction = 0.08;
+        // Wall-clock targets keep drift ~0; only a genuine reset should re-target — in SECONDS.
+        private const double DriftToleranceSeconds = 0.75;
 
         private readonly StackPanel _root;
         private readonly PieSlice _slice;
@@ -83,7 +84,10 @@ namespace Eq2Auras.Plugin.Overlay
             }
 
             double current = _slice.Fraction;   // reflects the animated value
-            if (Math.Abs(current - element.PieFraction) > DriftToleranceFraction)
+            double toleranceFraction = element.WarningSeconds > 0
+                ? DriftToleranceSeconds / element.WarningSeconds
+                : 0.1;
+            if (Math.Abs(current - element.PieFraction) > toleranceFraction)
             {
                 var drain = new DoubleAnimation(element.PieFraction, 0,
                     TimeSpan.FromSeconds(Math.Max(0.05, element.PreciseSecondsLeft)));

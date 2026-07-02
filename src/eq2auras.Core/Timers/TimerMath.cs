@@ -18,11 +18,9 @@ namespace Eq2Auras.Core.Timers
             return FallbackWarningAbsoluteSeconds;
         }
 
-        /// Smooth remaining seconds, clamped into [TimeLeft, TimeLeft + 0.999] so the
-        /// pie's drain always agrees with the integer second being displayed.
-        public static double PreciseOf(TimerReading reading)
-        {
-            return Math.Max(reading.TimeLeft, Math.Min(reading.TimeLeft + 0.999, reading.RawPreciseTimeLeft));
-        }
+        /// Smooth remaining seconds — the raw wall-clock value, unclamped. (Clamping to
+        /// ACT's integer TimeLeft was tried and produced a sawtooth: ACT's log-derived
+        /// clock lags when the log is quiet and kept yanking animations back up.)
+        public static double PreciseOf(TimerReading reading) => reading.RawPreciseTimeLeft;
     }
 }
