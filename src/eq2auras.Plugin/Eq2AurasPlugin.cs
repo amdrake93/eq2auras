@@ -16,6 +16,10 @@ namespace Eq2Auras.Plugin
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
         {
+            // MUST be first: lets the CLR find eq2auras.Core.dll in the Plugins folder
+            // (ACT does not probe there for plugin dependencies).
+            PluginAssemblyResolver.EnsureRegistered();
+
             _statusLabel = pluginStatusText;
             var version = Assembly.GetExecutingAssembly()
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion

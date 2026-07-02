@@ -32,6 +32,9 @@ Confirmed live in ACT:
 - [x] **WPF renders inside ACT**: transparent layered window on a dedicated STA thread + Dispatcher, with storyboard animation (pulsing box), live. Dedicated-STA thread model works — no ACT-UI-thread fallback needed.
 - [x] Root cause of the earlier "core threw an error": `eq2auras.Core.dll` was Browse-added as a plugin (it's a dependency, not an `IActPluginV1`). Add only `eq2auras.dll`.
 
+- [x] **Dependency resolution gotcha (fixed).** A timer firing threw `Could not load file or assembly 'eq2auras.Core' … cannot find the file`, spammed every poll. Cause: `Core.dll` is in the Plugins folder but ACT **does not probe the Plugins folder for a plugin's dependencies** — strong evidence ACT loads the plugin from **raw bytes** (no file location → CLR searches only ACT's app dir + GAC). `InitPlugin`/box worked because they touch no `Core` type; the failure only hit when `LogFrame` first used `TimerSnapshotRecord`. **Fix:** `PluginAssemblyResolver` registers `AppDomain.AssemblyResolve` (first line of `InitPlugin`) to `LoadFrom` our deps in the Plugins folder.
+  - **Bonus for Task 8:** ACT loading plugins from bytes is the exact precondition under which the overwrite-file + toggle-`cbEnabled` reload can run *new* bytes. Encouraging sign for live self-update, still to be confirmed.
+
 Still pending:
 - [ ] **Click-through** — do clicks pass through the box to what's behind it?
 - [ ] **Clean teardown** — disable the plugin: box vanishes, no error; re-enable: returns.
