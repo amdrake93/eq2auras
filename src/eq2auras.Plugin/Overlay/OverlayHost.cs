@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Threading;
 using System.Windows.Threading;
 using Eq2Auras.Core.Timers;
@@ -10,7 +9,8 @@ namespace Eq2Auras.Plugin.Overlay
     {
         private Thread _thread;
         private Dispatcher _dispatcher;
-        private TimerListWindow _window;
+        private TimerListWindow _listWindow;
+        private CenterZoneWindow _centerWindow;
 
         public void Start()
         {
@@ -18,8 +18,10 @@ namespace Eq2Auras.Plugin.Overlay
             _thread = new Thread(() =>
             {
                 _dispatcher = Dispatcher.CurrentDispatcher;
-                _window = new TimerListWindow();
-                _window.Show();
+                _listWindow = new TimerListWindow();
+                _listWindow.Show();
+                _centerWindow = new CenterZoneWindow();
+                _centerWindow.Show();
                 ready.Set();
                 Dispatcher.Run();
             });
@@ -30,11 +32,15 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         /// Callable from any thread (the poll runs on ACT's UI thread).
-        public void UpdateRows(List<TimerRow> rows)
+        public void UpdateFrame(OverlayFrame frame)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
-            dispatcher.BeginInvoke((Action)(() => _window?.RenderRows(rows)));
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                _listWindow?.RenderRows(frame.ListRows);
+                _centerWindow?.RenderElements(frame.CenterElements);
+            }));
         }
 
         public void Dispose()
@@ -42,8 +48,10 @@ namespace Eq2Auras.Plugin.Overlay
             if (_dispatcher == null) return;
             _dispatcher.Invoke(() =>
             {
-                _window?.Close();
-                _window = null;
+                _listWindow?.Close();
+                _listWindow = null;
+                _centerWindow?.Close();
+                _centerWindow = null;
             });
             _dispatcher.InvokeShutdown();
             _thread?.Join(TimeSpan.FromSeconds(2));

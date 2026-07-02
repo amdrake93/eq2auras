@@ -18,6 +18,7 @@ namespace Eq2Auras.Plugin
         private JsonlLogWriter _log;
         private TimerProbe _probe;
         private OverlayHost _overlay;
+        private EscalationTracker _tracker;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
         {
@@ -29,8 +30,10 @@ namespace Eq2Auras.Plugin
             _log = new JsonlLogWriter();
             _overlay = new OverlayHost();
             _overlay.Start();
+            _tracker = new EscalationTracker();   // touched only on ACT's UI thread (the poll)
             _probe = new TimerProbe(_log,
-                readings => _overlay.UpdateRows(TimerListBuilder.Build(readings)));
+                readings => _overlay.UpdateFrame(
+                    _tracker.Tick(readings, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds())));
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);
@@ -42,6 +45,7 @@ namespace Eq2Auras.Plugin
         {
             _probe?.Dispose();
             _probe = null;
+            _tracker = null;
             _overlay?.Dispose();
             _overlay = null;
             _log?.Dispose();

@@ -55,6 +55,8 @@ namespace Eq2Auras.Plugin.Act
                         Name = frame.Name ?? "",
                         Combatant = frame.Combatant ?? "",
                         TimeLeft = instance.TimeLeft,
+                        RawPreciseTimeLeft = instance.TimerFinalDuration
+                            - (DateTime.Now - instance.StartTime).TotalSeconds,
                         WarningValue = data.WarningValue,
                         TotalSeconds = instance.TimerFinalDuration,
                         FillArgb = data.FillColor.ToArgb()
