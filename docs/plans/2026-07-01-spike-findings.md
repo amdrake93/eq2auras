@@ -1,5 +1,7 @@
 # Spike Findings — ACT API reconnaissance + live behaviour
 
+> **PHASE 0 COMPLETE (2026-07-01).** Final demo: token saved (DPAPI) → one click of "Check for updates" → both DLLs downloaded from the private `dev-latest` release, swapped in place, plugin self-reloaded live → crimson box + `core=D`. The entire dev loop (Mac edit → CI → self-update in ACT) is one button. Remaining passives: `WarningValue` distribution gathering; scan-safety structural decision for the feature plan.
+
 Running record of what we've confirmed about ACT's timer system. Sources: `[decompiled]` = read from `ThirdParty/Advanced Combat Tracker.exe` via `ilspycmd` on the Mac (Task 1.5); `[live]` = observed in a running ACT (Task 6 / Task 8) — pending.
 
 ## API shapes (Task 1.5, `[decompiled]` from ACT 2.5MB assembly)
