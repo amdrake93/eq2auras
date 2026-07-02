@@ -82,9 +82,13 @@ namespace Eq2Auras.Plugin.Overlay
             if (row.Urgency != _urgency)
             {
                 _urgency = row.Urgency;
-                var accent = OverlayTheme.AccentFor(row.Urgency);
-                _root.BorderBrush = new SolidColorBrush(accent);
-                _time.Foreground = new SolidColorBrush(accent);
+                _root.BorderBrush = new SolidColorBrush(OverlayTheme.AccentFor(row.Urgency));
+                // Calm's accent is dark slate — invisible as text on the dark backplate.
+                // The countdown is the row's most important glyph: light when calm,
+                // accent-colored only when the accent is bright (gold/crimson).
+                _time.Foreground = new SolidColorBrush(row.Urgency == TimerUrgency.Calm
+                    ? OverlayTheme.Text
+                    : OverlayTheme.AccentFor(row.Urgency));
             }
 
             if (row.FillArgb != _fillArgb)
