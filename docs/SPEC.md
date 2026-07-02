@@ -35,6 +35,8 @@ The suite is deliberately layered so that each new overlay idea is a module on c
 
 Ships as a **single ACT plugin** — one `.dll` dropped into ACT's `Plugins` folder. The `Core` project's sources are **compiled directly into the plugin assembly** (shared source via `<Compile Include>`), not shipped as a second DLL: ACT's plugin scan (`Assembly.GetTypes()`, which runs *before* `InitPlugin`) resolves the types of every field in the assembly — including compiler-generated async state machines — so all types the plugin's fields can mention must live in the plugin assembly itself or the GAC. Single-assembly packaging makes that hold by construction (no `AssemblyResolve` shim, no ILRepack, one-file self-update). The `Core` project still exists as a `netstandard2.0` build of the same sources for Mac-side `dotnet test`. Features are individually toggleable, so a teammate can install the package and enable only what they want.
 
+**Core stays the suite's shared plumbing at the source level.** If the suite later splits into sibling plugins (e.g. a standalone Parse Meter), each plugin compiles the same Core sources into itself — shared development, self-contained binaries. That also sidesteps the DLL-hell a shared `Core.dll` would create between independently-updating plugins: each plugin ships the Core it was built and tested with.
+
 ### Platform facts
 
 - **.NET Framework 4.x** class library. ACT is a .NET Framework host; .NET Core / 5+ assemblies will not load.
