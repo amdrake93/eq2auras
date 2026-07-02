@@ -9,9 +9,6 @@ namespace Eq2Auras.Core.Timers
     /// thresholds); fallbacks per SPEC when the timer lacks a usable one.
     public static class TimerListBuilder
     {
-        private const double FallbackWarningFractionOfTotal = 0.25;
-        private const int FallbackWarningAbsoluteSeconds = 10;
-
         public static List<TimerRow> Build(IEnumerable<TimerReading> readings)
         {
             // TimeLeft <= 0 is excluded: ACT drops the frame <1s after zero (measured),
@@ -41,16 +38,7 @@ namespace Eq2Auras.Core.Timers
         private static TimerUrgency UrgencyOf(TimerReading reading)
         {
             if (reading.TimeLeft <= 0) return TimerUrgency.Overdue;
-            return reading.TimeLeft <= EffectiveWarning(reading) ? TimerUrgency.Imminent : TimerUrgency.Calm;
-        }
-
-        private static int EffectiveWarning(TimerReading reading)
-        {
-            if (reading.WarningValue > 0 && reading.WarningValue < reading.TotalSeconds)
-                return reading.WarningValue;
-            if (reading.TotalSeconds > 0)
-                return Math.Max(1, (int)(reading.TotalSeconds * FallbackWarningFractionOfTotal));
-            return FallbackWarningAbsoluteSeconds;
+            return reading.TimeLeft <= TimerMath.EffectiveWarning(reading) ? TimerUrgency.Imminent : TimerUrgency.Calm;
         }
 
         private static double FillFraction(TimerReading reading)
