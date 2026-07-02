@@ -24,6 +24,13 @@ Some users prefer the escalating timer to **stay in the calm list with the highl
 - A tiny persisted settings store (`%APPDATA%\Advanced Combat Tracker\eq2auras\settings.json`, DataContractJsonSerializer — NOT System.Web.Extensions) + checkboxes/dropdowns on the plugin tab.
 - First knobs: color source, escalation style.
 
+### Shipped same session (guild-verified live)
+- Calm countdown text visibility fix (was accent-dark-on-dark).
+- **Spark**: bright timer-colored leading edge (45% toward white, 3px) riding the bar drain. Tuning levers if revisited: width, white-blend %, glow.
+
+### NEXT UP — drag-to-move + persisted positions
+Move the overlay windows (list, center zone) by dragging, and save positions to `Settings` (per-window Left/Top knobs). Design note to resolve: the windows are **click-through by design**, so moving needs an explicit **unlock/move mode** (e.g. a "Move overlay" toggle on the tab that disables `WS_EX_TRANSPARENT`, shows drag handles/outlines, then re-locks) — the WeakAuras unlock-frames pattern.
+
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.
 - Phase-1 odds: feature enable/disable + diagnostics toggle on the tab; diagnostic log size/age rotation.
