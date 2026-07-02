@@ -23,6 +23,15 @@ namespace Eq2Auras.Plugin
             AppDomain.CurrentDomain.AssemblyResolve += Resolve;
         }
 
+        /// Call from DeInitPlugin. Live reload loads a fresh assembly instance (own statics),
+        /// so without this each reload would stack another orphaned handler on the AppDomain.
+        public static void Unregister()
+        {
+            if (!_registered) return;
+            _registered = false;
+            AppDomain.CurrentDomain.AssemblyResolve -= Resolve;
+        }
+
         private static Assembly Resolve(object sender, ResolveEventArgs args)
         {
             var simpleName = new AssemblyName(args.Name).Name;

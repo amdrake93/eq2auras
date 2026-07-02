@@ -42,6 +42,7 @@ namespace Eq2Auras.Plugin
             _probe = null;
             _log?.Dispose();
             _log = null;
+            PluginAssemblyResolver.Unregister(); // last: teardown above may still touch Core types
             if (_statusLabel != null) _statusLabel.Text = "eq2auras unloaded";
         }
     }
