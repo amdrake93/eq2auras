@@ -13,6 +13,15 @@ namespace Eq2Auras.Plugin.SelfUpdate
     /// memory -> write all files into the Plugins folder (no locks: ACT byte-loads the
     /// plugin, our resolver byte-loads Core) -> toggle our own Enabled checkbox, which
     /// re-reads the files from disk and runs the new bytes. No ACT restart.
+    ///
+    /// ⚠ SCAN-SAFETY RULE — everything here is deliberately SYNCHRONOUS (sync-over-async
+    /// on the background thread). ACT's plugin scan (Assembly.GetTypes, BEFORE InitPlugin
+    /// registers our AssemblyResolve handler) resolves the types of all FIELDS in the
+    /// assembly — and `async` methods hoist awaited locals into fields of hidden
+    /// state-machine structs. An async method with a Core-typed local (e.g.
+    /// ReleaseManifest) makes the scan demand eq2auras.Core.dll and fail. No async, no
+    /// hoisted fields, no scan-time Core dependency. The same rule forbids Core/non-GAC
+    /// types in ordinary fields anywhere in this assembly.
     public sealed class SelfUpdater
     {
         private const string Owner = "amdrake93";
@@ -34,12 +43,12 @@ namespace Eq2Auras.Plugin.SelfUpdate
         {
             Task.Run(() =>
             {
-                try { Run(pluginsDir).GetAwaiter().GetResult(); }
+                try { Run(pluginsDir); }
                 catch (Exception ex) { _status("update failed: " + ex.Message); }
             });
         }
 
-        private async Task Run(string pluginsDir)
+        private void Run(string pluginsDir)
         {
             var token = TokenStore.Load();
             if (token == null)
@@ -54,8 +63,9 @@ namespace Eq2Auras.Plugin.SelfUpdate
                 http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
 
                 _status("checking " + Tag + "…");
-                var releaseJson = await http.GetStringAsync(
-                    "https://api.github.com/repos/" + Owner + "/" + Repo + "/releases/tags/" + Tag);
+                var releaseJson = http.GetStringAsync(
+                    "https://api.github.com/repos/" + Owner + "/" + Repo + "/releases/tags/" + Tag)
+                    .GetAwaiter().GetResult();
                 var release = ReleaseManifest.Parse(releaseJson);
 
                 var downloaded = new List<KeyValuePair<string, byte[]>>();
@@ -63,7 +73,7 @@ namespace Eq2Auras.Plugin.SelfUpdate
                 {
                     _status("downloading " + asset.Name + "…");
                     downloaded.Add(new KeyValuePair<string, byte[]>(
-                        asset.Name, await DownloadAsset(http, asset.ApiUrl)));
+                        asset.Name, DownloadAsset(http, asset.ApiUrl)));
                 }
 
                 // All-or-nothing: only touch disk once every download succeeded.
@@ -77,16 +87,16 @@ namespace Eq2Auras.Plugin.SelfUpdate
             }
         }
 
-        private static async Task<byte[]> DownloadAsset(HttpClient http, string apiUrl)
+        private static byte[] DownloadAsset(HttpClient http, string apiUrl)
         {
             using (var request = new HttpRequestMessage(HttpMethod.Get, apiUrl))
             {
                 request.Headers.Accept.Clear();
                 request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
-                using (var response = await http.SendAsync(request))
+                using (var response = http.SendAsync(request).GetAwaiter().GetResult())
                 {
                     response.EnsureSuccessStatusCode();
-                    return await response.Content.ReadAsByteArrayAsync();
+                    return response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
                 }
             }
         }

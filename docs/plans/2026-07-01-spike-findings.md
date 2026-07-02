@@ -46,6 +46,11 @@ Still pending:
 - [x] **Logging is real-time** — poll cadence median 109 ms (min 95 / max 124) vs the 100 ms target, measured from record `ts` deltas across 853 polls.
 - [ ] **`WarningValue` distribution** — only one timer type observed; needs more variety. Non-blocking; gather passively during normal play.
 
+### ⚠ SCAN-SAFETY RULE (Task 9 regression, root-caused)
+ACT's plugin scan (`Assembly.GetTypes()`, to find `IActPluginV1`) runs **before `InitPlugin`** — i.e. before our `AssemblyResolve` handler exists. The scan resolves the types of the assembly's **fields** — and **`async` methods hoist awaited locals into fields of hidden state-machine structs**. Task 9's async `SelfUpdater` hoisted a `ReleaseManifest` (Core) local → scan demanded `eq2auras.Core.dll` → "cannot find the file" + "assembly does not implement ACT's plugin interface". The gold build only worked because its fields happened to be Core-free (Core types in method signatures/bodies resolve lazily at JIT, after the resolver is registered).
+**Rule: no Core/non-GAC types in ANY field of the plugin assembly — including compiler-generated state machines (no `async`) and closures.** Fix applied: SelfUpdater rewritten sync-over-async.
+**Feature-plan input:** this constraint is fragile for real feature code (view-models etc. will want Core-typed fields). The feature plan should pick a structural fix: ILRepack Core into the plugin, or drop `Core.dll` beside ACT's exe (app-base probing works at scan time), or keep the field discipline.
+
 ### Design inputs for the NEXT (feature) plan — surfaced by two near-simultaneous triggers of the same timer
 - **Identity key `(Name, Combatant)` is insufficient when `combatant="none"`** (timer not tied to a caster/target) — two concurrent instances become indistinguishable. The real overlay needs a per-instance key.
 - **Concurrent instances share ONE `TimerFrame`** — `TimerFrame.SpellTimers` is a `List`; the probe logs only `[0]`, losing the others (seen as `8→7→8` flicker and odd `removed tL=2/1`). The overlay must iterate all `SpellTimers`, not just `[0]`.
