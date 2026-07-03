@@ -14,7 +14,7 @@
 - DCJS: missing list → null → default; nullable numerics for scale/size (**null = default, never 0**); no `System.Web.Extensions`.
 - **Scale is geometry-only; font is text-only** (SPEC: "scale sets how much space a window takes; font sets how readable its text is").
 - **Retain-elements rule:** visuals rebuild on knob change only — never per tick.
-- Reviewer plan-watch items (backlog NEXT UP) are woven in: point→DIP conversion (T5), six text roles (T3), grip `e.Handled` (T4), rebuild-once (T3/T4), every geometry constant scaled (T3), `Resolve(palette)` + `DefaultPaletteArgb` rename (T2), no alpha handling (T5).
+- Reviewer plan-watch items (backlog NEXT UP) are woven in: point→DIP conversion (T5), six text roles (T3), grip `e.Handled` (T4), rebuild-once (T3/T4), every geometry constant scaled (T3), `Resolve(palette)` (T2) + `DefaultPaletteArgb` rename (T1 Step 3), no alpha handling (T5).
 - Merge to `main` = release (Alex approves after branch review).
 
 ## File Structure
@@ -173,14 +173,17 @@ and extend `Normalize()` (leave valid values untouched — see the test's thread
 
             foreach (var panel in Panels)
             {
-                panel.ListScale = ClampScale(panel.ListScale);
-                panel.CenterScale = ClampScale(panel.CenterScale);
+                if (OutOfRange(panel.ListScale)) panel.ListScale = ClampScale(panel.ListScale);
+                if (OutOfRange(panel.CenterScale)) panel.CenterScale = ClampScale(panel.CenterScale);
             }
 ```
 
-with:
+with (assign only when actually out of range — the normalize-untouched threading rationale applies to these fields too):
 
 ```csharp
+        private static bool OutOfRange(double? scale)
+            => scale.HasValue && (scale.Value < MinScale || scale.Value > MaxScale);
+
         private static double? ClampScale(double? scale)
             => scale.HasValue ? Math.Min(MaxScale, Math.Max(MinScale, scale.Value)) : (double?)null;
 ```
@@ -417,7 +420,39 @@ and the drain math swaps `RowWidth` for `_rowWidth`:
 
 (`RowHeight`/`RowWidth` stay as the unscaled base constants; the `FontSize = 13` literals are deleted in favor of `ApplyFont`.)
 
-- [ ] **Step 3: CenterVisuals take the style.** `PieVisual(VisualStyle style)`: `PieDiameter * style.Scale` for ring/slice `Width`/`Height`; `_seconds` via `ApplyFont(_seconds, style.PieSeconds)` (delete `FontSize = 34`); `_name` via `ApplyFont(_name, style.PieName)` with `MaxWidth = 190 * style.Scale`; root `Margin = new Thickness(0, 0, 0, 10 * style.Scale)`. `LateVisual(VisualStyle style)`: `Width = 170 * style.Scale`, `Padding`/`Margin` × scale, `ApplyFont(_late, style.LateTag)` (was 22), `ApplyFont(_name, style.LateName)` (was 12). Pulses unchanged.
+- [ ] **Step 3: CenterVisuals take the style.** Pulses unchanged; the changed ctor lines:
+
+```csharp
+        public PieVisual(VisualStyle style)
+        {
+            double diameter = PieDiameter * style.Scale;
+            _ring = new Ellipse { Width = diameter, Height = diameter, /* fill/stroke unchanged */ };
+            _slice = new PieSlice { Width = diameter, Height = diameter };
+            _seconds = new TextBlock { FontWeight = FontWeights.Bold, /* fg/alignment unchanged */ };
+            style.ApplyFont(_seconds, style.PieSeconds);              // was FontSize = 34
+            _name = new TextBlock { /* fg/alignment/trimming unchanged */ MaxWidth = 190 * style.Scale };
+            style.ApplyFont(_name, style.PieName);                    // was FontSize = 13
+            _root = new StackPanel { Margin = new Thickness(0, 0, 0, 10 * style.Scale), ... };
+            ...
+        }
+
+        public LateVisual(VisualStyle style)
+        {
+            _late = new TextBlock { FontWeight = FontWeights.Bold, /* fg/alignment unchanged */ };
+            style.ApplyFont(_late, style.LateTag);                    // was FontSize = 22
+            _name = new TextBlock { /* fg/alignment/trimming unchanged */ };
+            style.ApplyFont(_name, style.LateName);                   // was FontSize = 12
+            _root = new Border
+            {
+                Width = 170 * style.Scale,
+                Margin = new Thickness(0, 0, 0, 10 * style.Scale),
+                Padding = new Thickness(10 * style.Scale, 6 * style.Scale, 10 * style.Scale, 6 * style.Scale),
+                CornerRadius = new CornerRadius(6 * style.Scale),
+                /* brushes/border unchanged */
+            };
+            ...
+        }
+```
 
 - [ ] **Step 4: Core tests still green** (`dotnet test …`) → PASS (plugin not compiled here).
 - [ ] **Step 5: Commit** — `"Plugin: VisualStyle — six text roles from base font, geometry × scale in all retained visuals"`
@@ -542,8 +577,13 @@ Visual creation in `RenderRows`/`RenderElements` passes the style: `new TimerRow
         private double ProposedScale(Point now)
         {
             double delta = ((now.X - _gripStart.X) + (now.Y - _gripStart.Y)) / 2.0;
-            return Math.Min(2.5, Math.Max(0.5, _dragStartScale + delta / 250.0));
+            return Math.Min(Settings.MaxScale, Math.Max(Settings.MinScale, _dragStartScale + delta / 250.0));
         }
+```
+
+(`using Eq2Auras.Core.Config;` for the shared clamp constants — one source of truth with T1.)
+
+**Preview trade-off (deliberate, transient):** during the drag, the `LayoutTransform` preview scales *everything including text*; on release the transform drops and the real geometry-only restyle applies, so **text visibly snaps back to its own size**. This transiently violates "text never scales with the window" — accepted because the alternatives (restyle-per-mousemove rebuild storms, or transforming only non-text elements mid-drag) are worse. The live script calls it out so nobody files the snap as a bug.
 ```
 
 (add `using System.Windows.Media;` + `using System.Windows.Input;` as needed; `Math` via `System`.)
@@ -570,7 +610,16 @@ Visual creation in `RenderRows`/`RenderElements` passes the style: `new TimerRow
                 (scale) => SettingsStore.Update(_settings, () => panel.CenterScale = scale));
 ```
 
-`SaveAllPositions` is unchanged (scales persist on grip release). New public method for tab-driven font changes:
+Both windows expose their live scale for the re-lock save (`public double CurrentScale => _style.Scale;`), and `SaveAllPositions` persists scales alongside positions — SPEC: "persisted exactly like positions (drag-end + re-lock)":
+
+```csharp
+                    panel.ListLeft = _listWindows[i].Left;
+                    panel.ListTop = _listWindows[i].Top;
+                    panel.ListScale = _listWindows[i].CurrentScale;
+                    panel.CenterLeft = _centerWindows[i].Left;
+                    panel.CenterTop = _centerWindows[i].Top;
+                    panel.CenterScale = _centerWindows[i].CurrentScale;
+``` New public method for tab-driven font changes:
 
 ```csharp
         /// Re-resolves every window's style from PanelSettings (font knob changed).
@@ -609,10 +658,11 @@ Visual creation in `RenderRows`/`RenderElements` passes the style: `new TimerRow
             var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 208);
 
             var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 344, Width = 70 };
-            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 338, Width = 360, Height = 34 };
+            // Wrap room for the max case: 16 swatches + 3 buttons flow onto two rows.
+            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 338, Width = 400, Height = 68 };
             RebuildPaletteRow();
 
-            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 380, Width = 200 };
+            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 416, Width = 200 };
             moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
             tab.Controls.Add(tokenBox);
@@ -740,9 +790,9 @@ gh run watch $(gh run list --branch slice5-customization --limit 1 --json databa
 - [ ] **Step 2: Alex reviews** `git diff main..slice5-customization`; merge on approval → release → self-update in ACT.
 
 - [ ] **Step 3: Live script (guild as jury):**
-1. **Palette:** tab shows the 5 guild swatches. Click swatch 1 → pick bright red → a slot-0 timer turns red **live within a tick** (both panels if dual-flagged). **+** to 6 colors → sixth name takes the new color; **−** back; **Reset** → guild 5 return.
+1. **Palette:** tab shows the 5 guild swatches. Click swatch 1 → pick bright red → a slot-0 timer turns red **live within a tick** (both panels if dual-flagged). **+** to 6 colors → sixth name takes the new color; **+** all the way to 16 → swatches wrap to a second row and the +/−/Reset buttons stay visible; **−** back; **Reset** → guild 5 return.
 2. **Font:** Panel B "Font…" → pick something obvious (e.g. Georgia 16) → B's rows *and* B's center pies change family/size proportionally (pie seconds visibly larger than row text); Panel A untouched. Label reads "Georgia 21" (DIPs — 16 pt × 4/3).
-3. **Scale:** unlock → each window's chrome shows the corner grip. Drag B-list's grip outward → bars grow smoothly (preview), release → **text size unchanged**, bars/heights bigger; drag A-center smaller. Body-drag still moves windows (grip didn't break `DragMove`).
+3. **Scale:** unlock → each window's chrome shows the corner grip. Drag B-list's grip outward → everything grows smoothly **including text — that's the preview**; on release **text snaps back to its own size** while bars/heights stay bigger. The snap is correct behavior, not a bug (geometry-only scale applies at release). Drag A-center smaller. Body-drag still moves windows (grip didn't break `DragMove`).
 4. **Persistence:** re-lock, toggle plugin off/on → custom palette, fonts, scales, positions all return. `settings.json` shows `paletteArgb`, `fontFamily`, `fontBaseSize`, `listScale`, `centerScale`.
 5. **Regression sweep:** escalation still promotes at warning; drains stay smooth at non-1.0 scales (drain math scaled); LATE cards render at scale; greyscale mode unaffected by the custom palette.
 
