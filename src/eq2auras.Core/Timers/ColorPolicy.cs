@@ -7,7 +7,7 @@ namespace Eq2Auras.Core.Timers
     public static class ColorPolicy
     {
         // Guild-approved palette v2: sky, amber, teal, rose, indigo.
-        public static readonly int[] PaletteArgb =
+        public static readonly int[] DefaultPaletteArgb =
         {
             unchecked((int)0xFF56B4E9),
             unchecked((int)0xFFE69F00),
@@ -32,7 +32,7 @@ namespace Eq2Auras.Core.Timers
             {
                 case ColorSource.Greyscale: return GreyArgb[paletteIndex % GreyArgb.Length];
                 case ColorSource.ActColor: return Soften(actArgb);
-                default: return PaletteArgb[paletteIndex % PaletteArgb.Length];
+                default: return DefaultPaletteArgb[paletteIndex % DefaultPaletteArgb.Length];
             }
         }
 

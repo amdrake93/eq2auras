@@ -26,14 +26,14 @@ public class ColorPolicyTests
     [Fact]
     public void Palette_cycles_past_its_length()
     {
-        Assert.Equal(ColorPolicy.PaletteArgb[0], ColorPolicy.Resolve(ColorSource.Palette, 5, 0));
-        Assert.Equal(ColorPolicy.PaletteArgb[1], ColorPolicy.Resolve(ColorSource.Palette, 6, 0));
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], ColorPolicy.Resolve(ColorSource.Palette, 5, 0));
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], ColorPolicy.Resolve(ColorSource.Palette, 6, 0));
     }
 
     [Fact]
     public void Resolve_maps_each_source()
     {
-        Assert.Equal(ColorPolicy.PaletteArgb[2], ColorPolicy.Resolve(ColorSource.Palette, 2, 123));
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[2], ColorPolicy.Resolve(ColorSource.Palette, 2, 123));
         Assert.Equal(ColorPolicy.GreyArgb[2], ColorPolicy.Resolve(ColorSource.Greyscale, 2, 123));
         Assert.Equal(ColorPolicy.Soften(123), ColorPolicy.Resolve(ColorSource.ActColor, 2, 123));
     }

@@ -88,4 +88,69 @@ public class SettingsTests
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(ColorSource.Palette, parsed.Panels[1].ColorSource);
     }
+
+    [Fact]
+    public void Roundtrips_palette_font_and_scale()
+    {
+        var settings = new Settings();
+        settings.PaletteArgb = new System.Collections.Generic.List<int> { -65536, -16711936 };
+        settings.Panels[0].FontFamily = "Comic Sans MS";
+        settings.Panels[0].FontBaseSize = 16.0;
+        settings.Panels[1].ListScale = 1.5;
+        settings.Panels[1].CenterScale = 0.75;
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(new[] { -65536, -16711936 }, parsed.PaletteArgb);
+        Assert.Equal("Comic Sans MS", parsed.Panels[0].FontFamily);
+        Assert.Equal(16.0, parsed.Panels[0].FontBaseSize);
+        Assert.Equal(1.5, parsed.Panels[1].ListScale);
+        Assert.Equal(0.75, parsed.Panels[1].CenterScale);
+        Assert.Null(parsed.Panels[0].ListScale);          // unset stays null — never 0
+        Assert.Null(parsed.Panels[1].FontFamily);
+        Assert.Null(parsed.Panels[1].FontBaseSize);
+    }
+
+    [Theory]
+    [InlineData("{}")]                          // no palette key
+    [InlineData("{\"paletteArgb\":[]}")]        // empty list
+    public void Missing_or_empty_palette_yields_the_default_five(string json)
+    {
+        var parsed = Settings.Parse(json);
+
+        Assert.Equal(Eq2Auras.Core.Timers.ColorPolicy.DefaultPaletteArgb, parsed.PaletteArgb);
+    }
+
+    [Fact]
+    public void Oversized_palette_truncates_to_max()
+    {
+        var seventeen = string.Join(",", new int[17]);
+        var parsed = Settings.Parse("{\"paletteArgb\":[" + seventeen + "]}");
+
+        Assert.Equal(16, parsed.PaletteArgb.Count);
+    }
+
+    [Fact]
+    public void Out_of_range_scales_clamp_on_parse()
+    {
+        var parsed = Settings.Parse("{\"panels\":[{\"listScale\":9.0},{\"centerScale\":0.1}]}");
+
+        Assert.Equal(2.5, parsed.Panels[0].ListScale);
+        Assert.Equal(0.5, parsed.Panels[1].CenterScale);
+    }
+
+    [Fact]
+    public void Valid_palette_survives_normalize_untouched()
+    {
+        // Normalize must never rebuild a valid list: the engine reads the property per
+        // tick on ACT's UI thread while saves (which call ToJson -> Normalize) can run
+        // on the overlay thread — gratuitous list replacement would be a cross-thread
+        // mutation of a list being enumerated.
+        var settings = new Settings();
+        var palette = settings.PaletteArgb;
+
+        settings.ToJson();
+
+        Assert.Same(palette, settings.PaletteArgb);
+    }
 }

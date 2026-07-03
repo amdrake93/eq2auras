@@ -25,5 +25,17 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "centerTop")]
         public double? CenterTop { get; set; }
+
+        [DataMember(Name = "fontFamily")]
+        public string FontFamily { get; set; }        // null = system default
+
+        [DataMember(Name = "fontBaseSize")]
+        public double? FontBaseSize { get; set; }     // WPF DIPs; null = 13 (today's look)
+
+        [DataMember(Name = "listScale")]
+        public double? ListScale { get; set; }        // null = 1.0; geometry-only
+
+        [DataMember(Name = "centerScale")]
+        public double? CenterScale { get; set; }
     }
 }

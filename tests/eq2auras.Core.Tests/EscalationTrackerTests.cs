@@ -169,11 +169,11 @@ public class EscalationTrackerTests
         var first = tracker.Tick(R(Reading("Blanket", 25), Reading("Shield", 20)));
         var again = tracker.Tick(R(Reading("Shield", 19), Reading("Blanket", 24)));
 
-        Assert.Equal(ColorPolicy.PaletteArgb[0], first.ListRows.Single(r => r.Name == "Blanket").FillArgb);
-        Assert.Equal(ColorPolicy.PaletteArgb[1], first.ListRows.Single(r => r.Name == "Shield").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], first.ListRows.Single(r => r.Name == "Blanket").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], first.ListRows.Single(r => r.Name == "Shield").FillArgb);
         // stable across ticks regardless of this tick's order
-        Assert.Equal(ColorPolicy.PaletteArgb[0], again.ListRows.Single(r => r.Name == "Blanket").FillArgb);
-        Assert.Equal(ColorPolicy.PaletteArgb[1], again.ListRows.Single(r => r.Name == "Shield").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], again.ListRows.Single(r => r.Name == "Blanket").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], again.ListRows.Single(r => r.Name == "Shield").FillArgb);
     }
 
     [Fact]
@@ -253,8 +253,8 @@ public class EscalationTrackerTests
         trackerA.Tick(R(Reading("First", 25)));
         var frameB = trackerB.Tick(R(Reading("Second", 25), Reading("First", 20)));
 
-        Assert.Equal(ColorPolicy.PaletteArgb[0], frameB.ListRows.Single(r => r.Name == "First").FillArgb);
-        Assert.Equal(ColorPolicy.PaletteArgb[1], frameB.ListRows.Single(r => r.Name == "Second").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], frameB.ListRows.Single(r => r.Name == "First").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], frameB.ListRows.Single(r => r.Name == "Second").FillArgb);
     }
 
     [Fact]

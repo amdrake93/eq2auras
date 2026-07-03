@@ -62,9 +62,9 @@ public class OverlayEngineTests
         });
 
         // One slot per name everywhere; each group renders its own ColorSource over it.
-        Assert.Equal(ColorPolicy.PaletteArgb[0], frames[0].ListRows.Single(r => r.Name == "First").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], frames[0].ListRows.Single(r => r.Name == "First").FillArgb);
         Assert.Equal(ColorPolicy.GreyArgb[0], frames[1].ListRows.Single(r => r.Name == "First").FillArgb);
-        Assert.Equal(ColorPolicy.PaletteArgb[1], frames[0].ListRows.Single(r => r.Name == "Second").FillArgb);
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], frames[0].ListRows.Single(r => r.Name == "Second").FillArgb);
         Assert.Equal(ColorPolicy.GreyArgb[1], frames[1].ListRows.Single(r => r.Name == "Second").FillArgb);
     }
 }

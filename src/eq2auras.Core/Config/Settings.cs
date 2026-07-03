@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -27,6 +28,15 @@ namespace Eq2Auras.Core.Config
         public EscalationStyle EscalationStyle { get; set; } = EscalationStyle.CenterRadial;
 
         public const int GroupCount = 2;
+        public const int MaxPaletteSize = 16;
+        public const double MinScale = 0.5;
+        public const double MaxScale = 2.5;
+
+        [DataMember(Name = "paletteArgb")]
+        public List<int> PaletteArgb { get; set; } = DefaultPalette();
+
+        private static List<int> DefaultPalette()
+            => new List<int>(Timers.ColorPolicy.DefaultPaletteArgb);
 
         [DataMember(Name = "panels")]
         public List<PanelSettings> Panels { get; set; } = DefaultPanels();
@@ -58,7 +68,24 @@ namespace Eq2Auras.Core.Config
                 Panels[0].ColorSource = ColorSource;
                 Panels[0].EscalationStyle = EscalationStyle;
             }
+
+            if (PaletteArgb == null || PaletteArgb.Count == 0) PaletteArgb = DefaultPalette();
+            if (PaletteArgb.Count > MaxPaletteSize) PaletteArgb = PaletteArgb.Take(MaxPaletteSize).ToList();
+
+            // Assign only when out of range: the engine reads these fields per tick /
+            // per restyle on other threads — a valid value must never be rewritten.
+            foreach (var panel in Panels)
+            {
+                if (OutOfRange(panel.ListScale)) panel.ListScale = ClampScale(panel.ListScale);
+                if (OutOfRange(panel.CenterScale)) panel.CenterScale = ClampScale(panel.CenterScale);
+            }
         }
+
+        private static bool OutOfRange(double? scale)
+            => scale.HasValue && (scale.Value < MinScale || scale.Value > MaxScale);
+
+        private static double? ClampScale(double? scale)
+            => scale.HasValue ? Math.Min(MaxScale, Math.Max(MinScale, scale.Value)) : (double?)null;
 
         public static Settings Parse(string json)
         {
