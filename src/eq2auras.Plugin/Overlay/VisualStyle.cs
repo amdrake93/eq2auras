@@ -1,5 +1,3 @@
-using System;
-using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -14,7 +12,6 @@ namespace Eq2Auras.Plugin.Overlay
         public const double DefaultRowWidth = 250;
         public const double DefaultRowHeight = 26;
         public const double DefaultRadialSize = 110;
-        public const double RowTextPadding = 6;   // text-fit floor = line height + this
 
         public double RowWidth { get; set; } = DefaultRowWidth;
         public double RowHeight { get; set; } = DefaultRowHeight;
@@ -29,16 +26,11 @@ namespace Eq2Auras.Plugin.Overlay
         public double LateTag => BaseSize * 22.0 / 13.0;
         public double LateName => BaseSize * 12.0 / 13.0;
 
-        /// Text-fit floor (SPEC §Element dimensions): a row is never shorter than its
-        /// own text line plus padding, whatever the configured height says.
-        public double EffectiveRowHeight
-            => Math.Max(RowHeight, TextLineHeight + RowTextPadding);
-
-        public double HeightRatio => EffectiveRowHeight / DefaultRowHeight;
+        // The configured dimension always wins (SPEC §Element dimensions): text that
+        // doesn't fit clips at the row bounds — a floor here would silently contradict
+        // the tab's number. Field-rejected, same lesson as the Overdue display floor.
+        public double HeightRatio => RowHeight / DefaultRowHeight;
         public double RadialRatio => RadialSize / DefaultRadialSize;
-
-        private double TextLineHeight
-            => (Font ?? SystemFonts.MessageFontFamily).LineSpacing * RowText;
 
         public void ApplyFont(TextBlock text, double size)
         {
