@@ -15,6 +15,7 @@ namespace Eq2Auras.Plugin
     public class Eq2AurasPlugin : IActPluginV1
     {
         private Label _statusLabel;
+        private FlowLayoutPanel _paletteRow;
         private JsonlLogWriter _log;
         private TimerProbe _probe;
         private OverlayHost _overlay;
@@ -75,9 +76,14 @@ namespace Eq2Auras.Plugin
                 new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
 
             var panelABox = BuildPanelGroupBox("Panel A", _settings.Panels[0], 78);
-            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 176);
+            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 208);
 
-            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 276, Width = 200 };
+            var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 344, Width = 70 };
+            // Wrap room for the max case: 16 swatches + 3 buttons flow onto two rows.
+            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 338, Width = 400, Height = 68 };
+            RebuildPaletteRow();
+
+            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 416, Width = 200 };
             moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
             tab.Controls.Add(tokenBox);
@@ -85,6 +91,8 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(updateButton);
             tab.Controls.Add(panelABox);
             tab.Controls.Add(panelBBox);
+            tab.Controls.Add(paletteLabel);
+            tab.Controls.Add(_paletteRow);
             tab.Controls.Add(moveBox);
         }
 
@@ -94,7 +102,7 @@ namespace Eq2Auras.Plugin
         /// ACT's UI thread. Persistence goes through the SettingsStore gate.
         private GroupBox BuildPanelGroupBox(string title, PanelSettings panel, int top)
         {
-            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 90 };
+            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 122 };
 
             var colorLabel = new Label { Text = "Colors:", Left = 8, Top = 26, Width = 70 };
             var colorBox = new ComboBox
@@ -118,11 +126,91 @@ namespace Eq2Auras.Plugin
             styleBox.SelectedIndexChanged += (s, e) =>
                 SettingsStore.Update(_settings, () => panel.EscalationStyle = (EscalationStyle)styleBox.SelectedIndex);
 
+            var fontButton = new Button { Text = "Font…", Left = 8, Top = 86, Width = 70 };
+            var fontLabel = new Label { Left = 82, Top = 90, Width = 160, Text = FontLabelText(panel) };
+            fontButton.Click += (s, e) =>
+            {
+                using (var dialog = new FontDialog())
+                {
+                    var currentDip = panel.FontBaseSize ?? 13.0;
+                    var currentFamily = panel.FontFamily ?? System.Drawing.SystemFonts.MessageBoxFont.Name;
+                    dialog.Font = new System.Drawing.Font(currentFamily, (float)(currentDip * 72.0 / 96.0));
+                    if (dialog.ShowDialog() != DialogResult.OK) return;
+
+                    SettingsStore.Update(_settings, () =>
+                    {
+                        panel.FontFamily = dialog.Font.Name;
+                        panel.FontBaseSize = dialog.Font.SizeInPoints * 96.0 / 72.0;   // points -> DIPs
+                    });
+                    fontLabel.Text = FontLabelText(panel);
+                    _overlay.RefreshStyles();
+                }
+            };
+
             box.Controls.Add(colorLabel);
             box.Controls.Add(colorBox);
             box.Controls.Add(styleLabel);
             box.Controls.Add(styleBox);
+            box.Controls.Add(fontButton);
+            box.Controls.Add(fontLabel);
             return box;
+        }
+
+        private static string FontLabelText(PanelSettings panel)
+            => (panel.FontFamily ?? "default") + " " + Math.Round(panel.FontBaseSize ?? 13.0);
+
+        private void RebuildPaletteRow()
+        {
+            _paletteRow.Controls.Clear();
+
+            for (int i = 0; i < _settings.PaletteArgb.Count; i++)
+            {
+                int index = i;
+                var swatch = new Button
+                {
+                    Width = 30, Height = 26, FlatStyle = FlatStyle.Flat,
+                    BackColor = System.Drawing.Color.FromArgb(_settings.PaletteArgb[index])
+                };
+                swatch.Click += (s, e) =>
+                {
+                    using (var dialog = new ColorDialog { Color = swatch.BackColor, FullOpen = true })
+                    {
+                        if (dialog.ShowDialog() != DialogResult.OK) return;
+                        SettingsStore.Update(_settings, () => _settings.PaletteArgb[index] = dialog.Color.ToArgb());
+                        swatch.BackColor = dialog.Color;
+                    }
+                };
+                _paletteRow.Controls.Add(swatch);
+            }
+
+            var add = new Button { Text = "+", Width = 26, Height = 26, Enabled = _settings.PaletteArgb.Count < Settings.MaxPaletteSize };
+            add.Click += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => _settings.PaletteArgb.Add(unchecked((int)0xFF808080)));
+                RebuildPaletteRow();
+            };
+
+            var remove = new Button { Text = "−", Width = 26, Height = 26, Enabled = _settings.PaletteArgb.Count > 1 };
+            remove.Click += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => _settings.PaletteArgb.RemoveAt(_settings.PaletteArgb.Count - 1));
+                RebuildPaletteRow();
+            };
+
+            var reset = new Button { Text = "Reset", Width = 52, Height = 26 };
+            reset.Click += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () =>
+                {
+                    _settings.PaletteArgb.Clear();
+                    _settings.PaletteArgb.AddRange(ColorPolicy.DefaultPaletteArgb);
+                });
+                RebuildPaletteRow();
+            };
+
+            _paletteRow.Controls.Add(add);
+            _paletteRow.Controls.Add(remove);
+            _paletteRow.Controls.Add(reset);
         }
 
         private void SetStatusThreadSafe(string message)
