@@ -31,6 +31,9 @@ Some users prefer the escalating timer to **stay in the calm list with the highl
 ### SHIPPED — slice 4 (2026-07-02, live-verified): timer groups (dual panels) + unlock/move mode
 Worked straight out of the box on first live test. Two independent groups (A = ACT panel 1, B = panel 2), each a full pipeline instance — own list window, own center zone, own per-group knobs, own dragged/persisted positions; one global name→slot color map. `OverlayEngine` in Core (N-ready groups list, mirror-ACT routing); unlock/move mode via tab checkbox (chrome + `DragMove`, save on drag-end + re-lock); bidirectional settings migration preserved existing knob choices. Spec: §Timer groups, §Moving the overlay. Plan: `docs/plans/2026-07-02-slice4-timer-groups-and-move-mode.md` (third-party reviewed).
 
+### Also shipped 2026-07-02: CI-stamped README status section
+Build badge + version/date pills + quick links; machine-owned marker block restamped by every release (`[skip ci]` bot commit). First feature through the new branch-review flow end to end. Spec: SPEC §Development & test cycle. Outstanding micro-check: confirm the native Actions badge renders on github.com (fallback: static build pill in the same stamp step).
+
 ### NEXT UP — (empty; triage with Alex)
 Candidates from standing items and roadmap below — raid-scale validation remains the standing no-code item.
 
