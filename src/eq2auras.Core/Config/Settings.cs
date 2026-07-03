@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
@@ -24,6 +26,40 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "escalationStyle")]
         public EscalationStyle EscalationStyle { get; set; } = EscalationStyle.CenterRadial;
 
+        public const int GroupCount = 2;
+
+        [DataMember(Name = "panels")]
+        public List<PanelSettings> Panels { get; set; } = DefaultPanels();
+
+        private static List<PanelSettings> DefaultPanels()
+        {
+            var panels = new List<PanelSettings>();
+            for (int i = 0; i < GroupCount; i++)
+            {
+                panels.Add(new PanelSettings());
+            }
+            return panels;
+        }
+
+        /// DCJS skips initializers, so a deserialized instance may carry a null or
+        /// wrong-length panel list. Normalizes to exactly GroupCount entries. A legacy
+        /// flat file (no panels key at all) seeds Panel A from its top-level knobs;
+        /// Panel B starts at defaults (SPEC §Configuration).
+        private void Normalize()
+        {
+            bool legacyFile = Panels == null;
+
+            Panels = (Panels ?? new List<PanelSettings>()).Where(p => p != null).ToList();
+            while (Panels.Count < GroupCount) Panels.Add(new PanelSettings());
+            if (Panels.Count > GroupCount) Panels = Panels.Take(GroupCount).ToList();
+
+            if (legacyFile)
+            {
+                Panels[0].ColorSource = ColorSource;
+                Panels[0].EscalationStyle = EscalationStyle;
+            }
+        }
+
         public static Settings Parse(string json)
         {
             try
@@ -31,7 +67,9 @@ namespace Eq2Auras.Core.Config
                 var serializer = new DataContractJsonSerializer(typeof(Settings));
                 using (var stream = new MemoryStream(Encoding.UTF8.GetBytes(json)))
                 {
-                    return (Settings)serializer.ReadObject(stream) ?? new Settings();
+                    var settings = (Settings)serializer.ReadObject(stream) ?? new Settings();
+                    settings.Normalize();
+                    return settings;
                 }
             }
             catch
@@ -42,6 +80,10 @@ namespace Eq2Auras.Core.Config
 
         public string ToJson()
         {
+            Normalize();
+            ColorSource = Panels[0].ColorSource;         // legacy mirror: an older build
+            EscalationStyle = Panels[0].EscalationStyle; // reads the flat knobs as Panel A's
+
             var serializer = new DataContractJsonSerializer(typeof(Settings));
             using (var stream = new MemoryStream())
             {
