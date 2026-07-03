@@ -90,25 +90,27 @@ public class SettingsTests
     }
 
     [Fact]
-    public void Roundtrips_palette_font_and_scale()
+    public void Roundtrips_palette_font_and_dimensions()
     {
         var settings = new Settings();
         settings.PaletteArgb = new System.Collections.Generic.List<int> { -65536, -16711936 };
         settings.Panels[0].FontFamily = "Comic Sans MS";
         settings.Panels[0].FontBaseSize = 16.0;
-        settings.Panels[1].ListScale = 1.5;
-        settings.Panels[1].CenterScale = 0.75;
+        settings.Panels[0].RowWidth = 300.0;
+        settings.Panels[0].RowHeight = 40.0;
+        settings.Panels[1].RadialSize = 200.0;
 
         var parsed = Settings.Parse(settings.ToJson());
 
         Assert.Equal(new[] { -65536, -16711936 }, parsed.PaletteArgb);
         Assert.Equal("Comic Sans MS", parsed.Panels[0].FontFamily);
         Assert.Equal(16.0, parsed.Panels[0].FontBaseSize);
-        Assert.Equal(1.5, parsed.Panels[1].ListScale);
-        Assert.Equal(0.75, parsed.Panels[1].CenterScale);
-        Assert.Null(parsed.Panels[0].ListScale);          // unset stays null — never 0
+        Assert.Equal(300.0, parsed.Panels[0].RowWidth);
+        Assert.Equal(40.0, parsed.Panels[0].RowHeight);
+        Assert.Equal(200.0, parsed.Panels[1].RadialSize);
+        Assert.Null(parsed.Panels[0].RadialSize);          // unset stays null — never 0
+        Assert.Null(parsed.Panels[1].RowWidth);
         Assert.Null(parsed.Panels[1].FontFamily);
-        Assert.Null(parsed.Panels[1].FontBaseSize);
     }
 
     [Theory]
@@ -131,12 +133,23 @@ public class SettingsTests
     }
 
     [Fact]
-    public void Out_of_range_scales_clamp_on_parse()
+    public void Out_of_range_dimensions_clamp_on_parse()
     {
-        var parsed = Settings.Parse("{\"panels\":[{\"listScale\":9.0},{\"centerScale\":0.1}]}");
+        var parsed = Settings.Parse(
+            "{\"panels\":[{\"rowWidth\":9999,\"rowHeight\":5},{\"radialSize\":10}]}");
 
-        Assert.Equal(2.5, parsed.Panels[0].ListScale);
-        Assert.Equal(0.5, parsed.Panels[1].CenterScale);
+        Assert.Equal(800.0, parsed.Panels[0].RowWidth);
+        Assert.Equal(16.0, parsed.Panels[0].RowHeight);
+        Assert.Equal(40.0, parsed.Panels[1].RadialSize);
+    }
+
+    [Fact]
+    public void Retired_scale_keys_are_ignored()
+    {
+        var parsed = Settings.Parse("{\"panels\":[{\"listScale\":1.5},{\"centerScale\":0.7}]}");
+
+        Assert.Equal(2, parsed.Panels.Count);              // parses fine, keys dropped
+        Assert.Null(parsed.Panels[0].RowWidth);
     }
 
     [Fact]

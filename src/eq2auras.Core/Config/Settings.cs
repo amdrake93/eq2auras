@@ -29,8 +29,9 @@ namespace Eq2Auras.Core.Config
 
         public const int GroupCount = 2;
         public const int MaxPaletteSize = 16;
-        public const double MinScale = 0.5;
-        public const double MaxScale = 2.5;
+        public const double MinRowWidth = 100, MaxRowWidth = 800;
+        public const double MinRowHeight = 16, MaxRowHeight = 100;
+        public const double MinRadialSize = 40, MaxRadialSize = 400;
 
         [DataMember(Name = "paletteArgb")]
         public List<int> PaletteArgb { get; set; } = DefaultPalette();
@@ -76,16 +77,17 @@ namespace Eq2Auras.Core.Config
             // per restyle on other threads — a valid value must never be rewritten.
             foreach (var panel in Panels)
             {
-                if (OutOfRange(panel.ListScale)) panel.ListScale = ClampScale(panel.ListScale);
-                if (OutOfRange(panel.CenterScale)) panel.CenterScale = ClampScale(panel.CenterScale);
+                if (OutOfRange(panel.RowWidth, MinRowWidth, MaxRowWidth))
+                    panel.RowWidth = Math.Min(MaxRowWidth, Math.Max(MinRowWidth, panel.RowWidth.Value));
+                if (OutOfRange(panel.RowHeight, MinRowHeight, MaxRowHeight))
+                    panel.RowHeight = Math.Min(MaxRowHeight, Math.Max(MinRowHeight, panel.RowHeight.Value));
+                if (OutOfRange(panel.RadialSize, MinRadialSize, MaxRadialSize))
+                    panel.RadialSize = Math.Min(MaxRadialSize, Math.Max(MinRadialSize, panel.RadialSize.Value));
             }
         }
 
-        private static bool OutOfRange(double? scale)
-            => scale.HasValue && (scale.Value < MinScale || scale.Value > MaxScale);
-
-        private static double? ClampScale(double? scale)
-            => scale.HasValue ? Math.Min(MaxScale, Math.Max(MinScale, scale.Value)) : (double?)null;
+        private static bool OutOfRange(double? value, double min, double max)
+            => value.HasValue && (value.Value < min || value.Value > max);
 
         public static Settings Parse(string json)
         {

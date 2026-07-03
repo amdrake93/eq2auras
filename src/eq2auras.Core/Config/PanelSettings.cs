@@ -32,10 +32,13 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "fontBaseSize")]
         public double? FontBaseSize { get; set; }     // WPF DIPs; null = 13 (today's look)
 
-        [DataMember(Name = "listScale")]
-        public double? ListScale { get; set; }        // null = 1.0; geometry-only
+        [DataMember(Name = "rowWidth")]
+        public double? RowWidth { get; set; }         // null = 250 (SPEC §Element dimensions)
 
-        [DataMember(Name = "centerScale")]
-        public double? CenterScale { get; set; }
+        [DataMember(Name = "rowHeight")]
+        public double? RowHeight { get; set; }        // null = 26; text-fit floor applies on top
+
+        [DataMember(Name = "radialSize")]
+        public double? RadialSize { get; set; }       // null = 110 (pie diameter)
     }
 }
