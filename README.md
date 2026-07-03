@@ -22,7 +22,7 @@ Ships as a single ACT plugin (one `.dll`) that anyone can drop into their ACT `P
 ## Status
 
 <!-- status:begin -->
-[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![version](https://img.shields.io/badge/version-0.1.58-56B4E9) ![released](https://img.shields.io/badge/released-2026--07--02-E69F00)
+[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![version](https://img.shields.io/badge/version-0.1.60-56B4E9) ![released](https://img.shields.io/badge/released-2026--07--03-E69F00)
 
 `dev-latest` · [release page](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [CI runs](https://github.com/amdrake93/eq2auras/actions) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 <!-- status:end -->
