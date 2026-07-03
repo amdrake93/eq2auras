@@ -16,5 +16,7 @@ namespace Eq2Auras.Core.Timers
         public int RemoveValueSeconds { get; set; } // the timer's own overdue window (0 = gone at zero; negative = linger)
         public int TotalSeconds { get; set; }    // post-mod duration (TimerFinalDuration)
         public int FillArgb { get; set; }        // TimerData.FillColor.ToArgb()
+        public bool ShowInPanelA { get; set; }   // TimerData.Panel1Display — group routing
+        public bool ShowInPanelB { get; set; }   // TimerData.Panel2Display
     }
 }

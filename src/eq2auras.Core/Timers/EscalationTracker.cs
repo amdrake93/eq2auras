@@ -5,21 +5,22 @@ using Eq2Auras.Core.Config;
 
 namespace Eq2Auras.Core.Timers
 {
-    /// The escalation policy: a per-tick mapping from ACT's readings to display
-    /// elements, parameterized by the Settings knobs. The only cross-tick state is the
-    /// palette assigner (session-stable color identity) — every display state (calm /
-    /// imminent / overdue) still derives from the data ACT reports this tick, and
-    /// nothing on screen ever outlives the data.
+    /// The escalation policy for ONE timer group: a per-tick mapping from the group's
+    /// readings to display elements, parameterized by the group's PanelSettings. The
+    /// palette assigner is injected and SHARED across groups (color identity is global —
+    /// SPEC §Timer colors). Every display state still derives from the data ACT reports
+    /// this tick, and nothing on screen ever outlives the data.
     public sealed class EscalationTracker
     {
         private const int CenterSlots = 3;          // future config knob
 
-        private readonly Settings _settings;
-        private readonly PaletteAssigner _palette = new PaletteAssigner();
+        private readonly PanelSettings _settings;
+        private readonly PaletteAssigner _palette;
 
-        public EscalationTracker(Settings settings = null)
+        public EscalationTracker(PanelSettings settings = null, PaletteAssigner palette = null)
         {
-            _settings = settings ?? new Settings();
+            _settings = settings ?? new PanelSettings();
+            _palette = palette ?? new PaletteAssigner();
         }
 
         public OverlayFrame Tick(IReadOnlyList<TimerReading> readings)
@@ -32,14 +33,8 @@ namespace Eq2Auras.Core.Timers
             var governing = readings
                 .GroupBy(KeyOf)
                 .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
+                .Select(WithResolvedColor)
                 .ToList();
-
-            // Resolve every reading's final display color here — renderers just paint.
-            foreach (var reading in governing)
-            {
-                reading.FillArgb = ColorPolicy.Resolve(
-                    _settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb);
-            }
 
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
             bool inPlace = _settings.EscalationStyle == EscalationStyle.HighlightInPlace;
@@ -91,6 +86,27 @@ namespace Eq2Auras.Core.Timers
             {
                 ListRows = TimerListBuilder.Build(listSource, includeOverdue: inPlace),
                 CenterElements = lates.Concat(pies).ToList()
+            };
+        }
+
+        /// Resolves the final display color into a COPY of the governing reading — never
+        /// in place: the engine routes the same reading objects to multiple groups, and
+        /// an in-place write would hand the second group the first group's output (e.g.
+        /// ActColor softening an already-assigned palette color).
+        private TimerReading WithResolvedColor(TimerReading reading)
+        {
+            return new TimerReading
+            {
+                Name = reading.Name,
+                Combatant = reading.Combatant,
+                TimeLeft = reading.TimeLeft,
+                RawPreciseTimeLeft = reading.RawPreciseTimeLeft,
+                WarningValue = reading.WarningValue,
+                RemoveValueSeconds = reading.RemoveValueSeconds,
+                TotalSeconds = reading.TotalSeconds,
+                ShowInPanelA = reading.ShowInPanelA,
+                ShowInPanelB = reading.ShowInPanelB,
+                FillArgb = ColorPolicy.Resolve(_settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb)
             };
         }
 

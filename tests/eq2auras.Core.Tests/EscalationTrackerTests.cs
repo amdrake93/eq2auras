@@ -179,7 +179,7 @@ public class EscalationTrackerTests
     [Fact]
     public void ActColor_mode_keeps_the_timers_own_color_softened()
     {
-        var tracker = new EscalationTracker(new Settings { ColorSource = ColorSource.ActColor });
+        var tracker = new EscalationTracker(new PanelSettings { ColorSource = ColorSource.ActColor });
         var frame = tracker.Tick(R(Reading("t", 25)));
 
         Assert.Equal(ColorPolicy.Soften(-16776961), frame.ListRows[0].FillArgb);
@@ -188,7 +188,7 @@ public class EscalationTrackerTests
     [Fact]
     public void HighlightInPlace_keeps_imminents_in_the_list_and_center_empty()
     {
-        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var tracker = new EscalationTracker(new PanelSettings { EscalationStyle = EscalationStyle.HighlightInPlace });
         var frame = tracker.Tick(R(Reading("boss", 5), Reading("calm", 25)));
 
         Assert.Empty(frame.CenterElements);
@@ -199,7 +199,7 @@ public class EscalationTrackerTests
     [Fact]
     public void HighlightInPlace_renders_linger_overdue_as_LATE_rows()
     {
-        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var tracker = new EscalationTracker(new PanelSettings { EscalationStyle = EscalationStyle.HighlightInPlace });
         var frame = tracker.Tick(R(Reading("boss", -2, removeValue: -15), Reading("calm", 25)));
 
         Assert.Empty(frame.CenterElements);
@@ -212,11 +212,49 @@ public class EscalationTrackerTests
     [Fact]
     public void HighlightInPlace_still_hides_remove_at_zero_timers_past_zero()
     {
-        var tracker = new EscalationTracker(new Settings { EscalationStyle = EscalationStyle.HighlightInPlace });
+        var tracker = new EscalationTracker(new PanelSettings { EscalationStyle = EscalationStyle.HighlightInPlace });
         var frame = tracker.Tick(R(Reading("boss", -1, removeValue: 0)));
 
         Assert.Empty(frame.ListRows);
         Assert.Empty(frame.CenterElements);
+    }
+
+    [Fact]
+    public void Color_resolution_does_not_mutate_the_input_readings()
+    {
+        var reading = Reading("boss", 25);              // FillArgb = -16776961 (ACT blue)
+        new EscalationTracker().Tick(R(reading));
+
+        Assert.Equal(-16776961, reading.FillArgb);      // original untouched
+    }
+
+    [Fact]
+    public void Two_trackers_sharing_readings_each_resolve_from_the_ACT_original()
+    {
+        var palette = new PaletteAssigner();
+        var trackerA = new EscalationTracker(new PanelSettings(), palette);
+        var trackerB = new EscalationTracker(new PanelSettings { ColorSource = ColorSource.ActColor }, palette);
+        var readings = R(Reading("boss", 25));
+
+        trackerA.Tick(readings);                        // Palette mode resolves first
+        var frameB = trackerB.Tick(readings);
+
+        // B must soften ACT's original blue — NOT A's already-assigned palette color.
+        Assert.Equal(ColorPolicy.Soften(-16776961), frameB.ListRows[0].FillArgb);
+    }
+
+    [Fact]
+    public void Shared_assigner_gives_one_name_one_slot_across_trackers()
+    {
+        var palette = new PaletteAssigner();
+        var trackerA = new EscalationTracker(new PanelSettings(), palette);
+        var trackerB = new EscalationTracker(new PanelSettings(), palette);
+
+        trackerA.Tick(R(Reading("First", 25)));
+        var frameB = trackerB.Tick(R(Reading("Second", 25), Reading("First", 20)));
+
+        Assert.Equal(ColorPolicy.PaletteArgb[0], frameB.ListRows.Single(r => r.Name == "First").FillArgb);
+        Assert.Equal(ColorPolicy.PaletteArgb[1], frameB.ListRows.Single(r => r.Name == "Second").FillArgb);
     }
 
     [Fact]
