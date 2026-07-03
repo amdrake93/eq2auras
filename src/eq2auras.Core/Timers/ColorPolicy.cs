@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using Eq2Auras.Core.Config;
 
 namespace Eq2Auras.Core.Timers
@@ -26,13 +27,14 @@ namespace Eq2Auras.Core.Timers
             unchecked((int)0xFF5A5A5A),
         };
 
-        public static int Resolve(ColorSource source, int paletteIndex, int actArgb)
+        public static int Resolve(ColorSource source, int paletteIndex, int actArgb, IReadOnlyList<int> palette = null)
         {
+            IReadOnlyList<int> colors = palette != null && palette.Count > 0 ? palette : DefaultPaletteArgb;
             switch (source)
             {
                 case ColorSource.Greyscale: return GreyArgb[paletteIndex % GreyArgb.Length];
                 case ColorSource.ActColor: return Soften(actArgb);
-                default: return DefaultPaletteArgb[paletteIndex % DefaultPaletteArgb.Length];
+                default: return colors[paletteIndex % colors.Count];
             }
         }
 

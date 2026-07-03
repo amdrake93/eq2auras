@@ -67,4 +67,19 @@ public class OverlayEngineTests
         Assert.Equal(ColorPolicy.DefaultPaletteArgb[1], frames[0].ListRows.Single(r => r.Name == "Second").FillArgb);
         Assert.Equal(ColorPolicy.GreyArgb[1], frames[1].ListRows.Single(r => r.Name == "Second").FillArgb);
     }
+
+    [Fact]
+    public void Palette_edits_apply_on_the_next_tick()
+    {
+        var settings = new Settings();
+        var engine = new OverlayEngine(settings);
+        var readings = new List<TimerReading> { Reading("boss", 25, inA: true) };
+
+        var before = engine.Tick(readings);
+        settings.PaletteArgb[0] = 424242;              // live tab edit: same list, in place
+        var after = engine.Tick(readings);
+
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], before[0].ListRows[0].FillArgb);
+        Assert.Equal(424242, after[0].ListRows[0].FillArgb);
+    }
 }

@@ -44,4 +44,26 @@ public class ColorPolicyTests
         // Pure ACT-default blue #FF0000FF: r=0*.65+110*.35=38, g=0+41, b=165+45=211
         Assert.Equal(unchecked((int)0xFF2629D3), ColorPolicy.Soften(unchecked((int)0xFF0000FF)));
     }
+
+    [Fact]
+    public void Resolve_uses_a_custom_palette_and_cycles_its_length()
+    {
+        var palette = new[] { 111, 222, 333 };
+
+        Assert.Equal(222, ColorPolicy.Resolve(ColorSource.Palette, 1, 0, palette));
+        Assert.Equal(111, ColorPolicy.Resolve(ColorSource.Palette, 3, 0, palette));  // 3 % 3
+    }
+
+    [Fact]
+    public void Resolve_falls_back_to_the_default_palette_when_none_given()
+    {
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], ColorPolicy.Resolve(ColorSource.Palette, 0, 0));
+        Assert.Equal(ColorPolicy.DefaultPaletteArgb[0], ColorPolicy.Resolve(ColorSource.Palette, 0, 0, new int[0]));
+    }
+
+    [Fact]
+    public void Greyscale_ignores_the_custom_palette()
+    {
+        Assert.Equal(ColorPolicy.GreyArgb[1], ColorPolicy.Resolve(ColorSource.Greyscale, 1, 0, new[] { 111 }));
+    }
 }

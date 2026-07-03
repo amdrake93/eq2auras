@@ -11,21 +11,25 @@ namespace Eq2Auras.Core.Timers
     public sealed class OverlayEngine
     {
         private readonly PaletteAssigner _palette = new PaletteAssigner();
+        private readonly Settings _settings;
         private readonly List<EscalationTracker> _trackers;
 
         public OverlayEngine(Settings settings)
         {
-            _trackers = (settings ?? new Settings()).Panels
+            _settings = settings ?? new Settings();
+            _trackers = _settings.Panels
                 .Select(panel => new EscalationTracker(panel, _palette))
                 .ToList();
         }
 
-        /// One frame per group, index-aligned with Settings.Panels.
+        /// One frame per group, index-aligned with Settings.Panels. The palette is
+        /// read PER TICK so tab edits apply live with no notification plumbing.
         public List<OverlayFrame> Tick(IReadOnlyList<TimerReading> readings)
         {
             return _trackers
                 .Select((tracker, i) => tracker.Tick(
-                    readings.Where(r => RoutesTo(i, r)).ToList()))
+                    readings.Where(r => RoutesTo(i, r)).ToList(),
+                    _settings.PaletteArgb))
                 .ToList();
         }
 

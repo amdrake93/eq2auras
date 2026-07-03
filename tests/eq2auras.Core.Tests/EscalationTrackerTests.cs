@@ -244,6 +244,14 @@ public class EscalationTrackerTests
     }
 
     [Fact]
+    public void Tick_resolves_against_a_custom_palette()
+    {
+        var frame = new EscalationTracker().Tick(R(Reading("boss", 25)), new[] { 424242 });
+
+        Assert.Equal(424242, frame.ListRows[0].FillArgb);
+    }
+
+    [Fact]
     public void Shared_assigner_gives_one_name_one_slot_across_trackers()
     {
         var palette = new PaletteAssigner();

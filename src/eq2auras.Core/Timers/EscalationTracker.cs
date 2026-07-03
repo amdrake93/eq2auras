@@ -23,7 +23,7 @@ namespace Eq2Auras.Core.Timers
             _palette = palette ?? new PaletteAssigner();
         }
 
-        public OverlayFrame Tick(IReadOnlyList<TimerReading> readings)
+        public OverlayFrame Tick(IReadOnlyList<TimerReading> readings, IReadOnlyList<int> paletteArgb = null)
         {
             // A re-firing trigger ADDS a SpellTimer instance to the same frame — but ACT's
             // engine kills the WHOLE frame when the soonest instance expires (measured:
@@ -33,7 +33,7 @@ namespace Eq2Auras.Core.Timers
             var governing = readings
                 .GroupBy(KeyOf)
                 .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
-                .Select(WithResolvedColor)
+                .Select(r => WithResolvedColor(r, paletteArgb))
                 .ToList();
 
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
@@ -93,7 +93,7 @@ namespace Eq2Auras.Core.Timers
         /// in place: the engine routes the same reading objects to multiple groups, and
         /// an in-place write would hand the second group the first group's output (e.g.
         /// ActColor softening an already-assigned palette color).
-        private TimerReading WithResolvedColor(TimerReading reading)
+        private TimerReading WithResolvedColor(TimerReading reading, IReadOnlyList<int> paletteArgb)
         {
             return new TimerReading
             {
@@ -106,7 +106,7 @@ namespace Eq2Auras.Core.Timers
                 TotalSeconds = reading.TotalSeconds,
                 ShowInPanelA = reading.ShowInPanelA,
                 ShowInPanelB = reading.ShowInPanelB,
-                FillArgb = ColorPolicy.Resolve(_settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb)
+                FillArgb = ColorPolicy.Resolve(_settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb, paletteArgb)
             };
         }
 
