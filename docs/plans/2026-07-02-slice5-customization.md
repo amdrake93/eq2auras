@@ -584,7 +584,6 @@ Visual creation in `RenderRows`/`RenderElements` passes the style: `new TimerRow
 (`using Eq2Auras.Core.Config;` for the shared clamp constants — one source of truth with T1.)
 
 **Preview trade-off (deliberate, transient):** during the drag, the `LayoutTransform` preview scales *everything including text*; on release the transform drops and the real geometry-only restyle applies, so **text visibly snaps back to its own size**. This transiently violates "text never scales with the window" — accepted because the alternatives (restyle-per-mousemove rebuild storms, or transforming only non-text elements mid-drag) are worse. The live script calls it out so nobody files the snap as a bug.
-```
 
 (add `using System.Windows.Media;` + `using System.Windows.Input;` as needed; `Math` via `System`.)
 
