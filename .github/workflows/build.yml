@@ -48,3 +48,25 @@ jobs:
           name: dev-latest
           prerelease: true
           files: dist/*
+
+      - name: Stamp README status block
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          today="$(date -u +%Y-%m-%d)"
+          export BLOCK="<!-- status:begin -->
+          [![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![version](https://img.shields.io/badge/version-${VERSION}-56B4E9) ![released](https://img.shields.io/badge/released-${today//-/--}-E69F00)
+
+          \`dev-latest\` · [release page](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [CI runs](https://github.com/amdrake93/eq2auras/actions) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
+          <!-- status:end -->"
+          perl -0777 -pi -e 's/<!-- status:begin -->.*?<!-- status:end -->/$ENV{BLOCK}/s' README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git commit -m "README: stamp status v${VERSION} [skip ci]"; then
+            git pull --rebase origin main || true
+            git push origin HEAD:main \
+              || echo "::warning::status stamp push failed — block stays stale until next release"
+          fi
