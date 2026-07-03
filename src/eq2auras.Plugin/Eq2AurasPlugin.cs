@@ -59,6 +59,8 @@ namespace Eq2Auras.Plugin
 
         private void BuildConfigTab(TabPage tab)
         {
+            tab.AutoScroll = true;   // the layout outgrows a short ACT window
+
             var pluginsDir = Path.Combine(ActGlobals.oFormActMain.AppDataFolder.FullName, "Plugins");
 
             var tokenBox = new TextBox { Left = 10, Top = 12, Width = 300, UseSystemPasswordChar = true };
@@ -76,14 +78,14 @@ namespace Eq2Auras.Plugin
                 new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
 
             var panelABox = BuildPanelGroupBox("Panel A", _settings.Panels[0], 78);
-            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 208);
+            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 272);
 
-            var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 344, Width = 70 };
+            var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 474, Width = 70 };
             // Wrap room for the max case: 16 swatches + 3 buttons flow onto two rows.
-            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 338, Width = 400, Height = 68 };
+            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 468, Width = 400, Height = 68 };
             RebuildPaletteRow();
 
-            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 416, Width = 200 };
+            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 546, Width = 200 };
             moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
             tab.Controls.Add(tokenBox);
@@ -102,7 +104,7 @@ namespace Eq2Auras.Plugin
         /// ACT's UI thread. Persistence goes through the SettingsStore gate.
         private GroupBox BuildPanelGroupBox(string title, PanelSettings panel, int top)
         {
-            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 122 };
+            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 186 };
 
             var colorLabel = new Label { Text = "Colors:", Left = 8, Top = 26, Width = 70 };
             var colorBox = new ComboBox
@@ -147,12 +149,52 @@ namespace Eq2Auras.Plugin
                 }
             };
 
+            var rowLabel = new Label { Text = "Row:", Left = 8, Top = 122, Width = 40 };
+            var rowWidthBox = DimensionBox(52, 118, panel.RowWidth ?? VisualStyle.DefaultRowWidth,
+                Settings.MinRowWidth, Settings.MaxRowWidth,
+                v => panel.RowWidth = v);
+            var xLabel = new Label { Text = "×", Left = 116, Top = 122, Width = 14 };
+            var rowHeightBox = DimensionBox(132, 118, panel.RowHeight ?? VisualStyle.DefaultRowHeight,
+                Settings.MinRowHeight, Settings.MaxRowHeight,
+                v => panel.RowHeight = v);
+
+            var radialLabel = new Label { Text = "Radial:", Left = 8, Top = 154, Width = 44 };
+            var radialBox = DimensionBox(52, 150, panel.RadialSize ?? VisualStyle.DefaultRadialSize,
+                Settings.MinRadialSize, Settings.MaxRadialSize,
+                v => panel.RadialSize = v);
+
             box.Controls.Add(colorLabel);
             box.Controls.Add(colorBox);
             box.Controls.Add(styleLabel);
             box.Controls.Add(styleBox);
             box.Controls.Add(fontButton);
             box.Controls.Add(fontLabel);
+            box.Controls.Add(rowLabel);
+            box.Controls.Add(rowWidthBox);
+            box.Controls.Add(xLabel);
+            box.Controls.Add(rowHeightBox);
+            box.Controls.Add(radialLabel);
+            box.Controls.Add(radialBox);
+            return box;
+        }
+
+        /// One numeric dimension knob: bounds are the shared Settings constants
+        /// (enforced here AND in Normalize), live-applied via the rebuild-once path.
+        private NumericUpDown DimensionBox(int left, int top, double value,
+            double min, double max, Action<double> assign)
+        {
+            var box = new NumericUpDown
+            {
+                Left = left, Top = top, Width = 60,
+                Minimum = (decimal)min, Maximum = (decimal)max,
+                Value = (decimal)value
+            };
+            // Wired AFTER Value is set — the initial assignment must not fire a save.
+            box.ValueChanged += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => assign((double)box.Value));
+                _overlay.RefreshStyles();
+            };
             return box;
         }
 
