@@ -26,6 +26,6 @@ ACT (Advanced Combat Tracker) overlay-suite plugin for EverQuest 2 — north sta
 ## Working style (learned, keep honoring)
 - **Alex owns the phase transitions** (brainstorm → spec → plan → implement). Finish the current phase's artifact and stop; auto-accept mode ≠ drive the workflow. When he pauses for a manual step, wait for an explicit "go" — don't resume off an ambiguous reply.
 - Spec amendments **before** technical plans. Plans in `docs/plans/`, executed inline (not subagent) so he can watch; strict TDD in Core.
-- Commits go straight to `main` (solo personal repo, no ticket prefixes — deliberate exception to the usual CC conventions).
+- **Development happens on local branches** (descriptive names, e.g. `slice5-<name>`; no ticket prefixes). Alex reviews via `git diff main..<branch>` — merge to `main` and push **only on his explicit approval**. Pushing `main` is shipping: CI builds and publishes `dev-latest` from `main` only (branches get no CI). Doc-only tweaks (backlog notes, spec typos) may still go straight to `main`.
 - Diagnostic JSONL logs land on the Windows box (`%APPDATA%\Advanced Combat Tracker\eq2auras\logs`); ferry them back via the repo (`spike-data/`, gitignore-excepted) for analysis here.
 - The GitHub update token: fine-grained PAT, contents:read, this repo only — it must never appear in chat/commits; it lives in his password manager + DPAPI on the Windows box.
