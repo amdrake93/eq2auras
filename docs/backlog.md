@@ -39,6 +39,9 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 
 **Reviewer plan-watch items** (3rd-party spec review, 2026-07-02 — the plan review will check): FontDialog point→DIP conversion (store DIPs); enumerate all SIX text roles incl. LATE-name (12 — decide its base derivation explicitly); grip drag must not trigger `DragMove` (`e.Handled = true`); font/scale changes rebuild retained visuals once (constructor-baked constants — rebuild on knob change only, never per tick; pulses restarting once is accepted); scale every geometry constant (RowWidth/Height, drain math's `RowWidth - 2`, PieDiameter, pie-name MaxWidth 190, LATE width 170, margins, XAML Widths 260/200); `ColorPolicy.Resolve` takes the palette as a parameter and the built-in constant renames to `DefaultPaletteArgb` (avoid Settings.PaletteArgb name collision); ColorDialog is alpha-less — arrives 0xFF like the built-ins, add no alpha handling. Raid-scale validation remains the standing no-code item.
 
+### Release channels (Alex's stated direction, 2026-07-02)
+An **unstable channel** (rolling prerelease from dev branches — one-button beta/dev testing before merge) and a **stable release artifact** elsewhere for other users. Needs: second rolling tag published from branch CI, a channel knob in the self-updater, spec amendment (§Development & test cycle). Until then, pre-merge field testing = download the branch CI artifact and overwrite+toggle manually.
+
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.
 - Phase-1 odds: feature enable/disable + diagnostics toggle on the tab; diagnostic log size/age rotation.
