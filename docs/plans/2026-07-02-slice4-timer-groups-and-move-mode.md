@@ -64,7 +64,7 @@ tests/eq2auras.Core.Tests/
 - Produces: `PanelSettings { ColorSource ColorSource; EscalationStyle EscalationStyle; double? ListLeft; double? ListTop; double? CenterLeft; double? CenterTop; }`
 - Produces: `Settings.Panels : List<PanelSettings>` (always exactly `Settings.GroupCount == 2` entries after `Parse`/construction); `Settings.ToJson()` mirrors `Panels[0]` knobs into the legacy flat fields.
 
-- [ ] **Step 1: Write the failing tests** — append to `tests/eq2auras.Core.Tests/SettingsTests.cs`:
+- [ ] **Step 1: Write the failing tests** — in `tests/eq2auras.Core.Tests/SettingsTests.cs`, first **delete the `Roundtrips_all_fields` test**: its contract (the flat knobs round-tripping independently) is superseded by the Panel-A mirror semantics, now owned by `Save_mirrors_panel_A_knobs_to_the_legacy_flat_fields` and `Legacy_flat_file_seeds_panel_A_and_defaults_panel_B`. Add `using System;` to the file's usings (for `StringComparison`). Then append:
 
 ```csharp
     [Fact]
@@ -111,8 +111,13 @@ tests/eq2auras.Core.Tests/
 
         var json = settings.ToJson();
 
-        Assert.Contains("\"colorSource\":2", json);
-        Assert.Contains("\"escalationStyle\":1", json);
+        // DCJS serializes unordered members alphabetically, so the FLAT knobs precede
+        // the "panels" key. Without mirroring, the only ":2" would sit inside the
+        // panels array (after it) — plain Contains could never fail.
+        Assert.True(json.IndexOf("\"colorSource\":2", StringComparison.Ordinal)
+            < json.IndexOf("\"panels\"", StringComparison.Ordinal));
+        Assert.True(json.IndexOf("\"escalationStyle\":1", StringComparison.Ordinal)
+            < json.IndexOf("\"panels\"", StringComparison.Ordinal));
     }
 
     [Theory]
@@ -1074,7 +1079,7 @@ git commit -m "Plugin: per-group window pairs, unlock/move mode (chrome + DragMo
 **Interfaces:**
 - Consumes: `OverlayEngine` (Task 3), `OverlayHost(Settings)`/`UpdateFrames`/`SetMoveMode` and `SettingsStore.Update` (Task 5), `TimerReading.ShowInPanelA/B` (Task 2), `TimerSnapshotRecord.PanelA/B` (Task 4).
 
-- [ ] **Step 1: TimerProbe carries the panel flags.** In `OnPoll`'s reading construction, add after `FillArgb`:
+- [ ] **Step 1: TimerProbe carries the panel flags.** In `OnPoll`'s reading construction, replace the final `FillArgb = data.FillColor.ToArgb()` line (it currently has no trailing comma) with:
 
 ```csharp
                         FillArgb = data.FillColor.ToArgb(),
