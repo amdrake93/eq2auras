@@ -1,16 +1,31 @@
 using System;
+using System.Collections.Generic;
 using System.Threading;
+using System.Windows;
 using System.Windows.Threading;
+using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Timers;
+using Eq2Auras.Plugin.SelfUpdate;
 
 namespace Eq2Auras.Plugin.Overlay
 {
+    /// Hosts one window pair (list + center zone) per timer group on a dedicated STA
+    /// thread. Positions come from PanelSettings (null -> built-in defaults, laid out
+    /// non-overlapping); drag-end and re-lock persist them back via SettingsStore.
     public sealed class OverlayHost : IDisposable
     {
+        private static readonly string[] PanelNames = { "Panel A", "Panel B" };
+
+        private readonly Settings _settings;
+        private readonly List<TimerListWindow> _listWindows = new List<TimerListWindow>();
+        private readonly List<CenterZoneWindow> _centerWindows = new List<CenterZoneWindow>();
         private Thread _thread;
         private Dispatcher _dispatcher;
-        private TimerListWindow _listWindow;
-        private CenterZoneWindow _centerWindow;
+
+        public OverlayHost(Settings settings)
+        {
+            _settings = settings;
+        }
 
         public void Start()
         {
@@ -18,10 +33,10 @@ namespace Eq2Auras.Plugin.Overlay
             _thread = new Thread(() =>
             {
                 _dispatcher = Dispatcher.CurrentDispatcher;
-                _listWindow = new TimerListWindow();
-                _listWindow.Show();
-                _centerWindow = new CenterZoneWindow();
-                _centerWindow.Show();
+                for (int i = 0; i < _settings.Panels.Count; i++)
+                {
+                    CreatePanelWindows(i, _settings.Panels[i]);
+                }
                 ready.Set();
                 Dispatcher.Run();
             });
@@ -31,16 +46,77 @@ namespace Eq2Auras.Plugin.Overlay
             ready.Wait(TimeSpan.FromSeconds(5));
         }
 
+        private void CreatePanelWindows(int index, PanelSettings panel)
+        {
+            string name = index < PanelNames.Length ? PanelNames[index] : "Panel " + (index + 1);
+
+            var list = new TimerListWindow(
+                name + " — list",
+                panel.ListLeft ?? DefaultListLeft(index),
+                panel.ListTop ?? DefaultListTop,
+                (left, top) => SettingsStore.Update(_settings, () => { panel.ListLeft = left; panel.ListTop = top; }));
+            list.Show();
+            _listWindows.Add(list);
+
+            var center = new CenterZoneWindow(
+                name + " — escalation",
+                panel.CenterLeft ?? DefaultCenterLeft(),
+                panel.CenterTop ?? DefaultCenterTop(index),
+                (left, top) => SettingsStore.Update(_settings, () => { panel.CenterLeft = left; panel.CenterTop = top; }));
+            center.Show();
+            _centerWindows.Add(center);
+        }
+
+        // Defaults (WPF DIPs, primary monitor): Panel A exactly where it has always
+        // been; Panel B beside/below, non-overlapping. Rough placement is fine —
+        // dragging is the real positioning mechanism (SPEC §Moving the overlay).
+        private static double DefaultListLeft(int index) => 160 + index * 290;   // list width 260 + gap
+        private const double DefaultListTop = 320;
+        private static double DefaultCenterLeft() => (SystemParameters.PrimaryScreenWidth - 200) / 2;  // center width 200
+        private static double DefaultCenterTop(int index) => SystemParameters.PrimaryScreenHeight * (0.38 + index * 0.18);
+
         /// Callable from any thread (the poll runs on ACT's UI thread).
-        public void UpdateFrame(OverlayFrame frame)
+        public void UpdateFrames(List<OverlayFrame> frames)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
             dispatcher.BeginInvoke((Action)(() =>
             {
-                _listWindow?.RenderRows(frame.ListRows);
-                _centerWindow?.RenderElements(frame.CenterElements);
+                for (int i = 0; i < frames.Count && i < _listWindows.Count; i++)
+                {
+                    _listWindows[i].RenderRows(frames[i].ListRows);
+                    _centerWindows[i].RenderElements(frames[i].CenterElements);
+                }
             }));
+        }
+
+        /// Unlock shows EVERY window regardless of each group's EscalationStyle, so an
+        /// unused center zone can be positioned before styles are flipped (SPEC).
+        public void SetMoveMode(bool moving)
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                foreach (var window in _listWindows) window.SetMoveMode(moving);
+                foreach (var window in _centerWindows) window.SetMoveMode(moving);
+                if (!moving) SaveAllPositions();   // re-lock persists everything
+            }));
+        }
+
+        private void SaveAllPositions()
+        {
+            SettingsStore.Update(_settings, () =>
+            {
+                for (int i = 0; i < _settings.Panels.Count && i < _listWindows.Count; i++)
+                {
+                    var panel = _settings.Panels[i];
+                    panel.ListLeft = _listWindows[i].Left;
+                    panel.ListTop = _listWindows[i].Top;
+                    panel.CenterLeft = _centerWindows[i].Left;
+                    panel.CenterTop = _centerWindows[i].Top;
+                }
+            });
         }
 
         public void Dispose()
@@ -48,10 +124,10 @@ namespace Eq2Auras.Plugin.Overlay
             if (_dispatcher == null) return;
             _dispatcher.Invoke(() =>
             {
-                _listWindow?.Close();
-                _listWindow = null;
-                _centerWindow?.Close();
-                _centerWindow = null;
+                foreach (var window in _listWindows) window.Close();
+                _listWindows.Clear();
+                foreach (var window in _centerWindows) window.Close();
+                _centerWindows.Clear();
             });
             _dispatcher.InvokeShutdown();
             _thread?.Join(TimeSpan.FromSeconds(2));

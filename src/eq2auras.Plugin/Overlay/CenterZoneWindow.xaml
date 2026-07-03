@@ -4,5 +4,7 @@
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
         SizeToContent="Height" Width="200">
-    <StackPanel x:Name="ElementsPanel" />
+    <Grid x:Name="RootGrid">
+        <StackPanel x:Name="ElementsPanel" />
+    </Grid>
 </Window>

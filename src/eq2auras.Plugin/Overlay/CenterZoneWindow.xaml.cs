@@ -1,24 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
+using System.Windows.Controls;
 using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Overlay
 {
     public partial class CenterZoneWindow : Window
     {
-        private const double ZoneVerticalScreenFraction = 0.38; // zone top ≈ 38% down the screen
-
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
-
-        [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
-        [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
-
         private sealed class RetainedElement
         {
             public CenterElementKind Kind;
@@ -30,20 +20,34 @@ namespace Eq2Auras.Plugin.Overlay
         // Retained visuals keyed by timer identity — updated, never rebuilt, so drains
         // and pulses run continuously at display refresh.
         private readonly Dictionary<string, RetainedElement> _elements = new Dictionary<string, RetainedElement>();
+        private readonly Grid _moveChrome;
+        private readonly Action<double, double> _persistPosition;
 
-        public CenterZoneWindow()
+        public CenterZoneWindow(string moveLabel, double left, double top, Action<double, double> persistPosition)
         {
             InitializeComponent();
-            Left = (SystemParameters.PrimaryScreenWidth - Width) / 2;
-            Top = SystemParameters.PrimaryScreenHeight * ZoneVerticalScreenFraction;
-            SourceInitialized += MakeClickThrough;
+            Left = left;
+            Top = top;
+            _persistPosition = persistPosition;
+
+            _moveChrome = MoveChrome.Build(moveLabel);
+            RootGrid.Children.Add(_moveChrome);
+
+            SourceInitialized += (s, e) => ClickThrough.Set(this, true);
+            MouseLeftButtonDown += OnDragStart;
         }
 
-        private void MakeClickThrough(object sender, EventArgs e)
+        public void SetMoveMode(bool moving)
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+            _moveChrome.Visibility = moving ? Visibility.Visible : Visibility.Collapsed;
+            ClickThrough.Set(this, !moving);
+        }
+
+        private void OnDragStart(object sender, System.Windows.Input.MouseButtonEventArgs e)
+        {
+            if (_moveChrome.Visibility != Visibility.Visible) return;
+            DragMove();
+            _persistPosition(Left, Top);
         }
 
         /// Called on the overlay's dispatcher thread with a fresh snapshot.

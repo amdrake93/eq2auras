@@ -7,21 +7,6 @@ namespace Eq2Auras.Plugin.Overlay
     /// Phase-1 constants (future config knobs).
     internal static class OverlayTheme
     {
-        /// WPF mirror of the Core palette (ColorPolicy owns the values; used by the
-        /// preview strip).
-        public static readonly Color[] Palette = BuildPalette();
-
-        private static Color[] BuildPalette()
-        {
-            var source = Eq2Auras.Core.Timers.ColorPolicy.PaletteArgb;
-            var colors = new Color[source.Length];
-            for (int i = 0; i < source.Length; i++)
-            {
-                colors[i] = FromArgbInt(source[i]);
-            }
-            return colors;
-        }
-
         public static readonly Color CalmBackground = Color.FromArgb(150, 18, 24, 34);
         public static readonly Color CalmBorder = Color.FromArgb(200, 51, 64, 79);
         public static readonly Color ImminentAccent = Colors.Gold;

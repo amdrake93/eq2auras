@@ -1,67 +1,45 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using System.Runtime.InteropServices;
 using System.Windows;
-using System.Windows.Interop;
+using System.Windows.Controls;
 using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Overlay
 {
     public partial class TimerListWindow : Window
     {
-        private const int GWL_EXSTYLE = -20;
-        private const int WS_EX_LAYERED = 0x80000;
-        private const int WS_EX_TRANSPARENT = 0x20;
-
-        [DllImport("user32.dll")] private static extern int GetWindowLong(IntPtr hwnd, int index);
-        [DllImport("user32.dll")] private static extern int SetWindowLong(IntPtr hwnd, int index, int newStyle);
-
         // Retained visuals keyed by timer identity — updated, never rebuilt, so the
         // drain animations run continuously at display refresh.
         private readonly Dictionary<string, TimerRowVisual> _rows = new Dictionary<string, TimerRowVisual>();
+        private readonly Grid _moveChrome;
+        private readonly Action<double, double> _persistPosition;
 
-        // TEMPORARY feedback aid: shows the candidate palette as labeled boxes under the
-        // list so the guild can judge the colors live, in context. Flip off after verdict.
-        private const bool ShowPalettePreview = false;   // palette now visible on real timers
-
-        public TimerListWindow()
+        public TimerListWindow(string moveLabel, double left, double top, Action<double, double> persistPosition)
         {
             InitializeComponent();
-            SourceInitialized += MakeClickThrough;
-            if (ShowPalettePreview) BuildPalettePreview();
+            Left = left;
+            Top = top;
+            _persistPosition = persistPosition;
+
+            _moveChrome = MoveChrome.Build(moveLabel);
+            RootGrid.Children.Add(_moveChrome);
+
+            SourceInitialized += (s, e) => ClickThrough.Set(this, true);
+            MouseLeftButtonDown += OnDragStart;
         }
 
-        private void BuildPalettePreview()
+        public void SetMoveMode(bool moving)
         {
-            for (int i = 0; i < OverlayTheme.Palette.Length; i++)
-            {
-                var swatch = new System.Windows.Controls.Border
-                {
-                    Width = 44,
-                    Height = 30,
-                    Margin = new Thickness(0, 0, 6, 0),
-                    CornerRadius = new CornerRadius(4),
-                    Background = new System.Windows.Media.SolidColorBrush(OverlayTheme.Palette[i]),
-                    Child = new System.Windows.Controls.TextBlock
-                    {
-                        Text = (i + 1).ToString(),
-                        FontSize = 12,
-                        FontWeight = FontWeights.Bold,
-                        Foreground = System.Windows.Media.Brushes.Black,
-                        HorizontalAlignment = HorizontalAlignment.Center,
-                        VerticalAlignment = VerticalAlignment.Center
-                    }
-                };
-                PreviewPanel.Children.Add(swatch);
-            }
+            _moveChrome.Visibility = moving ? Visibility.Visible : Visibility.Collapsed;
+            ClickThrough.Set(this, !moving);
         }
 
-        private void MakeClickThrough(object sender, EventArgs e)
+        private void OnDragStart(object sender, System.Windows.Input.MouseButtonEventArgs e)
         {
-            var hwnd = new WindowInteropHelper(this).Handle;
-            int ex = GetWindowLong(hwnd, GWL_EXSTYLE);
-            SetWindowLong(hwnd, GWL_EXSTYLE, ex | WS_EX_LAYERED | WS_EX_TRANSPARENT);
+            if (_moveChrome.Visibility != Visibility.Visible) return;
+            DragMove();                          // blocks until the button is released
+            _persistPosition(Left, Top);         // crash-safe: saved on every drag-end
         }
 
         /// Called on the overlay's dispatcher thread with a fresh sorted snapshot.

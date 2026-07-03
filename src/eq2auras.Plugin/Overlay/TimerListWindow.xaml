@@ -3,9 +3,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         WindowStyle="None" AllowsTransparency="True" Background="Transparent"
         Topmost="True" ShowInTaskbar="False" ResizeMode="NoResize"
-        SizeToContent="Height" Width="260" Left="160" Top="320">
-    <StackPanel>
+        SizeToContent="Height" Width="260">
+    <Grid x:Name="RootGrid">
         <StackPanel x:Name="RowsPanel" />
-        <StackPanel x:Name="PreviewPanel" Orientation="Horizontal" Margin="0,6,0,0" />
-    </StackPanel>
+    </Grid>
 </Window>
