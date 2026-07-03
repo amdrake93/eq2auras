@@ -6,7 +6,7 @@ namespace Eq2Auras.Plugin.Overlay
     /// Per-window display style resolved from PanelSettings (SPEC §Typography,
     /// §Moving the overlay): Scale multiplies GEOMETRY only; typography derives every
     /// text role proportionally from BaseSize and never scales with the window.
-    internal sealed class VisualStyle
+    public sealed class VisualStyle
     {
         public double Scale { get; set; } = 1.0;      // clamped 0.5–2.5 upstream
         public FontFamily Font { get; set; }          // null = system default
