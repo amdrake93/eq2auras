@@ -60,7 +60,9 @@ namespace Eq2Auras.Plugin.Act
                         WarningValue = data.WarningValue,
                         RemoveValueSeconds = data.RemoveValue,
                         TotalSeconds = instance.TimerFinalDuration,
-                        FillArgb = data.FillColor.ToArgb()
+                        FillArgb = data.FillColor.ToArgb(),
+                        ShowInPanelA = data.Panel1Display,
+                        ShowInPanelB = data.Panel2Display
                     });
                 }
             }
@@ -79,7 +81,9 @@ namespace Eq2Auras.Plugin.Act
                 Combatant = reading.Combatant,
                 TimeLeft = reading.TimeLeft,
                 WarningValue = reading.WarningValue,
-                TotalValue = reading.TotalSeconds
+                TotalValue = reading.TotalSeconds,
+                PanelA = reading.ShowInPanelA,
+                PanelB = reading.ShowInPanelB
             });
         }
 
@@ -95,7 +99,9 @@ namespace Eq2Auras.Plugin.Act
                 Combatant = frame.Combatant ?? "",
                 TimeLeft = timeLeft,
                 WarningValue = frame.TimerData != null ? frame.TimerData.WarningValue : 0,
-                TotalValue = frame.TimerData != null ? frame.TimerData.TimerValue : 0
+                TotalValue = frame.TimerData != null ? frame.TimerData.TimerValue : 0,
+                PanelA = frame.TimerData != null && frame.TimerData.Panel1Display,
+                PanelB = frame.TimerData != null && frame.TimerData.Panel2Display
             });
         }
 

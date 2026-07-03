@@ -18,7 +18,7 @@ namespace Eq2Auras.Plugin
         private JsonlLogWriter _log;
         private TimerProbe _probe;
         private OverlayHost _overlay;
-        private EscalationTracker _tracker;
+        private OverlayEngine _engine;
         private Settings _settings;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
@@ -29,13 +29,13 @@ namespace Eq2Auras.Plugin
                 ?? "unknown";
 
             _log = new JsonlLogWriter();
-            _overlay = new OverlayHost();
-            _overlay.Start();
             _settings = SettingsStore.Load();
-            _tracker = new EscalationTracker(_settings);   // touched only on ACT's UI thread (the poll)
+            _overlay = new OverlayHost(_settings);
+            _overlay.Start();
+            _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
             _probe = new TimerProbe(_log,
-                readings => _overlay.UpdateFrame(
-                    _tracker.Tick(readings)));
+                readings => _overlay.UpdateFrames(
+                    _engine.Tick(readings)));
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);
@@ -48,7 +48,7 @@ namespace Eq2Auras.Plugin
         {
             _probe?.Dispose();
             _probe = null;
-            _tracker = null;
+            _engine = null;
             _overlay?.Dispose();
             _overlay = null;
             _log?.Dispose();
@@ -74,44 +74,55 @@ namespace Eq2Auras.Plugin
             updateButton.Click += (s, e) =>
                 new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
 
-            // Knob controls (SPEC §Configuration) — dropdown changes apply live within a
-            // poll tick (the tracker reads the same Settings instance; controls and poll
-            // share ACT's UI thread) and persist immediately.
-            var colorLabel = new Label { Text = "Colors:", Left = 10, Top = 82, Width = 70 };
-            var colorBox = new ComboBox
-            {
-                Left = 85, Top = 78, Width = 150,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            colorBox.Items.AddRange(new object[] { "Palette", "Greyscale", "ACT colors" });
-            colorBox.SelectedIndex = (int)_settings.ColorSource;
-            colorBox.SelectedIndexChanged += (s, e) =>
-            {
-                _settings.ColorSource = (ColorSource)colorBox.SelectedIndex;
-                SettingsStore.Save(_settings);
-            };
+            var panelABox = BuildPanelGroupBox("Panel A", _settings.Panels[0], 78);
+            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 176);
 
-            var styleLabel = new Label { Text = "Escalation:", Left = 10, Top = 112, Width = 70 };
-            var styleBox = new ComboBox
-            {
-                Left = 85, Top = 108, Width = 150,
-                DropDownStyle = ComboBoxStyle.DropDownList
-            };
-            styleBox.Items.AddRange(new object[] { "Center radial", "Highlight in place" });
-            styleBox.SelectedIndex = (int)_settings.EscalationStyle;
-            styleBox.SelectedIndexChanged += (s, e) =>
-            {
-                _settings.EscalationStyle = (EscalationStyle)styleBox.SelectedIndex;
-                SettingsStore.Save(_settings);
-            };
+            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 276, Width = 200 };
+            moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
             tab.Controls.Add(tokenBox);
             tab.Controls.Add(saveTokenButton);
             tab.Controls.Add(updateButton);
-            tab.Controls.Add(colorLabel);
-            tab.Controls.Add(colorBox);
-            tab.Controls.Add(styleLabel);
-            tab.Controls.Add(styleBox);
+            tab.Controls.Add(panelABox);
+            tab.Controls.Add(panelBBox);
+            tab.Controls.Add(moveBox);
+        }
+
+        /// One labeled control set per group (SPEC §Configuration — no group selector).
+        /// Dropdown changes apply live within a poll tick: the engine's trackers hold
+        /// the same PanelSettings instance this mutates, and knob handlers + poll share
+        /// ACT's UI thread. Persistence goes through the SettingsStore gate.
+        private GroupBox BuildPanelGroupBox(string title, PanelSettings panel, int top)
+        {
+            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 90 };
+
+            var colorLabel = new Label { Text = "Colors:", Left = 8, Top = 26, Width = 70 };
+            var colorBox = new ComboBox
+            {
+                Left = 82, Top = 22, Width = 150,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            colorBox.Items.AddRange(new object[] { "Palette", "Greyscale", "ACT colors" });
+            colorBox.SelectedIndex = (int)panel.ColorSource;
+            colorBox.SelectedIndexChanged += (s, e) =>
+                SettingsStore.Update(_settings, () => panel.ColorSource = (ColorSource)colorBox.SelectedIndex);
+
+            var styleLabel = new Label { Text = "Escalation:", Left = 8, Top = 58, Width = 70 };
+            var styleBox = new ComboBox
+            {
+                Left = 82, Top = 54, Width = 150,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            styleBox.Items.AddRange(new object[] { "Center radial", "Highlight in place" });
+            styleBox.SelectedIndex = (int)panel.EscalationStyle;
+            styleBox.SelectedIndexChanged += (s, e) =>
+                SettingsStore.Update(_settings, () => panel.EscalationStyle = (EscalationStyle)styleBox.SelectedIndex);
+
+            box.Controls.Add(colorLabel);
+            box.Controls.Add(colorBox);
+            box.Controls.Add(styleLabel);
+            box.Controls.Add(styleBox);
+            return box;
         }
 
         private void SetStatusThreadSafe(string message)
