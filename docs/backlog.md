@@ -45,6 +45,14 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 
 **Reviewer plan-watch items** (3rd-party spec review, 2026-07-02 — the plan review will check): FontDialog point→DIP conversion (store DIPs); enumerate all SIX text roles incl. LATE-name (12 — decide its base derivation explicitly); grip drag must not trigger `DragMove` (`e.Handled = true`); font/scale changes rebuild retained visuals once (constructor-baked constants — rebuild on knob change only, never per tick; pulses restarting once is accepted); scale every geometry constant (RowWidth/Height, drain math's `RowWidth - 2`, PieDiameter, pie-name MaxWidth 190, LATE width 170, margins, XAML Widths 260/200); `ColorPolicy.Resolve` takes the palette as a parameter and the built-in constant renames to `DefaultPaletteArgb` (avoid Settings.PaletteArgb name collision); ColorDialog is alpha-less — arrives 0xFF like the built-ins, add no alpha handling. Raid-scale validation remains the standing no-code item.
 
+### NEXT ARC — the element/group model (Alex's pre-brainstorm seed, 2026-07-02 session close)
+"I want to take this way further. I want to begin designing things as elements." Still 100% ACT timer data underneath. The seed, in his words:
+- **Timer elements as first-class:** what we call a row or radial display becomes a *Timer element* with its own configuration (form: radial/row; size — we have these knobs, but panel-based, not element-based).
+- **Groups = the windows/panels, user-created:** instead of driving placement from ACT's Panel A/B booleans, keep **our own assignment** of existing timers to custom panels — create N panels, assign timer elements to them.
+- **Hierarchical config + inheritance:** likely lock element style within a group — the group/window carries settings applied to its children elements. "This will require some serious brainstorming with potentially mocking designs and diagrams for hierarchical data and inheritance."
+- **Research prep:** get hold of decent **WeakAuras documentation** to guide the model (public wiki/docs — a web-research pass can front-load the brainstorm).
+Context it builds on: SPEC §Timer groups already anticipates richer sources; the display-matrix direction (`state → form @ zone`, Roadmap item 2) slots inside this arc. Open pre-brainstorm questions: do ACT's panel booleans survive as one assignment source or retire; element-level vs group-level vs global knob layering; identity for timer→panel assignment (name-keyed, like colors?).
+
 ### Release channels — model settled (spitballed 2026-07-02, awaiting its slice)
 Trunk-based, two channels, **artifact promotion** (never rebuild what ships stable — "test what you ship"):
 - **Unstable = `main` HEAD** — today's `dev-latest` rolling prerelease, renamed in spirit. The guild is the beta jury post-merge; pre-merge testing stays the manual branch-artifact hatch.
