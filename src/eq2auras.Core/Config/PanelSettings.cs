@@ -36,7 +36,7 @@ namespace Eq2Auras.Core.Config
         public double? RowWidth { get; set; }         // null = 250 (SPEC §Element dimensions)
 
         [DataMember(Name = "rowHeight")]
-        public double? RowHeight { get; set; }        // null = 26; text-fit floor applies on top
+        public double? RowHeight { get; set; }        // null = 26; text that doesn't fit clips (SPEC §Element dimensions)
 
         [DataMember(Name = "radialSize")]
         public double? RadialSize { get; set; }       // null = 110 (pie diameter)
