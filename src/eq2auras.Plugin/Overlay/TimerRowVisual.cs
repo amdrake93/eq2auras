@@ -11,6 +11,8 @@ namespace Eq2Auras.Plugin.Overlay
     /// rebuilt — so WPF animations (the smooth fill drain) survive and run at display
     /// refresh. The poll only re-targets the animation when reality drifts (reset,
     /// clock skew), detected by comparing the animated width with the expected one.
+    /// Geometry multiplies by the window's scale; text sizes come from the font knob
+    /// only (SPEC: text never scales with the window).
     internal sealed class TimerRowVisual
     {
         private const double RowHeight = 26;
@@ -19,41 +21,46 @@ namespace Eq2Auras.Plugin.Overlay
         // should re-target the drain, so the tolerance is generous — in SECONDS.
         private const double DriftToleranceSeconds = 0.75;
 
+        private readonly double _rowWidth;
         private readonly Border _root;
         private readonly Border _fill;
         private readonly TextBlock _name;
         private readonly TextBlock _time;
+        private readonly VisualStyle _style;
         private int _fillArgb = int.MinValue;
         private TimerUrgency _urgency = (TimerUrgency)(-1);
 
         public UIElement Root => _root;
 
-        public TimerRowVisual()
+        public TimerRowVisual(VisualStyle style)
         {
+            _style = style;
+            _rowWidth = RowWidth * style.Scale;
+
             _fill = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
-                CornerRadius = new CornerRadius(3),
+                CornerRadius = new CornerRadius(3 * style.Scale),
                 // The spark: a bright right-edge border riding the animated fill width —
                 // marks the moving edge of the countdown. Width is a future knob.
-                BorderThickness = new Thickness(0, 0, 3, 0)
+                BorderThickness = new Thickness(0, 0, 3 * style.Scale, 0)
             };
             _name = new TextBlock
             {
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
-                FontSize = 13,
-                Margin = new Thickness(8, 0, 0, 0),
+                Margin = new Thickness(8 * style.Scale, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            style.ApplyFont(_name, style.RowText);
             _time = new TextBlock
             {
-                FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 8, 0),
+                Margin = new Thickness(0, 0, 8 * style.Scale, 0),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            style.ApplyFont(_time, style.RowText);
 
             var grid = new Grid();
             grid.Children.Add(_fill);
@@ -62,10 +69,10 @@ namespace Eq2Auras.Plugin.Overlay
 
             _root = new Border
             {
-                Width = RowWidth,
-                Height = RowHeight,
-                Margin = new Thickness(0, 0, 0, 4),
-                CornerRadius = new CornerRadius(4),
+                Width = _rowWidth,
+                Height = RowHeight * style.Scale,
+                Margin = new Thickness(0, 0, 0, 4 * style.Scale),
+                CornerRadius = new CornerRadius(4 * style.Scale),
                 Background = new SolidColorBrush(OverlayTheme.CalmBackground),
                 BorderThickness = new Thickness(1),
                 ClipToBounds = true,
@@ -103,8 +110,8 @@ namespace Eq2Auras.Plugin.Overlay
             }
 
             if (row.TotalSeconds <= 0) return;
-            double pxPerSecond = (RowWidth - 2) / row.TotalSeconds;
-            double desired = Math.Max(0, Math.Min(1, row.PreciseTimeLeft / row.TotalSeconds)) * (RowWidth - 2);
+            double pxPerSecond = (_rowWidth - 2) / row.TotalSeconds;
+            double desired = Math.Max(0, Math.Min(1, row.PreciseTimeLeft / row.TotalSeconds)) * (_rowWidth - 2);
             double current = _fill.Width;   // reflects the animated value
             if (double.IsNaN(current) || Math.Abs(current - desired) > pxPerSecond * DriftToleranceSeconds)
             {

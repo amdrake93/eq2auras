@@ -10,7 +10,7 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// One retained center-zone pie. The wedge Fraction is a single linear animation
     /// to zero (re-targeted only on drift/reset); the pulse starts once and lives for
-    /// the element's lifetime.
+    /// the element's lifetime. Geometry × scale; text sizes from the font knob only.
     internal sealed class PieVisual
     {
         private const double PieDiameter = 110;
@@ -26,33 +26,34 @@ namespace Eq2Auras.Plugin.Overlay
 
         public UIElement Root => _root;
 
-        public PieVisual()
+        public PieVisual(VisualStyle style)
         {
+            double diameter = PieDiameter * style.Scale;
             _ring = new Ellipse
             {
-                Width = PieDiameter,
-                Height = PieDiameter,
+                Width = diameter,
+                Height = diameter,
                 Fill = new SolidColorBrush(Color.FromArgb(120, 18, 24, 34)),
                 StrokeThickness = 2
             };
-            _slice = new PieSlice { Width = PieDiameter, Height = PieDiameter };
+            _slice = new PieSlice { Width = diameter, Height = diameter };
             _seconds = new TextBlock
             {
-                FontSize = 34,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
+            style.ApplyFont(_seconds, style.PieSeconds);
             _name = new TextBlock
             {
-                FontSize = 13,
                 FontWeight = FontWeights.SemiBold,
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 190
+                MaxWidth = 190 * style.Scale
             };
+            style.ApplyFont(_name, style.PieName);
 
             var pieStack = new Grid();
             pieStack.Children.Add(_ring);
@@ -61,7 +62,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _root = new StackPanel
             {
-                Margin = new Thickness(0, 0, 0, 10),
+                Margin = new Thickness(0, 0, 0, 10 * style.Scale),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             _root.Children.Add(pieStack);
@@ -105,22 +106,22 @@ namespace Eq2Auras.Plugin.Overlay
 
         public UIElement Root => _root;
 
-        public LateVisual()
+        public LateVisual(VisualStyle style)
         {
             _late = new TextBlock
             {
-                FontSize = 22,
                 FontWeight = FontWeights.Bold,
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
+            style.ApplyFont(_late, style.LateTag);
             _name = new TextBlock
             {
-                FontSize = 12,
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            style.ApplyFont(_name, style.LateName);
 
             var stack = new StackPanel();
             stack.Children.Add(_late);
@@ -128,10 +129,10 @@ namespace Eq2Auras.Plugin.Overlay
 
             _root = new Border
             {
-                Width = 170,
-                Margin = new Thickness(0, 0, 0, 10),
-                Padding = new Thickness(10, 6, 10, 6),
-                CornerRadius = new CornerRadius(6),
+                Width = 170 * style.Scale,
+                Margin = new Thickness(0, 0, 0, 10 * style.Scale),
+                Padding = new Thickness(10 * style.Scale, 6 * style.Scale, 10 * style.Scale, 6 * style.Scale),
+                CornerRadius = new CornerRadius(6 * style.Scale),
                 Background = new SolidColorBrush(Color.FromArgb(200, 58, 20, 20)),
                 BorderBrush = new SolidColorBrush(OverlayTheme.OverdueAccent),
                 BorderThickness = new Thickness(2),
