@@ -25,7 +25,7 @@
 | `Settings.cs` | `MinScale`/`MaxScale` constants; the scale-clamp block in `Normalize`; `OutOfRange`/`ClampScale` (replaced by generalized dimension versions) |
 | `SettingsTests.cs` | scale assertions in the round-trip test; `Out_of_range_scales_clamp_on_parse` |
 | `VisualStyle.cs` | `Scale` property and every `× Scale` consumer (moves to ratio derivations) |
-| `TimerListWindow.xaml.cs` / `CenterZoneWindow.xaml.cs` | `_gripStart`, `_dragStartScale`, `_scaling`, `_persistScale` field + ctor param, `CurrentScale`, `OnGripDown`/`OnGripMove`/`OnGripUp`, `ProposedScale`, the preview `LayoutTransform`, grip event wiring, `using Eq2Auras.Core.Config;` if unused after |
+| `TimerListWindow.xaml.cs` / `CenterZoneWindow.xaml.cs` | `_gripStart`, `_dragStartScale`, `_scaling`, `_persistScale` field + ctor param, `CurrentScale`, `OnGripDown`/`OnGripMove`/`OnGripUp`, `ProposedScale`, the preview `LayoutTransform`, grip event wiring, `using Eq2Auras.Core.Config;` if unused after; **list window's `BaseWindowWidth` const** (replaced by `WindowSlack`); center's `BaseWindowWidth` renames to `BaseCenterWidth` and stays as the width formula's base |
 | `MoveChrome.cs` | the `Chrome` holder class and the grip element (back to returning `Grid`) |
 | `OverlayHost.cs` | persist-scale callbacks in `CreatePanelWindows`, scale lines in `SaveAllPositions`, `Scale =` in `StyleFor`, the `isCenter` parameter (one style serves both windows now) |
 
@@ -242,10 +242,15 @@ namespace Eq2Auras.Plugin.Overlay
 - [ ] **Step 2: Both windows** — apply the deletion-sweep rows for these files (fields `_gripStart`/`_dragStartScale`/`_scaling`/`_persistScale`, `CurrentScale`, the three grip handlers, `ProposedScale`, grip event wiring, ctor param `persistScale`, `using Eq2Auras.Core.Config;`, `using System.Windows.Media;` if then unused). `_chrome` field type returns to `Grid _moveChrome`. Width formulas (ctor AND `SetStyle` — both windows):
 
 ```csharp
-        // TimerListWindow: rows + 10 slack (today: 250 + 10 = 260)
-        Width = style.RowWidth + 10;
-        // CenterZoneWindow: proportional to the radial (today: 110 × 200/110 = 200)
-        Width = style.RadialSize * (200.0 / 110.0);
+        // TimerListWindow — BaseWindowWidth const DELETED, replaced by:
+        private const double WindowSlack = 10;
+        // ctor + SetStyle (today: 250 + 10 = 260):
+        Width = style.RowWidth + WindowSlack;
+
+        // CenterZoneWindow — BaseWindowWidth RENAMED, stays as the formula's base:
+        private const double BaseCenterWidth = 200;
+        // ctor + SetStyle (today: 110 × 200/110 = 200):
+        Width = style.RadialSize * BaseCenterWidth / VisualStyle.DefaultRadialSize;
 ```
 
 `SetStyle` bodies otherwise unchanged (assign style, clear retained dict + panel).
@@ -280,7 +285,11 @@ namespace Eq2Auras.Plugin.Overlay
 **Interfaces:**
 - Consumes: `Settings.Min*/Max*` bounds (T1), `VisualStyle.Default*` (T2), `OverlayHost.RefreshStyles()` (T3).
 
-- [ ] **Step 1: Group box grows** (`Height = 122` → `186`); layout shifts: Panel B `Top = 208` → `272`; palette label/row `Top = 344/338` → `474/468`; moveBox `Top = 416` → `546`.
+- [ ] **Step 1: Group box grows** (`Height = 122` → `186`); layout shifts: Panel B `Top = 208` → `272`; palette label/row `Top = 344/338` → `474/468`; moveBox `Top = 416` → `546`. The layout now needs ~580 px — add scroll insurance in `BuildConfigTab`, since a `TabPage` doesn't scroll by default and ACT's window can be shorter:
+
+```csharp
+            tab.AutoScroll = true;
+```
 
 - [ ] **Step 2: Dimension rows in `BuildPanelGroupBox`** (after the font row; a small helper keeps the three spinners uniform):
 
