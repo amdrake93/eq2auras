@@ -163,9 +163,9 @@ Because the whole thing is one "read → diff → update" loop, tapping that loo
 ### Baked-in constants for Phase 1
 
 These are the values that become knobs later (promoted one at a time into `Settings` — see §Configuration). Phase 1 fixes them:
-- List size, orientation, and sort (soonest-to-expire) — window *positions* are Settings knobs now (§Moving the overlay).
-- Bar styling (fill alpha, font, spark — applied over the resolved display color).
-- Center-pie size; pulse animation parameters.
+- List orientation and sort (soonest-to-expire) — window *positions and scales* are Settings knobs now (§Moving the overlay).
+- Bar styling (fill alpha, spark — applied over the resolved display color; font is a knob now, §Typography).
+- Center-pie base size (scaled by the window's scale knob); pulse animation parameters.
 - Overdue visual (count-up styling, flash).
 - Poll/state tick rate.
 - Target display & DPI: **primary monitor, system DPI** for Phase 1 (per-monitor DPI and monitor selection are later config; stated now to preempt WPF layered-window coordinate and click-through hit-testing bugs).
@@ -176,10 +176,10 @@ These are the values that become knobs later (promoted one at a time into `Setti
 Every tunable behavior is a **knob**: a typed value with a baked-in default, held in one plain `Settings` object in Core. The abstraction is deliberately thin — no framework, no reflection — but it is the single source of truth every later configuration phase builds on (per-timer overrides, the visual editor, import/export sharing strings all read/write the same store).
 
 - **Store:** `Settings` (Core, pure, serializable) persisted to `%APPDATA%\Advanced Combat Tracker\eq2auras\settings.json` via `DataContractJsonSerializer` (never `System.Web.Extensions` — breaks the WPF markup compiler). Missing file or missing fields → defaults, so old settings files survive new knobs (forward-compatible).
-- **Per-group settings:** `Settings.Panels` holds one `PanelSettings` per timer group — the group's knobs plus its four window-position values (list Left/Top, center-zone Left/Top). Positions are **nullable**: DCJS materializes missing numeric fields as `0` (a real screen corner), so `null` — never zero — means "unset, use the default layout". `Parse` normalizes the list to exactly the shipped two groups. **Legacy migration runs both directions:** an old flat file seeds Panel A from its top-level knobs (Panel B starts at defaults); on save, the top-level knobs are written mirroring Panel A, so an older build reading a newer file stays sensible.
+- **Per-group settings:** `Settings.Panels` holds one `PanelSettings` per timer group — the group's knobs (color source, escalation style, font family + base size) plus its four window-position values (list Left/Top, center-zone Left/Top) and two window scales (`ListScale`/`CenterScale`). Positions are **nullable**: DCJS materializes missing numeric fields as `0` (a real screen corner), so `null` — never zero — means "unset, use the default layout". `Parse` normalizes the list to exactly the shipped two groups. **Legacy migration runs both directions:** an old flat file seeds Panel A from its top-level knobs (Panel B starts at defaults); on save, the top-level knobs are written mirroring Panel A, so an older build reading a newer file stays sensible.
 - **Consumption:** Core policy (engine, tracker, builder, color assignment) takes the `Settings`/`PanelSettings` instance as input — keeping policy pure and Mac-testable. Renderers read display knobs the same way.
 - **Surface:** minimal WinForms controls on the plugin's ACT tab, added per knob as needs arise — alongside the existing self-update controls (token entry, "check for updates"). Per-group knobs appear as one labeled control set per group ("Panel A" / "Panel B" group boxes) — no group selector. This is deliberately **not** the WeakAuras-style editor; that later phase edits the same `Settings`.
-- **Current knobs (per group):** `ColorSource` — `Palette (default) | Greyscale | ActColor`; `EscalationStyle` — `CenterRadial (default) | HighlightInPlace`; the four window positions (set by dragging — §Moving the overlay). Everything still listed under *Baked-in constants* is a future knob awaiting promotion into `Settings`.
+- **Current knobs (per group):** `ColorSource` — `Palette (default) | Greyscale | ActColor`; `EscalationStyle` — `CenterRadial (default) | HighlightInPlace`; font family + base size (§Typography); the four window positions and two window scales (set by dragging — §Moving the overlay). **Global knobs:** the color palette (`Settings.PaletteArgb` — §Timer colors). Everything still listed under *Baked-in constants* is a future knob awaiting promotion into `Settings`.
 
 ### Moving the overlay: unlock/move mode
 
@@ -189,6 +189,7 @@ The overlay windows are click-through by design, so repositioning needs an expli
 - **Positions persist** into the group's `PanelSettings` on every drag-end and again on re-lock, so a crash while unlocked loses nothing. (Drag-end saves run on the overlay's STA thread while tab-knob saves run on ACT's UI thread — `SettingsStore.Save` serializes writers.)
 - **Locked (default):** chrome hidden, click-through restored.
 - Unlock shows **every** overlay window regardless of each group's `EscalationStyle` — a center zone unused under `HighlightInPlace` still shows its chrome and can be positioned before styles are flipped.
+- The move chrome includes a **corner resize grip** per window. Dragging it adjusts the window's uniform **scale** (`ListScale`/`CenterScale` in `PanelSettings`; null = 1.0, clamped 0.5–2.5), persisted exactly like positions (drag-end + re-lock). Scale is **geometry-only** — row and pie dimensions, fills, margins, and drain math multiply by it; text sizes never scale with the window (readability belongs to the font knob — §Typography). A grip rather than native border-resize because the windows are borderless and `SizeToContent`: the grip gives the gesture deterministic math (mouse delta → scale factor) and exists only while unlocked.
 
 Positions are WPF device-independent units on the primary monitor (per the Phase 1 DPI stance). A null stored position means "use the built-in default layout": Panel A's windows where they have always been, Panel B's beside/below them, non-overlapping.
 
@@ -196,11 +197,15 @@ Positions are WPF device-independent units on the primary monitor (per the Phase
 
 ACT's per-timer `FillColor` is user data that overwhelmingly sits at the default blue, so it fails as a visual identity. Default color policy (`ColorSource = Palette`):
 
-- A predefined palette of **5 distinguishable, pleasant colors** (a constant list in Core's `ColorPolicy.PaletteArgb`, mirrored for WPF by `OverlayTheme.Palette`; guild-approved, itself a future knob).
+- The palette is a **global knob**: `Settings.PaletteArgb`, a variable-length list of ARGB colors (clamped 1–16), defaulting to the guild-approved 5 in `ColorPolicy.PaletteArgb` (sky, amber, teal, rose, indigo). Missing/empty in the file → the default (the same DCJS null-means-default pattern as `panels`). Deliberately global, never per-panel — color is ability identity: one assignment map, one palette. Custom colors render **as-is**, exactly like the built-in ones (the slate-soften stays `ActColor`-only; a user who picks hot pink owns hot pink). The greyscale ramp is a designed accessibility mode and stays fixed. Tab surface: a row of clickable color swatches (native `ColorDialog` per swatch), add/remove within bounds, and a reset-to-default button.
 - **Color is keyed by normalized timer NAME — and nothing else.** The color's job is to identify *the ability as players think of it*, and the name is its stable proxy: the same ability cast by different boss variants (different `Combatant`s) or under zone-categorized trigger sets keeps one color. Keying by `(Name, Combatant)` or by category would recolor the same ability across boss versions/zones — exactly the confusion this feature exists to prevent. (If a user names zone-variant triggers differently, they get different colors — that's their expressed intent, fixable by renaming.)
 - Assignment is **first-fired order**: the first time a name fires in the session it takes the next palette slot, and keeps it for the **plugin-instance lifetime** — stable across wipes, re-pulls, and boss versions. Consistency is a *repeated-attempts* feature; a plugin reload (i.e. taking an update) resetting the map is accepted (one-shot kills never needed consistency). Past 5 names the palette cycles. Explicitly per-ACT-instance; never synchronized across users. The map is also **global across timer groups** — one map per plugin instance, so a dual-flagged timer keeps one color in both panels (each group still applies its own `ColorSource` to the shared slot).
 - **Display identity is unchanged** — rows/dedupe still key on `(Name, Combatant)`; two mobs casting the same ability get two rows that *share* the ability's color, which is correct under this model.
 - `Greyscale` uses the same assignment mechanism over a grey ramp. `ActColor` restores the timer's own `FillColor` (with the slate-soften pass). Palette/greyscale colors are designed and render as-is.
+
+### Typography: per-panel font
+
+Each panel carries a font knob applying to both of its windows: `FontFamily` (any installed Windows font, by name; null = system default — today's look) and `FontBaseSize` (null = 13 — today's look). The overlay's text roles derive **proportionally** from the base — row text = base, pie seconds ≈ 2.6×, the LATE tag ≈ 1.7× — so a size change never breaks the visual hierarchy. Per-role customization is a later phase (trajectory: per-window, then per-element, as customization abstracts). Tab surface: a "Font…" button in each panel's group box opening the native `FontDialog` (family + size in one dialog), with a label showing the current choice. Font and window scale (§Moving the overlay) are deliberately orthogonal: **scale sets how much space a window takes; font sets how readable its text is** — text never scales with the window.
 
 ### Explicitly out of scope for Phase 1
 

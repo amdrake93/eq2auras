@@ -34,8 +34,8 @@ Worked straight out of the box on first live test. Two independent groups (A = A
 ### Also shipped 2026-07-02: CI-stamped README status section
 Build badge + version/date pills + quick links; machine-owned marker block restamped by every release (`[skip ci]` bot commit). First feature through the new branch-review flow end to end. Spec: SPEC §Development & test cycle. Outstanding micro-check: confirm the native Actions badge renders on github.com (fallback: static build pill in the same stamp step).
 
-### NEXT UP — (empty; triage with Alex)
-Candidates from standing items and roadmap below — raid-scale validation remains the standing no-code item.
+### NEXT UP — slice 5: customization knobs — SPEC'D 2026-07-03, plan pending
+Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom palette** (global, variable 1–16 colors, swatch + ColorDialog UI, reset button, render-as-is); **per-panel font** (family + base size via native FontDialog; text roles derive proportionally from base); **per-window scale** (corner resize grip in unlock mode, geometry-only — text never scales, null = 1.0, clamp 0.5–2.5). Design decisions: scale excludes text deliberately (font owns readability); greyscale ramp stays fixed; visuals rebuild once on scale/font change (retain-elements rule holds per-tick). Raid-scale validation remains the standing no-code item.
 
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.
