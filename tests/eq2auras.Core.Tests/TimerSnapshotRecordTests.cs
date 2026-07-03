@@ -14,14 +14,17 @@ public class TimerSnapshotRecordTests
             Combatant = "Big Bad",
             TimeLeft = 12,
             WarningValue = 10,
-            TotalValue = 30
+            TotalValue = 30,
+            PanelA = true,
+            PanelB = false
         };
 
         var json = record.ToJsonl();
 
         Assert.Equal(
             "{\"kind\":\"poll\",\"ts\":1750000000000,\"name\":\"Tank Buster\"," +
-            "\"combatant\":\"Big Bad\",\"timeLeft\":12,\"warningValue\":10,\"totalValue\":30}",
+            "\"combatant\":\"Big Bad\",\"timeLeft\":12,\"warningValue\":10,\"totalValue\":30," +
+            "\"panelA\":true,\"panelB\":false}",
             json);
     }
 
@@ -43,7 +46,8 @@ public class TimerSnapshotRecordTests
 
         Assert.Equal(
             "{\"kind\":\"notify\",\"ts\":1,\"name\":\"He said \\\"hi\\\"\\tand\\\\left\"," +
-            "\"combatant\":\"\",\"timeLeft\":-3,\"warningValue\":0,\"totalValue\":0}",
+            "\"combatant\":\"\",\"timeLeft\":-3,\"warningValue\":0,\"totalValue\":0," +
+            "\"panelA\":false,\"panelB\":false}",
             json);
     }
 
@@ -57,5 +61,16 @@ public class TimerSnapshotRecordTests
         };
 
         Assert.Contains("\"timeLeft\":null", record.ToJsonl());
+    }
+
+    [Fact]
+    public void Includes_panel_routing_flags()
+    {
+        var record = new TimerSnapshotRecord { Kind = "poll", Name = "t", PanelA = true, PanelB = false };
+
+        var json = record.ToJsonl();
+
+        Assert.Contains("\"panelA\":true", json);
+        Assert.Contains("\"panelB\":false", json);
     }
 }

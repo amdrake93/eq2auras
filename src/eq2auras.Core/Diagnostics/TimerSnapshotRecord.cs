@@ -16,6 +16,8 @@ namespace Eq2Auras.Core.Diagnostics
         public int? TimeLeft { get; set; }
         public int WarningValue { get; set; }
         public int TotalValue { get; set; }
+        public bool PanelA { get; set; }    // TimerData.Panel1Display — group routing (SPEC §Diagnostic logging)
+        public bool PanelB { get; set; }    // TimerData.Panel2Display
 
         public string ToJsonl()
         {
@@ -29,6 +31,8 @@ namespace Eq2Auras.Core.Diagnostics
             else sb.Append("null");                                // keeps the JSONL parseable when no live timer
             sb.Append(",\"warningValue\":").Append(WarningValue);
             sb.Append(",\"totalValue\":").Append(TotalValue);
+            sb.Append(",\"panelA\":").Append(PanelA ? "true" : "false");
+            sb.Append(",\"panelB\":").Append(PanelB ? "true" : "false");
             sb.Append("}");
             return sb.ToString();
         }
