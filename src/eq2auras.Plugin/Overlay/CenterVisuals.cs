@@ -13,7 +13,6 @@ namespace Eq2Auras.Plugin.Overlay
     /// the element's lifetime. Geometry × scale; text sizes from the font knob only.
     internal sealed class PieVisual
     {
-        private const double PieDiameter = 110;
         // Wall-clock targets keep drift ~0; only a genuine reset should re-target — in SECONDS.
         private const double DriftToleranceSeconds = 0.75;
 
@@ -28,7 +27,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public PieVisual(VisualStyle style)
         {
-            double diameter = PieDiameter * style.Scale;
+            double diameter = style.RadialSize;
             _ring = new Ellipse
             {
                 Width = diameter,
@@ -51,7 +50,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis,
-                MaxWidth = 190 * style.Scale
+                MaxWidth = 190 * style.RadialRatio
             };
             style.ApplyFont(_name, style.PieName);
 
@@ -62,7 +61,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _root = new StackPanel
             {
-                Margin = new Thickness(0, 0, 0, 10 * style.Scale),
+                Margin = new Thickness(0, 0, 0, 10 * style.RadialRatio),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
             _root.Children.Add(pieStack);
@@ -108,6 +107,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public LateVisual(VisualStyle style)
         {
+            double rr = style.RadialRatio;
             _late = new TextBlock
             {
                 FontWeight = FontWeights.Bold,
@@ -129,10 +129,10 @@ namespace Eq2Auras.Plugin.Overlay
 
             _root = new Border
             {
-                Width = 170 * style.Scale,
-                Margin = new Thickness(0, 0, 0, 10 * style.Scale),
-                Padding = new Thickness(10 * style.Scale, 6 * style.Scale, 10 * style.Scale, 6 * style.Scale),
-                CornerRadius = new CornerRadius(6 * style.Scale),
+                Width = 170 * rr,
+                Margin = new Thickness(0, 0, 0, 10 * rr),
+                Padding = new Thickness(10 * rr, 6 * rr, 10 * rr, 6 * rr),
+                CornerRadius = new CornerRadius(6 * rr),
                 Background = new SolidColorBrush(Color.FromArgb(200, 58, 20, 20)),
                 BorderBrush = new SolidColorBrush(OverlayTheme.OverdueAccent),
                 BorderThickness = new Thickness(2),

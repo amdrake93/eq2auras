@@ -11,12 +11,10 @@ namespace Eq2Auras.Plugin.Overlay
     /// rebuilt — so WPF animations (the smooth fill drain) survive and run at display
     /// refresh. The poll only re-targets the animation when reality drifts (reset,
     /// clock skew), detected by comparing the animated width with the expected one.
-    /// Geometry multiplies by the window's scale; text sizes come from the font knob
-    /// only (SPEC: text never scales with the window).
+    /// Geometry comes from the style's element dimensions; text sizes come from the
+    /// font knob only (SPEC: text never changes with element dimensions).
     internal sealed class TimerRowVisual
     {
-        private const double RowHeight = 26;
-        private const double RowWidth = 250;
         // Wall-clock targets keep drift ~0; only a genuine reset (new frame/instance)
         // should re-target the drain, so the tolerance is generous — in SECONDS.
         private const double DriftToleranceSeconds = 0.75;
@@ -35,20 +33,21 @@ namespace Eq2Auras.Plugin.Overlay
         public TimerRowVisual(VisualStyle style)
         {
             _style = style;
-            _rowWidth = RowWidth * style.Scale;
+            _rowWidth = style.RowWidth;
+            double hr = style.HeightRatio;
 
             _fill = new Border
             {
                 HorizontalAlignment = HorizontalAlignment.Left,
-                CornerRadius = new CornerRadius(3 * style.Scale),
+                CornerRadius = new CornerRadius(3 * hr),
                 // The spark: a bright right-edge border riding the animated fill width —
                 // marks the moving edge of the countdown. Width is a future knob.
-                BorderThickness = new Thickness(0, 0, 3 * style.Scale, 0)
+                BorderThickness = new Thickness(0, 0, 3 * hr, 0)
             };
             _name = new TextBlock
             {
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
-                Margin = new Thickness(8 * style.Scale, 0, 0, 0),
+                Margin = new Thickness(8 * hr, 0, 0, 0),
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
@@ -56,7 +55,7 @@ namespace Eq2Auras.Plugin.Overlay
             _time = new TextBlock
             {
                 FontWeight = FontWeights.SemiBold,
-                Margin = new Thickness(0, 0, 8 * style.Scale, 0),
+                Margin = new Thickness(0, 0, 8 * hr, 0),
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -70,9 +69,9 @@ namespace Eq2Auras.Plugin.Overlay
             _root = new Border
             {
                 Width = _rowWidth,
-                Height = RowHeight * style.Scale,
-                Margin = new Thickness(0, 0, 0, 4 * style.Scale),
-                CornerRadius = new CornerRadius(4 * style.Scale),
+                Height = style.EffectiveRowHeight,
+                Margin = new Thickness(0, 0, 0, 4 * hr),
+                CornerRadius = new CornerRadius(4 * hr),
                 Background = new SolidColorBrush(OverlayTheme.CalmBackground),
                 BorderThickness = new Thickness(1),
                 ClipToBounds = true,
