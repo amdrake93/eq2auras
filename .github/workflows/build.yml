@@ -1,7 +1,6 @@
 name: build
 on:
-  push:
-    branches: [main]
+  push:            # all branches — every push gets tests + the WPF compile verified
   workflow_dispatch:
 
 permissions:
@@ -42,6 +41,7 @@ jobs:
           path: dist/*
 
       - name: Publish rolling prerelease
+        if: github.ref == 'refs/heads/main'   # releasing is a main-only event; branches only verify
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-latest
