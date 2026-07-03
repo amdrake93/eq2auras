@@ -54,7 +54,9 @@ namespace Eq2Auras.Plugin.Overlay
                 name + " — list",
                 panel.ListLeft ?? DefaultListLeft(index),
                 panel.ListTop ?? DefaultListTop,
-                (left, top) => SettingsStore.Update(_settings, () => { panel.ListLeft = left; panel.ListTop = top; }));
+                StyleFor(panel, isCenter: false),
+                (left, top) => SettingsStore.Update(_settings, () => { panel.ListLeft = left; panel.ListTop = top; }),
+                (scale) => SettingsStore.Update(_settings, () => panel.ListScale = scale));
             list.Show();
             _listWindows.Add(list);
 
@@ -62,9 +64,36 @@ namespace Eq2Auras.Plugin.Overlay
                 name + " — escalation",
                 panel.CenterLeft ?? DefaultCenterLeft(),
                 panel.CenterTop ?? DefaultCenterTop(index),
-                (left, top) => SettingsStore.Update(_settings, () => { panel.CenterLeft = left; panel.CenterTop = top; }));
+                StyleFor(panel, isCenter: true),
+                (left, top) => SettingsStore.Update(_settings, () => { panel.CenterLeft = left; panel.CenterTop = top; }),
+                (scale) => SettingsStore.Update(_settings, () => panel.CenterScale = scale));
             center.Show();
             _centerWindows.Add(center);
+        }
+
+        private static VisualStyle StyleFor(PanelSettings panel, bool isCenter)
+        {
+            return new VisualStyle
+            {
+                Scale = (isCenter ? panel.CenterScale : panel.ListScale) ?? 1.0,
+                Font = panel.FontFamily != null ? new System.Windows.Media.FontFamily(panel.FontFamily) : null,
+                BaseSize = panel.FontBaseSize ?? 13.0
+            };
+        }
+
+        /// Re-resolves every window's style from PanelSettings (font knob changed).
+        public void RefreshStyles()
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                for (int i = 0; i < _settings.Panels.Count && i < _listWindows.Count; i++)
+                {
+                    _listWindows[i].SetStyle(StyleFor(_settings.Panels[i], isCenter: false));
+                    _centerWindows[i].SetStyle(StyleFor(_settings.Panels[i], isCenter: true));
+                }
+            }));
         }
 
         // Defaults (WPF DIPs, primary monitor): Panel A exactly where it has always
@@ -113,8 +142,10 @@ namespace Eq2Auras.Plugin.Overlay
                     var panel = _settings.Panels[i];
                     panel.ListLeft = _listWindows[i].Left;
                     panel.ListTop = _listWindows[i].Top;
+                    panel.ListScale = _listWindows[i].CurrentScale;
                     panel.CenterLeft = _centerWindows[i].Left;
                     panel.CenterTop = _centerWindows[i].Top;
+                    panel.CenterScale = _centerWindows[i].CurrentScale;
                 }
             });
         }
