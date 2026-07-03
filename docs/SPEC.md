@@ -115,13 +115,13 @@ ACT exposes **no per-timer icon/image**, **no `CategoryData` object** (category 
 
 We do **not** invent thresholds. Each timer already carries its own `WarningValue` (the team sets it per-timer in ACT). Escalation pivots on it. This keeps Phase 1 honest with the "configuration in mind" principle — the threshold is real data we read.
 
-**Escalation never relies on color alone.** `FillColor` is user-owned data — a timer may already be red or dark — so color is not a channel we control, and could even collide with the Overdue red. Escalation is always carried by **size, position (into the center zone), motion/pulse, and the LATE tag**; color rides on top as decoration, never as the signal.
+**Escalation never relies on color alone.** A timer's display color is its *identity* (§Timer colors) — it may be anything from the palette, a user's own `FillColor` under `ActColor` mode, or deliberately non-distinctive under `Greyscale` — so it can never double as the urgency channel (a rose or crimson identity would false-signal against the Overdue red). Escalation is always carried by **size, position (into the center zone), motion/pulse, and the LATE tag**; color rides on top as identity, never as the signal.
 
 ### The timer lifecycle
 
 Escalation state is derived from each timer's live `TimeLeft` versus its `WarningValue`, evaluated every tick. A timer is in one of three states:
 
-1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by `FillColor`.
+1. **Calm** — `TimeLeft > WarningValue`. A row in the side **list**, auto-sorted soonest-to-expire, drawn as a horizontal bar (name + countdown + draining fill), colored by the timer's resolved display color (§Timer colors).
 2. **Imminent** — `0 < TimeLeft ≤ WarningValue`. Presentation follows the **`EscalationStyle` knob**:
    - **`CenterRadial` (default, the brainstorm's Model A):** the timer is **removed from the list** (except on overflow — see §The center escalation zone) and promoted into the **center escalation zone** as a big pulsing radial pie. See the pie semantics and zone layout below.
    - **`HighlightInPlace` (Model C):** the timer **stays in the list**, escalated by its highlight outline — the same treatment overflow rows already get. The center zone stays unused for pies; overdue timers (linger-configured) render as LATE-styled rows in the list. (The original brainstorm explicitly kept both models available as configuration — this knob is that decision landing.)
@@ -131,9 +131,9 @@ Escalation state is derived from each timer's live `TimeLeft` versus its `Warnin
 
 **List motion (Phase 1).** Row entry, exit, and re-ordering — including the top→bottom jump when a timer resets to full — are **instantaneous**. Smoothing/animated reordering is deferred to a later phase.
 
-**On state and removal.** Because Phase 1 respects ACT's removal, the overlay is close to a **stateless mirror** of `GetTimerFrames()`: presence, escalation, and de-escalation all fall out of the per-tick readings. It keeps only small, *bounded* per-timer state at the edges — the identity key (below), the Overdue count-up's zero-crossing time (only if the spike shows ACT clamps `TimeLeft` at zero), and the Overdue minimum-display floor (see Overdue visual). None of it reintroduces the unbounded hold-until-reset model.
+**On state and removal.** Because Phase 1 respects ACT's removal, the overlay is close to a **stateless mirror** of `GetTimerFrames()`: presence, escalation, and de-escalation all fall out of the per-tick readings. The only cross-tick state is the identity key (below) and the session-stable palette map (§Timer colors) — bounded, and neither reintroduces the unbounded hold-until-reset model. (An earlier draft also carried an Overdue zero-crossing time and a minimum-display floor; the spike measured `TimeLeft` unclamped-negative and the floor was field-rejected — see §The Overdue visual — so neither exists.)
 
-**Timer identity.** Threading each tick's readings into a per-timer sequence — needed for the Overdue count-up, stable list ordering, and telling a *reset* from a *new* timer — requires a key that is stable across ticks. Provisional key: **`Name` + `Combatant`** (`TimerFrame.Name` + `TimerFrame.Combatant`); a `Name`-only key would wrongly collapse the same ability on two targets or from two casters into one entry. Captured regex groups in `SpellTimer.ExtraInfo` may offer a finer key, but `ExtraInfo` is unverified — the spike confirms whether `(Name, Combatant)` is unique per logical timer (and whether `TimerFrame`'s own `IEquatable` identity suffices).
+**Timer identity.** Threading each tick's readings into a per-timer sequence — needed for stable list ordering, display dedupe, and retained-visual reuse — keys on **`Name` + `Combatant`** (`TimerFrame.Name` + `TimerFrame.Combatant`); a `Name`-only key would wrongly collapse the same ability on two targets or from two casters into one entry. Measured limit: timers not bound to a caster report `Combatant = "none"`, so the key cannot distinguish two concurrent instances of the same timer — resolved by the **soonest-instance-governs** rule (one countdown per key: the soonest-expiring instance, matching ACT's native window — see §Resolved by the Phase-0 spike). Captured regex groups in `SpellTimer.ExtraInfo` might offer a finer per-instance key but remain unverified (*Still open*).
 
 ### The escalated radial pie — warning-window semantics
 
@@ -142,7 +142,7 @@ When a timer escalates to **Imminent**, the pie represents the **warning window,
 - Fill fraction = `TimeLeft / WarningValue` (clamped to `[0,1]`).
 - At the instant of escalation, `TimeLeft == WarningValue` → the pie is **full**; it drains to empty as `TimeLeft → 0`.
 
-A 90s timer with a 10s warning escalates at 10s-left and gives a full, fast-draining pie for those last 10 seconds — rather than a barely-moving sliver of the whole 90s. The pie's motion is calibrated to the window that actually matters, which is easier to read at a glance. The pie shows a big seconds-left number and the timer name, tinted by `FillColor`.
+A 90s timer with a 10s warning escalates at 10s-left and gives a full, fast-draining pie for those last 10 seconds — rather than a barely-moving sliver of the whole 90s. The pie's motion is calibrated to the window that actually matters, which is easier to read at a glance. The pie shows a big seconds-left number and the timer name, tinted by the timer's resolved display color (§Timer colors).
 
 ### The Overdue visual
 
@@ -158,13 +158,13 @@ Model A moves escalated timers out of the list and toward center — but in a re
 
 ### Diagnostic logging (first-class Phase 1 feature)
 
-Because the whole thing is one "read → diff → update" loop, tapping that loop yields a complete picture of ACT's behavior and our own. eq2auras writes **structured, timestamped diagnostics** (JSON-lines or CSV) capturing per-timer readings and — especially — every state transition (calm→imminent→overdue, resets, removals), each with `TimeLeft` / `WarningValue` / `RemoveValue`. Records are group-aware: raw readings carry the panel-routing flags, and any per-group record (state transitions) names its timer group — a dual-flagged timer has two independent escalation states, and the log must distinguish them. It is toggleable so it is quiet in normal play. This log is both the mechanism for the verification spike (below) and a permanent debugging tool. **Volume & rotation:** normal play records **transitions only** (optionally plus low-rate sampled snapshots); the full per-tick dump is a **spike/verbose toggle**, not the default, since 30 fps × N timers grows fast. Logs write to an **app-data path on the Windows box** (`%APPDATA%\Advanced Combat Tracker\eq2auras\logs` — *not* a repo working tree; that machine has none), with a size/age cap and rotation so they cannot grow unbounded. **Retrieval to the Mac** (where analysis happens) is via a synced/shared folder or a manual copy — or, if the self-hosted-runner escape hatch is in use, the runner ferries logs out on each run since it already touches the Windows filesystem. Without a retrieval path the spike's findings are stranded on the machine that can't analyze them, so this is part of the spike's setup, not an afterthought. The repo's `.gitignore` entry for logs matters only once a log lands on the Mac.
+Because the whole thing is one "read → diff → update" loop, tapping that loop yields a complete picture of ACT's behavior and our own. eq2auras writes **structured, timestamped diagnostics** (JSON-lines, BOM-less UTF-8) capturing per-timer readings and — especially — every state transition (calm→imminent→overdue, resets, removals), each with `TimeLeft` / `WarningValue` / `RemoveValue`. Records are group-aware: raw readings carry the panel-routing flags, and any per-group record (state transitions) names its timer group — a dual-flagged timer has two independent escalation states, and the log must distinguish them. It is toggleable so it is quiet in normal play. This log is both the mechanism for the verification spike (below) and a permanent debugging tool. **Volume & rotation:** normal play records **transitions only** (optionally plus low-rate sampled snapshots); the full per-tick dump is a **spike/verbose toggle**, not the default, since 30 fps × N timers grows fast. Logs write to an **app-data path on the Windows box** (`%APPDATA%\Advanced Combat Tracker\eq2auras\logs` — *not* a repo working tree; that machine has none), with a size/age cap and rotation so they cannot grow unbounded. **Retrieval to the Mac** (where analysis happens) is via a synced/shared folder or a manual copy — or, if the self-hosted-runner escape hatch is in use, the runner ferries logs out on each run since it already touches the Windows filesystem. Without a retrieval path the spike's findings are stranded on the machine that can't analyze them, so this is part of the spike's setup, not an afterthought. The repo's `.gitignore` entry for logs matters only once a log lands on the Mac.
 
 ### Baked-in constants for Phase 1
 
 These are the values that become knobs later (promoted one at a time into `Settings` — see §Configuration). Phase 1 fixes them:
 - List size, orientation, and sort (soonest-to-expire) — window *positions* are Settings knobs now (§Moving the overlay).
-- Bar styling (fill, font, colors derived from `FillColor`).
+- Bar styling (fill alpha, font, spark — applied over the resolved display color).
 - Center-pie size; pulse animation parameters.
 - Overdue visual (count-up styling, flash).
 - Poll/state tick rate.
@@ -196,7 +196,7 @@ Positions are WPF device-independent units on the primary monitor (per the Phase
 
 ACT's per-timer `FillColor` is user data that overwhelmingly sits at the default blue, so it fails as a visual identity. Default color policy (`ColorSource = Palette`):
 
-- A predefined palette of **5 distinguishable, pleasant colors** (a constant list in `OverlayTheme.Palette`, guild-approved; itself a future knob).
+- A predefined palette of **5 distinguishable, pleasant colors** (a constant list in Core's `ColorPolicy.PaletteArgb`, mirrored for WPF by `OverlayTheme.Palette`; guild-approved, itself a future knob).
 - **Color is keyed by normalized timer NAME — and nothing else.** The color's job is to identify *the ability as players think of it*, and the name is its stable proxy: the same ability cast by different boss variants (different `Combatant`s) or under zone-categorized trigger sets keeps one color. Keying by `(Name, Combatant)` or by category would recolor the same ability across boss versions/zones — exactly the confusion this feature exists to prevent. (If a user names zone-variant triggers differently, they get different colors — that's their expressed intent, fixable by renaming.)
 - Assignment is **first-fired order**: the first time a name fires in the session it takes the next palette slot, and keeps it for the **plugin-instance lifetime** — stable across wipes, re-pulls, and boss versions. Consistency is a *repeated-attempts* feature; a plugin reload (i.e. taking an update) resetting the map is accepted (one-shot kills never needed consistency). Past 5 names the palette cycles. Explicitly per-ACT-instance; never synchronized across users. The map is also **global across timer groups** — one map per plugin instance, so a dual-flagged timer keeps one color in both panels (each group still applies its own `ColorSource` to the shared slot).
 - **Display identity is unchanged** — rows/dedupe still key on `(Name, Combatant)`; two mobs casting the same ability get two rows that *share* the ability's color, which is correct under this model.
@@ -259,7 +259,7 @@ Still open (non-blocking, gathered during normal play / next phase):
 - `WarningValue` distribution across the team's real timer set (one timer type sampled so far).
 - Whether ACT exposes a distinct warning color (irrelevant to us — we never inherit it).
 
-**Feature-plan inputs surfaced by live data:** timers not bound to a caster report `Combatant = "none"`, so the provisional `(Name, Combatant)` key cannot distinguish two concurrent instances of the same timer; and concurrent instances share **one `TimerFrame`** whose `SpellTimers` is a list — the overlay must render **all** instances in the list, not `[0]`.
+**Surfaced by live data (and resolved in slice 2):** timers not bound to a caster report `Combatant = "none"`, so the `(Name, Combatant)` key cannot distinguish two concurrent instances of the same timer; concurrent instances share **one `TimerFrame`** whose `SpellTimers` is a list. The adapter snapshots **every** instance into readings, but display renders **one countdown per key: the soonest-expiring instance** — measured engine truth: ACT kills the whole frame when the soonest instance expires, so re-fires add instances that never outlive it, and the soonest is the only truthful countdown (matching ACT's native window; a newest-wins policy was tried and produced phantom countdowns).
 
 ### Roadmap (later phases, same core)
 
@@ -279,4 +279,4 @@ No open *design* decisions remain for Phase 1 — the two that were open are res
 
 > *Resolved — overdue "escape hatch":* a non-issue for Phase 1 — an overdue timer disappears when ACT removes it at `RemoveValue`, exactly as ACT behaves today (the deferred "hold until reset" aspiration is in the roadmap).
 
-The remaining open questions are **empirical, not design** — the reload/hot-swap mechanism and the ILRepack premise — and are tracked under *Unverified items to confirm* and resolved by the spike.
+The empirical questions that were open at design time — the reload/hot-swap mechanism and the packaging premise — are also resolved (§Resolved by the Phase-0 spike: live self-update proven, single-assembly packaging decided). All that remains open is the non-blocking list under *Still open*: `ExtraInfo` contents, `WarningValue` distribution, and ACT's warning-color question.
