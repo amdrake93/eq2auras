@@ -39,8 +39,13 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 
 **Reviewer plan-watch items** (3rd-party spec review, 2026-07-02 — the plan review will check): FontDialog point→DIP conversion (store DIPs); enumerate all SIX text roles incl. LATE-name (12 — decide its base derivation explicitly); grip drag must not trigger `DragMove` (`e.Handled = true`); font/scale changes rebuild retained visuals once (constructor-baked constants — rebuild on knob change only, never per tick; pulses restarting once is accepted); scale every geometry constant (RowWidth/Height, drain math's `RowWidth - 2`, PieDiameter, pie-name MaxWidth 190, LATE width 170, margins, XAML Widths 260/200); `ColorPolicy.Resolve` takes the palette as a parameter and the built-in constant renames to `DefaultPaletteArgb` (avoid Settings.PaletteArgb name collision); ColorDialog is alpha-less — arrives 0xFF like the built-ins, add no alpha handling. Raid-scale validation remains the standing no-code item.
 
-### Release channels (Alex's stated direction, 2026-07-02)
-An **unstable channel** (rolling prerelease from dev branches — one-button beta/dev testing before merge) and a **stable release artifact** elsewhere for other users. Needs: second rolling tag published from branch CI, a channel knob in the self-updater, spec amendment (§Development & test cycle). Until then, pre-merge field testing = download the branch CI artifact and overwrite+toggle manually.
+### Release channels — model settled (spitballed 2026-07-02, awaiting its slice)
+Trunk-based, two channels, **artifact promotion** (never rebuild what ships stable — "test what you ship"):
+- **Unstable = `main` HEAD** — today's `dev-latest` rolling prerelease, renamed in spirit. The guild is the beta jury post-merge; pre-merge testing stays the manual branch-artifact hatch.
+- **Stable = promoted artifact.** `workflow_dispatch` (input: `v0.x.y`) reads the current `dev-latest` release, **copies its exact asset** (the field-tested bytes), tags the SHA it was built from, publishes a non-prerelease named "v0.x.y (build 0.1.NN)". No build step. Stable pointer = GitHub `releases/latest` (excludes prereleases by definition).
+- **Updater channel knob:** `Channel — Unstable (0, default: preserves guild behavior on old settings) | Stable` → unstable pulls `releases/tags/dev-latest`, stable pulls `releases/latest`.
+- **Recorded caveats:** promotion only reaches the *current* dev-latest (older verified builds → Actions artifact, 90-day retention — escape hatch, not the flow); promoted bytes self-report their build version, the release name carries both; stable hotfix policy = verify HEAD, promote it (branch-off-tag exists in git if ever truly needed, build nothing for it).
+- Needs when picked up: spec amendment (§Development & test cycle), promote workflow, updater knob + tab dropdown.
 
 ## Standing items
 - **Raid-scale validation** — everything so far tuned via controlled single-trigger testing on an idle log; many concurrent timers + log-flooded combat is an untested regime (ACT's log-driven clock behaves differently there). No code — run it on a raid night and collect.
