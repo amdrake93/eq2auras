@@ -13,6 +13,7 @@ namespace Eq2Auras.Core.Config
     // as 0 — which must mean "the default".
     public enum ColorSource { Palette = 0, Greyscale = 1, ActColor = 2 }
     public enum EscalationStyle { CenterRadial = 0, HighlightInPlace = 1 }
+    public enum GrowDirection { Down = 0, Up = 1 }
 
     /// The knob store (SPEC §Configuration): one plain object, every tunable a typed
     /// member with a baked-in default. Serialized with DCJS (never System.Web.Extensions
@@ -32,6 +33,7 @@ namespace Eq2Auras.Core.Config
         public const double MinRowWidth = 100, MaxRowWidth = 800;
         public const double MinRowHeight = 16, MaxRowHeight = 100;
         public const double MinRadialSize = 40, MaxRadialSize = 400;
+        public const double MinRowSpacing = 0, MaxRowSpacing = 50;
 
         [DataMember(Name = "paletteArgb")]
         public List<int> PaletteArgb { get; set; } = DefaultPalette();
@@ -83,6 +85,8 @@ namespace Eq2Auras.Core.Config
                     panel.RowHeight = Math.Min(MaxRowHeight, Math.Max(MinRowHeight, panel.RowHeight.Value));
                 if (OutOfRange(panel.RadialSize, MinRadialSize, MaxRadialSize))
                     panel.RadialSize = Math.Min(MaxRadialSize, Math.Max(MinRadialSize, panel.RadialSize.Value));
+                if (OutOfRange(panel.RowSpacing, MinRowSpacing, MaxRowSpacing))
+                    panel.RowSpacing = Math.Min(MaxRowSpacing, Math.Max(MinRowSpacing, panel.RowSpacing.Value));
             }
         }
 

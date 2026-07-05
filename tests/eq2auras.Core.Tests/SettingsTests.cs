@@ -144,6 +144,45 @@ public class SettingsTests
     }
 
     [Fact]
+    public void Roundtrips_grow_directions_and_spacing()
+    {
+        var settings = new Settings();
+        settings.Panels[0].ListGrowDirection = GrowDirection.Up;
+        settings.Panels[0].RowSpacing = 0.0;               // zero is MEANINGFUL (touching)
+        settings.Panels[1].CenterGrowDirection = GrowDirection.Up;
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(GrowDirection.Up, parsed.Panels[0].ListGrowDirection);
+        Assert.Equal(GrowDirection.Down, parsed.Panels[0].CenterGrowDirection);
+        Assert.Equal(0.0, parsed.Panels[0].RowSpacing);    // survives as 0, not null
+        Assert.Equal(GrowDirection.Up, parsed.Panels[1].CenterGrowDirection);
+        Assert.Null(parsed.Panels[1].RowSpacing);          // unset stays null (= default 4)
+        Assert.Equal(GrowDirection.Down, parsed.Panels[1].ListGrowDirection);
+    }
+
+    [Fact]
+    public void Missing_grow_and_spacing_fields_read_as_defaults()
+    {
+        // DCJS skips initializers: missing enum -> 0 (must mean Down); missing
+        // nullable -> null (must mean "default 4", never a legal-looking 0).
+        var parsed = Settings.Parse("{\"panels\":[{},{}]}");
+
+        Assert.Equal(GrowDirection.Down, parsed.Panels[0].ListGrowDirection);
+        Assert.Equal(GrowDirection.Down, parsed.Panels[0].CenterGrowDirection);
+        Assert.Null(parsed.Panels[0].RowSpacing);
+    }
+
+    [Fact]
+    public void Out_of_range_spacing_clamps_on_parse()
+    {
+        var parsed = Settings.Parse("{\"panels\":[{\"rowSpacing\":99},{\"rowSpacing\":-3}]}");
+
+        Assert.Equal(50.0, parsed.Panels[0].RowSpacing);
+        Assert.Equal(0.0, parsed.Panels[1].RowSpacing);
+    }
+
+    [Fact]
     public void Retired_scale_keys_are_ignored()
     {
         var parsed = Settings.Parse("{\"panels\":[{\"listScale\":1.5},{\"centerScale\":0.7}]}");

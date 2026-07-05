@@ -40,5 +40,14 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "radialSize")]
         public double? RadialSize { get; set; }       // null = 110 (pie diameter)
+
+        [DataMember(Name = "listGrowDirection")]
+        public GrowDirection ListGrowDirection { get; set; }     // Down = 0 = default
+
+        [DataMember(Name = "centerGrowDirection")]
+        public GrowDirection CenterGrowDirection { get; set; }
+
+        [DataMember(Name = "rowSpacing")]
+        public double? RowSpacing { get; set; }       // null = 4; 0 = touching (meaningful)
     }
 }
