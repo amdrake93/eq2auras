@@ -47,7 +47,7 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 
 ## From Alex — 2026-07-05
 
-### SHIPPED — placement reference grid (2026-07-05, redesigned same day on field verdict)
+### SHIPPED + FIELD-VERIFIED — placement reference grid (2026-07-05, redesigned same day on field verdict; v2 verified same day — "looks good", first casualty: Alex's freehand layout)
 Full-screen click-through grid, auto-shown with move mode, beneath the overlay windows (SPEC §Moving the overlay). **v1 (1-logical-cm pitch) field-rejected same day:** screens aren't cm multiples — last column/row chopped, and no line ever marked screen center. **v2 (branch `grid-recursive-centers`): fixed 64×32 lattice**, cell size calculated from the screen (exact edge-to-edge fit at any resolution), three-tier brightness that tells you where you are — center cross brightest, four quarter-center lines second, all else faint; counts divisible by 4 keep center/quarters on lines. **Architecture decision (discussion 2026-07-05):** lives in the plugin's `Overlay/` folder with `ClickThrough`/`MoveChrome` — one-plugin/modular-features confirmed as the model (Parse Meter = a tab/module in the SAME dll, not a sibling plugin); source-level `<Compile Include>` remains the escape hatch if the suite ever splits. Carve-out note for the element/group arc: when that redesign reorganizes rendering, group the reusable overlay-framework files into a clearly-bounded folder.
 
 ### Queue
