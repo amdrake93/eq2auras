@@ -144,7 +144,7 @@ In `PanelSettings.cs`, after `RadialSize`:
         public double LateName => BaseSize;
 ```
 
-(The six-roles comment updates to: `13, 13, 34, 13, 13, 13` — row, pie name, pie seconds, LATE tag, LATE name.)
+(The roles comment — currently "six text roles… 13, 13, 34, 13, 22, 12", an existing off-by-one against the five actual properties — lands correct: "The five text roles (13, 13, 34, 13, 13 — row, pie name, pie seconds, LATE tag, LATE name).")
 
 - [ ] **Step 2: TimerRowVisual** — the row's bottom margin becomes the flat knob (the `4 * hr` derivation is deleted):
 
@@ -274,7 +274,7 @@ The anchored edge, the compensation, and the drag suppression:
                + Math.Round((panel.FontBaseSize ?? 13.0) * 72.0 / 96.0) + " pt";
 ```
 
-- [ ] **Step 2: New rows in `BuildPanelGroupBox`** (box `Height = 122+64 = 250`; after the radial row):
+- [ ] **Step 2: New rows in `BuildPanelGroupBox`** (box `Height`: 186 → 250, +64 for the two new rows; after the radial row):
 
 ```csharp
             var spacingLabel = new Label { Text = "Spacing:", Left = 8, Top = 186, Width = 44 };
