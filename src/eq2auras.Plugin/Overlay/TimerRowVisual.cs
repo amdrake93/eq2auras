@@ -70,7 +70,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 Width = _rowWidth,
                 Height = style.RowHeight,
-                Margin = new Thickness(0, 0, 0, 4 * hr),
+                Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 Background = new SolidColorBrush(OverlayTheme.CalmBackground),
                 BorderThickness = new Thickness(1),

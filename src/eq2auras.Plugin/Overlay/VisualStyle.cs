@@ -16,15 +16,19 @@ namespace Eq2Auras.Plugin.Overlay
         public double RowWidth { get; set; } = DefaultRowWidth;
         public double RowHeight { get; set; } = DefaultRowHeight;
         public double RadialSize { get; set; } = DefaultRadialSize;
+        public double RowSpacing { get; set; } = 4.0; // flat DIPs — never derived (SPEC §Element dimensions)
         public FontFamily Font { get; set; }          // null = system default
         public double BaseSize { get; set; } = 13.0;  // WPF DIPs
 
-        // The six text roles (measured defaults: 13, 13, 34, 13, 22, 12).
+        // The five text roles (13, 13, 34, 13, 13 — row, pie name, pie seconds,
+        // LATE tag, LATE name). LATE respects the font as-is (field verdict, SPEC
+        // §Typography); only the radial's seconds keep a boost — the escalation
+        // focal glyph.
         public double RowText => BaseSize;
         public double PieName => BaseSize;
         public double PieSeconds => BaseSize * 34.0 / 13.0;
-        public double LateTag => BaseSize * 22.0 / 13.0;
-        public double LateName => BaseSize * 12.0 / 13.0;
+        public double LateTag => BaseSize;
+        public double LateName => BaseSize;
 
         // The configured dimension always wins (SPEC §Element dimensions): text that
         // doesn't fit clips at the row bounds — a floor here would silently contradict

@@ -79,6 +79,7 @@ namespace Eq2Auras.Plugin.Overlay
                 RowWidth = panel.RowWidth ?? VisualStyle.DefaultRowWidth,
                 RowHeight = panel.RowHeight ?? VisualStyle.DefaultRowHeight,
                 RadialSize = panel.RadialSize ?? VisualStyle.DefaultRadialSize,
+                RowSpacing = panel.RowSpacing ?? 4.0,
                 Font = panel.FontFamily != null ? new System.Windows.Media.FontFamily(panel.FontFamily) : null,
                 BaseSize = panel.FontBaseSize ?? 13.0
             };
