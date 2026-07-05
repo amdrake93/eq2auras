@@ -57,6 +57,8 @@ Items 1–4 of the 07-05 queue in one slice (SPEC §Window growth, §Element dim
 3. **LATE typography** — respects the font as-is (the 22/13 boost retires; only radial seconds keep their proportional boost). Future: a LATE-dedicated window configures its own font like any other window.
 4. **Font label** — displays points (the picker's unit), storing DIPs unchanged.
 
+**Reviewer plan-watch items** (3rd-party spec review, 2026-07-05 — the plan review will check): drag-end + re-lock persistence write the **anchored edge** (`SaveAllPositions` and the drag-end callbacks read raw `window.Top` today — under Up they persist `Top + ActualHeight`); define who wins when content resizes mid-drag (suppress height compensation while dragging, reconcile at drag-end); DCJS rules — `GrowDirection.Down = 0`, `RowSpacing` nullable (missing → null = 4, never a legal-looking 0); `LateName` is **changed behavior** (12/13 → base) — test expects `base`, live check eyeballs the whole LATE card.
+
 ### Queue (remaining)
 5. **(bigger) ACT timer editor in our tab** — create/modify ACT's native timers from the eq2auras tab, slimmed and smarter. Stays inside "ACT owns the data" (config *front-end* to ACT's own timer store). **Held (Alex, 2026-07-05): after the full WeakAuras investigation and the truly-modular elements/custom-windows work — the editor needs all that custom machinery to be worth building.**
 
