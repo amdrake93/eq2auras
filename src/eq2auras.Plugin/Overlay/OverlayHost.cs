@@ -57,6 +57,7 @@ namespace Eq2Auras.Plugin.Overlay
                 panel.ListLeft ?? DefaultListLeft(index),
                 panel.ListTop ?? DefaultListTop,
                 StyleFor(panel),
+                panel.ListGrowDirection,
                 (left, top) => SettingsStore.Update(_settings, () => { panel.ListLeft = left; panel.ListTop = top; }));
             list.Show();
             _listWindows.Add(list);
@@ -66,6 +67,7 @@ namespace Eq2Auras.Plugin.Overlay
                 panel.CenterLeft ?? DefaultCenterLeft(),
                 panel.CenterTop ?? DefaultCenterTop(index),
                 StyleFor(panel),
+                panel.CenterGrowDirection,
                 (left, top) => SettingsStore.Update(_settings, () => { panel.CenterLeft = left; panel.CenterTop = top; }));
             center.Show();
             _centerWindows.Add(center);
@@ -83,6 +85,21 @@ namespace Eq2Auras.Plugin.Overlay
                 Font = panel.FontFamily != null ? new System.Windows.Media.FontFamily(panel.FontFamily) : null,
                 BaseSize = panel.FontBaseSize ?? 13.0
             };
+        }
+
+        /// Tab knob changed: each window converts-and-persists via SetGrowDirection.
+        public void ApplyGrowDirections()
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                for (int i = 0; i < _settings.Panels.Count && i < _listWindows.Count; i++)
+                {
+                    _listWindows[i].SetGrowDirection(_settings.Panels[i].ListGrowDirection);
+                    _centerWindows[i].SetGrowDirection(_settings.Panels[i].CenterGrowDirection);
+                }
+            }));
         }
 
         /// Re-resolves every window's style from PanelSettings (font knob changed).
@@ -159,9 +176,9 @@ namespace Eq2Auras.Plugin.Overlay
                 {
                     var panel = _settings.Panels[i];
                     panel.ListLeft = _listWindows[i].Left;
-                    panel.ListTop = _listWindows[i].Top;
+                    panel.ListTop = _listWindows[i].AnchorY;
                     panel.CenterLeft = _centerWindows[i].Left;
-                    panel.CenterTop = _centerWindows[i].Top;
+                    panel.CenterTop = _centerWindows[i].AnchorY;
                 }
             });
         }
