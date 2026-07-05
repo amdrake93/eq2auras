@@ -1,7 +1,7 @@
 # eq2auras
 
 <!-- status:begin -->
-[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![version](https://img.shields.io/badge/version-0.1.81-56B4E9) ![released](https://img.shields.io/badge/released-2026--07--05-E69F00)
+[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![version](https://img.shields.io/badge/version-0.1.83-56B4E9) ![released](https://img.shields.io/badge/released-2026--07--05-E69F00)
 
 `dev-latest` · [release page](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [CI runs](https://github.com/amdrake93/eq2auras/actions) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 <!-- status:end -->
