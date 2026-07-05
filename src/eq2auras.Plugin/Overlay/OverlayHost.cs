@@ -19,6 +19,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Settings _settings;
         private readonly List<TimerListWindow> _listWindows = new List<TimerListWindow>();
         private readonly List<CenterZoneWindow> _centerWindows = new List<CenterZoneWindow>();
+        private GridOverlayWindow _grid;
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -37,6 +38,7 @@ namespace Eq2Auras.Plugin.Overlay
                 {
                     CreatePanelWindows(i, _settings.Panels[i]);
                 }
+                _grid = new GridOverlayWindow();   // hidden until move mode
                 ready.Set();
                 Dispatcher.Run();
             });
@@ -128,6 +130,20 @@ namespace Eq2Auras.Plugin.Overlay
             if (dispatcher == null) return;
             dispatcher.BeginInvoke((Action)(() =>
             {
+                if (moving)
+                {
+                    _grid?.Show();
+                    // The grid must sit BENEATH the windows being placed: re-asserting
+                    // HWND_TOPMOST lifts each overlay window to the top of the topmost
+                    // band, above the just-shown grid (SPEC §Moving the overlay).
+                    foreach (var window in _listWindows) WindowOrder.RaiseTopmost(window);
+                    foreach (var window in _centerWindows) WindowOrder.RaiseTopmost(window);
+                }
+                else
+                {
+                    _grid?.Hide();
+                }
+
                 foreach (var window in _listWindows) window.SetMoveMode(moving);
                 foreach (var window in _centerWindows) window.SetMoveMode(moving);
                 if (!moving) SaveAllPositions();   // re-lock persists everything
@@ -158,6 +174,8 @@ namespace Eq2Auras.Plugin.Overlay
                 _listWindows.Clear();
                 foreach (var window in _centerWindows) window.Close();
                 _centerWindows.Clear();
+                _grid?.Close();
+                _grid = null;
             });
             _dispatcher.InvokeShutdown();
             _thread?.Join(TimeSpan.FromSeconds(2));
