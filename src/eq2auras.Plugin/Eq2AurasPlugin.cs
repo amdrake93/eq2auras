@@ -78,14 +78,14 @@ namespace Eq2Auras.Plugin
                 new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
 
             var panelABox = BuildPanelGroupBox("Panel A", _settings.Panels[0], 78);
-            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 272);
+            var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 336);
 
-            var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 474, Width = 70 };
+            var paletteLabel = new Label { Text = "Palette:", Left = 10, Top = 602, Width = 70 };
             // Wrap room for the max case: 16 swatches + 3 buttons flow onto two rows.
-            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 468, Width = 400, Height = 68 };
+            _paletteRow = new FlowLayoutPanel { Left = 82, Top = 596, Width = 400, Height = 68 };
             RebuildPaletteRow();
 
-            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 546, Width = 200 };
+            var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 674, Width = 200 };
             moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
             tab.Controls.Add(tokenBox);
@@ -104,7 +104,7 @@ namespace Eq2Auras.Plugin
         /// ACT's UI thread. Persistence goes through the SettingsStore gate.
         private GroupBox BuildPanelGroupBox(string title, PanelSettings panel, int top)
         {
-            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 186 };
+            var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 250 };
 
             var colorLabel = new Label { Text = "Colors:", Left = 8, Top = 26, Width = 70 };
             var colorBox = new ComboBox
@@ -163,6 +163,18 @@ namespace Eq2Auras.Plugin
                 Settings.MinRadialSize, Settings.MaxRadialSize,
                 v => panel.RadialSize = v);
 
+            var spacingLabel = new Label { Text = "Spacing:", Left = 8, Top = 186, Width = 44 };
+            var spacingBox = DimensionBox(52, 182, panel.RowSpacing ?? 4.0,
+                Settings.MinRowSpacing, Settings.MaxRowSpacing,
+                v => panel.RowSpacing = v);
+
+            var growLabel = new Label { Text = "Grow:", Left = 8, Top = 218, Width = 40 };
+            var listGrowBox = GrowBox(52, 214, panel.ListGrowDirection,
+                d => panel.ListGrowDirection = d);
+            var centerGrowLabel = new Label { Text = "ctr", Left = 136, Top = 218, Width = 24 };
+            var centerGrowBox = GrowBox(162, 214, panel.CenterGrowDirection,
+                d => panel.CenterGrowDirection = d);
+
             box.Controls.Add(colorLabel);
             box.Controls.Add(colorBox);
             box.Controls.Add(styleLabel);
@@ -175,6 +187,31 @@ namespace Eq2Auras.Plugin
             box.Controls.Add(rowHeightBox);
             box.Controls.Add(radialLabel);
             box.Controls.Add(radialBox);
+            box.Controls.Add(spacingLabel);
+            box.Controls.Add(spacingBox);
+            box.Controls.Add(growLabel);
+            box.Controls.Add(listGrowBox);
+            box.Controls.Add(centerGrowLabel);
+            box.Controls.Add(centerGrowBox);
+            return box;
+        }
+
+        /// One grow-direction dropdown (per window — SPEC §Window growth). The flip
+        /// machinery (convert-and-persist) runs in the windows via ApplyGrowDirections.
+        private ComboBox GrowBox(int left, int top, GrowDirection value, Action<GrowDirection> assign)
+        {
+            var box = new ComboBox
+            {
+                Left = left, Top = top, Width = 80,
+                DropDownStyle = ComboBoxStyle.DropDownList
+            };
+            box.Items.AddRange(new object[] { "Down", "Up" });
+            box.SelectedIndex = (int)value;
+            box.SelectedIndexChanged += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => assign((GrowDirection)box.SelectedIndex));
+                _overlay.ApplyGrowDirections();
+            };
             return box;
         }
 
@@ -199,7 +236,8 @@ namespace Eq2Auras.Plugin
         }
 
         private static string FontLabelText(PanelSettings panel)
-            => (panel.FontFamily ?? "default") + " " + Math.Round(panel.FontBaseSize ?? 13.0);
+            => (panel.FontFamily ?? "default") + " "
+               + Math.Round((panel.FontBaseSize ?? 13.0) * 72.0 / 96.0) + " pt";
 
         private void RebuildPaletteRow()
         {
