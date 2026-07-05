@@ -50,12 +50,15 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 ### SHIPPED + FIELD-VERIFIED — placement reference grid (2026-07-05, redesigned same day on field verdict; v2 verified same day — "looks good", first casualty: Alex's freehand layout)
 Full-screen click-through grid, auto-shown with move mode, beneath the overlay windows (SPEC §Moving the overlay). **v1 (1-logical-cm pitch) field-rejected same day:** screens aren't cm multiples — last column/row chopped, and no line ever marked screen center. **v2 (branch `grid-recursive-centers`): fixed 64×32 lattice**, cell size calculated from the screen (exact edge-to-edge fit at any resolution), three-tier brightness that tells you where you are — center cross brightest, four quarter-center lines second, all else faint; counts divisible by 4 keep center/quarters on lines. **Architecture decision (discussion 2026-07-05):** lives in the plugin's `Overlay/` folder with `ClickThrough`/`MoveChrome` — one-plugin/modular-features confirmed as the model (Parse Meter = a tab/module in the SAME dll, not a sibling plugin); source-level `<Compile Include>` remains the escape hatch if the suite ever splits. Carve-out note for the element/group arc: when that redesign reorganizes rendering, group the reusable overlay-framework files into a clearly-bounded folder.
 
-### Queue
-1. **Grow direction knob** — elements grow up vs down from the window anchor (people place lists above other UI; growing down there is bad). Easy win.
-2. **Row spacing knob** — configurable gap between rows (today: 4 × height-ratio constant).
-3. **LATE font ratio** — *diagnosed: by design* (`base × 22/13 ≈ 1.7×`, SPEC §Typography role derivation), but field says it reads too large — tuning candidate: soften the ratio or expose it.
-4. **Font-size label bug** — tab label shows DIPs (pick 16 pt → label "21"). Spec'd but wrong: the label must speak the picker's unit. Fix: display points, keep storing DIPs.
-5. **(bigger) ACT timer editor in our tab** — create/modify ACT's native timers from the eq2auras tab, slimmed to what the plugin cares about and smarter. Stays inside "ACT owns the data" (we'd be a config *front-end* to ACT's own timer store, not a replacement). Needs its own brainstorm; candidate to fold into the element/group arc's config surface.
+### NEXT UP — slice 7: QoL knobs — SPEC'D 2026-07-05, review pending
+Items 1–4 of the 07-05 queue in one slice (SPEC §Window growth, §Element dimensions, §Typography):
+1. **Grow direction** — **per-WINDOW** (`ListGrowDirection`/`CenterGrowDirection`, Down=0 default | Up): grow-up anchors the bottom edge (persisted vertical coordinate = the anchored edge; runtime compensates Top by the height delta). Alex: deliberately per-window, never per-panel — first knob of the window-configuration trajectory; "don't code ourselves into a corner, keep the goal in mind."
+2. **Row spacing** — `RowSpacing`, raw DIPs, flat, configured-wins (the `4 × height-ratio` derivation retires); 0 = touching, never overlap; clamp 0–50.
+3. **LATE typography** — respects the font as-is (the 22/13 boost retires; only radial seconds keep their proportional boost). Future: a LATE-dedicated window configures its own font like any other window.
+4. **Font label** — displays points (the picker's unit), storing DIPs unchanged.
+
+### Queue (remaining)
+5. **(bigger) ACT timer editor in our tab** — create/modify ACT's native timers from the eq2auras tab, slimmed and smarter. Stays inside "ACT owns the data" (config *front-end* to ACT's own timer store). **Held (Alex, 2026-07-05): after the full WeakAuras investigation and the truly-modular elements/custom-windows work — the editor needs all that custom machinery to be worth building.**
 
 ### NEXT ARC — the element/group model (Alex's pre-brainstorm seed, 2026-07-02 session close)
 "I want to take this way further. I want to begin designing things as elements." Still 100% ACT timer data underneath. The seed, in his words:
