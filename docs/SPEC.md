@@ -193,6 +193,8 @@ The overlay windows are click-through by design, so repositioning needs an expli
 
 Positions are WPF device-independent units on the primary monitor (per the Phase 1 DPI stance). A null stored position means "use the built-in default layout": Panel A's windows where they have always been, Panel B's beside/below them, non-overlapping.
 
+- **Unlock also shows a full-screen placement grid** — a reference for positioning, pinned to the primary monitor's bounds and **permanently click-through** (it cannot be moved because it is not movable: no chrome, no drag handling, `WS_EX_TRANSPARENT` set once and never toggled). Major lines every **1 logical cm**, fainter minor lines every 0.5cm — "logical": 1 cm = 96/2.54 ≈ 37.8 DIPs, the same coordinate space as the window positions, exactly physical only when display scaling matches the panel's true density. Drawn once (aliased 1px lines, no per-tick work); appears with move mode, disappears on re-lock; no persisted state. Grid pitch and colors are Phase-1 constants. The grid lives with the reusable overlay-framework pieces (`ClickThrough`, `MoveChrome`) — shared plumbing for every future feature module in this one plugin.
+
 ### Element dimensions: the timer element and its display forms
 
 A group displays one logical **timer element** per timer, in one of three **display forms** depending on state and `EscalationStyle`: a **row** (calm; and everything in `HighlightInPlace`), a **radial** (imminent under `CenterRadial`), and the **LATE card** (overdue). The forms have real, per-group dimensions in `PanelSettings` — the first element-level customization on the panel → window → **element** trajectory:

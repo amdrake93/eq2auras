@@ -47,8 +47,8 @@ Three knobs (SPEC §Timer colors, §Typography, §Moving the overlay): **custom 
 
 ## From Alex — 2026-07-05
 
-### Side task (in brainstorm): placement reference grid
-Toggleable on-screen grid for placing overlays — locked to monitor edges, never draggable; lines every 1cm, fainter sub-lines every 0.5cm. Note: screen "cm" is DPI-relative (1 logical cm = 96/2.54 ≈ 37.8 DIPs; physical accuracy varies by monitor).
+### Side task — placement reference grid — SPEC'D 2026-07-05, review pending
+Full-screen click-through grid, auto-shown with move mode (part of the unlock chrome — SPEC §Moving the overlay). 1 logical cm majors, 0.5cm fainter minors, aliased 1px, primary monitor, no settings/persistence. **Architecture decision (discussion 2026-07-05):** lives in the plugin's `Overlay/` folder with `ClickThrough`/`MoveChrome` — one-plugin/modular-features confirmed as the model (Parse Meter = a tab/module in the SAME dll, not a sibling plugin), so `Overlay/` is already shared plumbing; source-level `<Compile Include>` remains the escape hatch if the suite ever splits. Carve-out note for the element/group arc: when that redesign reorganizes rendering, group the reusable overlay-framework files into a clearly-bounded folder.
 
 ### Queue
 1. **Grow direction knob** — elements grow up vs down from the window anchor (people place lists above other UI; growing down there is bad). Easy win.
