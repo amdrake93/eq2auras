@@ -27,14 +27,19 @@ namespace Eq2Auras.Plugin.Overlay
         }
     }
 
-    /// Draw-once line grid: majors every 1 logical cm, fainter minors at half-cm.
-    /// Aliased 1-DIP lines (device-pixel-exact only at 100% scaling — Phase-1 DPI
-    /// stance). Pens frozen; nothing here ever re-renders after layout.
+    /// Draw-once reference lattice: FIXED line counts with cell size calculated from
+    /// the screen, so the grid fits edge to edge exactly at any resolution. Three
+    /// brightness tiers tell you where you are — the true center cross brightest, the
+    /// four quarter-center lines second, everything else uniformly faint. Counts stay
+    /// divisible by 4 so center and quarters always land on lines. Aliased 1-DIP
+    /// lines; pens frozen; nothing here ever re-renders after layout.
     internal sealed class GridLines : FrameworkElement
     {
-        private const double CmInDips = 96.0 / 2.54;          // 1 logical cm ≈ 37.8 DIPs
-        private static readonly Pen MajorPen = MakePen(90);
-        private static readonly Pen MinorPen = MakePen(40);
+        private const int Columns = 64;   // divisible by 4 — center + quarter lines exist
+        private const int Rows = 32;
+        private static readonly Pen CenterPen = MakePen(230);
+        private static readonly Pen QuarterPen = MakePen(150);
+        private static readonly Pen RegularPen = MakePen(70);
 
         public GridLines()
         {
@@ -49,18 +54,24 @@ namespace Eq2Auras.Plugin.Overlay
             return pen;
         }
 
+        private static Pen PenFor(int index, int count)
+        {
+            if (index * 2 == count) return CenterPen;                            // W/2 or H/2
+            if (index * 4 == count || index * 4 == count * 3) return QuarterPen; // quarter centers
+            return RegularPen;
+        }
+
         protected override void OnRender(DrawingContext dc)
         {
-            double half = CmInDips / 2.0;
-            int i = 0;
-            for (double x = 0; x <= ActualWidth; x += half, i++)
+            for (int i = 0; i <= Columns; i++)
             {
-                dc.DrawLine(i % 2 == 0 ? MajorPen : MinorPen, new Point(x, 0), new Point(x, ActualHeight));
+                double x = ActualWidth * i / Columns;
+                dc.DrawLine(PenFor(i, Columns), new Point(x, 0), new Point(x, ActualHeight));
             }
-            i = 0;
-            for (double y = 0; y <= ActualHeight; y += half, i++)
+            for (int i = 0; i <= Rows; i++)
             {
-                dc.DrawLine(i % 2 == 0 ? MajorPen : MinorPen, new Point(0, y), new Point(ActualWidth, y));
+                double y = ActualHeight * i / Rows;
+                dc.DrawLine(PenFor(i, Rows), new Point(0, y), new Point(ActualWidth, y));
             }
         }
     }
