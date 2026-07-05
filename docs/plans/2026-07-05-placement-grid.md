@@ -147,7 +147,7 @@ namespace Eq2Auras.Plugin.Overlay
 **Interfaces:**
 - Consumes: `GridOverlayWindow`, `WindowOrder.RaiseTopmost` (Task 1).
 
-- [ ] **Step 1: Field + creation.** Add the field `private GridOverlayWindow _grid;` and create it (hidden — no `Show`) at the end of the `Start` thread body, after the panel loop:
+- [ ] **Step 1: Field + creation.** Add the field `private GridOverlayWindow _grid;` and create it (hidden — no `Show`) in the `Start` thread body, after the panel loop and **before `ready.Set()`**:
 
 ```csharp
                 _grid = new GridOverlayWindow();
