@@ -24,7 +24,7 @@ packages/
 /logs/
 *.jsonl
 # ...except logs deliberately ferried in for analysis
-!spike-data/*.jsonl
+!spike-data/**/*.jsonl
 
 # OS
 .DS_Store
