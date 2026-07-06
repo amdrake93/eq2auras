@@ -7,6 +7,7 @@ ACT (Advanced Combat Tracker) overlay-suite plugin for EverQuest 2 — north sta
 - `docs/backlog.md` — triaged next work (top item = what's queued) + guild feedback.
 - `docs/plans/2026-07-01-spike-findings.md` — empirically measured ACT engine truths. Trust these over API docs.
 - `docs/plans/` — dated implementation plans (`YYYY-MM-DD-<name>.md`), historical once executed.
+- `docs/sessions/` — session chronicles: the story between the docs (sagas, reversals, why-chains), written when a long context gets saved off. Read the latest one to catch up on how we work, not just what exists.
 
 ## The two-machine reality
 - **All development happens here on the Mac** (company Claude license). Alex's personal Windows box runs ACT+EQ2 and is a **passive test target only** — no Claude, no toolchain there. Never ask him to develop on it.
@@ -24,7 +25,9 @@ ACT (Advanced Combat Tracker) overlay-suite plugin for EverQuest 2 — north sta
 - Timer **color** identity is keyed by normalized timer NAME only (ability identity — see SPEC §Timer colors).
 
 ## Working style (learned, keep honoring)
-- **Alex owns the phase transitions** (brainstorm → spec → plan → implement). Finish the current phase's artifact and stop; auto-accept mode ≠ drive the workflow. When he pauses for a manual step, wait for an explicit "go" — don't resume off an ambiguous reply.
+- **Alex owns the phase transitions** (brainstorm → spec → plan → implement). Finish the current phase's artifact and stop; auto-accept mode ≠ drive the workflow. When he pauses for a manual step, wait for an explicit "go" — don't resume off an ambiguous reply. **Discussion is not approval**: affirming comments mid-discussion ≠ green light; no file edits until an explicit "write it up", and one artifact per turn — he reads along live.
+- **A separate reviewer agent (another Claude session) reviews all specs and plans.** Its feedback arrives pasted as a self-contained block; process it with `superpowers:receiving-code-review` (verify every claim against the working tree; push back with evidence). Reviewer "plan-watch items" get recorded in the backlog's NEXT UP entry so they survive to the plan, where the plan review checks them. The reviewer can't see this conversation — decisions that resolve to "no change" must be recorded in a doc or relayed, or it will re-raise them.
+- **Fix flow** (field-driven reversals/small reworks): spec + code on one branch, no plan doc — legitimate, but it **still pauses for the reviewer's spec verification before Alex's merge gate**. Present fixes as ready-for-review, never ready-to-merge. Every fast fix so far left stragglers the review caught.
 - Spec amendments **before** technical plans. Plans in `docs/plans/`, executed inline (not subagent) so he can watch; strict TDD in Core.
 - **Development happens on branches** (descriptive names, e.g. `slice5-<name>`; no ticket prefixes). Alex reviews via `git diff main..<branch>` — merge to `main` and push **only on his explicit approval**. Branch pushes run verify-only CI (Core tests + the WPF plugin compile + build artifact, no publish); pushing `main` is releasing — the `dev-latest` prerelease the self-updater consumes publishes from `main` only. Doc-only tweaks (backlog notes, spec typos) may still go straight to `main`.
 - Diagnostic JSONL logs land on the Windows box (`%APPDATA%\Advanced Combat Tracker\eq2auras\logs`); ferry them back via the repo (`spike-data/`, gitignore-excepted) for analysis here.
