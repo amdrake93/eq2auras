@@ -80,6 +80,17 @@ Every trigger match runs these gates **in order**:
    `TimeLeft`/`TimerFinalDuration` recompute per read, consumers see duration changes live.
 8. **`OnSpellTimerNotify(frame)`** fires (after append).
 
+## Manual triggering `[decompiled]` `[field]`
+
+Double-clicking a timer in ACT's native spell timer window calls `NotifySpell(Category, Name,
+Self: true, "YOU", ...)` directly — a **real engine trigger**, indistinguishable downstream from
+a log-line match and subject to the same 2s dedup and 12s master gates. This makes every
+governing/master behavior testable from the couch (field-verified 2026-07-08: all three
+merge-gate cases). Caveats: the attacker (and thus the frame's `Combatant`) is the timer's
+*Category*, not whatever the real trigger would produce; and the gates run on the log-driven
+clock, so keep log lines flowing (e.g. in-game `/say`) or wall-clock gaps shrink to engine-time
+nothing and clicks get deduped.
+
 ## What ACT itself displays and sounds `[decompiled]`
 
 All native display/sound semantics key off **`GetLargestVal(IncludeNonMaster: false)`** — the
