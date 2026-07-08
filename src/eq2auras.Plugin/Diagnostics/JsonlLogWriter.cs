@@ -12,6 +12,7 @@ namespace Eq2Auras.Plugin.Diagnostics
     {
         private readonly object _gate = new object();
         private StreamWriter _writer;
+        private bool _wroteAnything;
 
         public string FilePath { get; }
 
@@ -36,6 +37,7 @@ namespace Eq2Auras.Plugin.Diagnostics
             {
                 if (_writer == null) return;
                 _writer.WriteLine(record.ToJsonl());
+                _wroteAnything = true;
             }
         }
 
@@ -43,8 +45,13 @@ namespace Eq2Auras.Plugin.Diagnostics
         {
             lock (_gate)
             {
-                _writer?.Dispose();
+                if (_writer == null) return;
+                _writer.Dispose();
                 _writer = null;
+
+                if (_wroteAnything) return;
+                try { File.Delete(FilePath); }      // empty session artifact — best-effort cleanup
+                catch { }                            // teardown must never throw over a leftover file
             }
         }
     }

@@ -368,7 +368,7 @@ Replace the method body (currently reads `timers[0].TimeLeft` — the misattribu
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (probe isn't in the Core test compile; this catches accidental Core edits only). Do NOT attempt a plugin build on the Mac.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Plugin/Act/TimerProbe.cs
@@ -386,7 +386,7 @@ git commit -m "Plugin: probe captures MasterTimer + StartTime; frame events log 
 - Consumes: nothing new. Produces: no API change — `Dispose()` behavior only.
 - Watch item covered: #5.
 
-- [ ] **Step 1: Track writes and delete-on-dispose when empty**
+- [x] **Step 1: Track writes and delete-on-dispose when empty**
 
 Add a field beside `_writer`:
 
@@ -418,7 +418,7 @@ Replace `Dispose` with:
         }
 ```
 
-- [ ] **Step 2: Verify — Core suite unaffected**
+- [x] **Step 2: Verify — Core suite unaffected**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (unchanged — plugin-only edit; compile verified by Task 5's CI push).
