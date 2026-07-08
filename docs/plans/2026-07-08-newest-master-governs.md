@@ -423,7 +423,7 @@ Replace `Dispose` with:
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (unchanged — plugin-only edit; compile verified by Task 5's CI push).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs
@@ -439,11 +439,11 @@ git commit -m "Plugin: delete never-written spike log files on dispose"
 
 **Interfaces:** none — bookkeeping + verification.
 
-- [ ] **Step 1: Update the backlog IN FLIGHT entry**
+- [x] **Step 1: Update the backlog IN FLIGHT entry**
 
 In `docs/backlog.md`, change the heading `### IN FLIGHT — newest-master governing rule (branch \`newest-master-governs\`)` to `### IMPLEMENTED, PENDING MERGE + LIVE VERIFY — newest-master governing rule (branch \`newest-master-governs\`)` and change `Fix (spec amendment in review):` to `Fix (spec + code on branch, plan `docs/plans/2026-07-08-newest-master-governs.md`):`. Leave the watch items and live script in place — the live script runs post-merge.
 
-- [ ] **Step 2: Commit**
+- [x] **Step 2: Commit**
 
 ```bash
 git add docs/backlog.md
