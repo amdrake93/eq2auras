@@ -285,7 +285,7 @@ And in `ToJsonl()`, before the closing brace append:
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (full suite — guards against other tests parsing the JSONL shape).
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Core/Diagnostics/TimerSnapshotRecord.cs tests/eq2auras.Core.Tests/TimerSnapshotRecordTests.cs
@@ -303,7 +303,7 @@ git commit -m "Core: spike schema gains master flag + instance count (null where
 - Consumes: `TimerReading.IsMaster`/`.StartTime` (Task 1), `TimerSnapshotRecord.Master`/`.Instances` (Task 2), ACT's `SpellTimer.MasterTimer`/`.StartTime`/`.TimeLeft` (see `docs/act-timer-engine.md` §Data model).
 - Watch items covered: #2 (probe half), #4, and #6's guard — `OnPoll` keeps snapshotting **every** instance; no master filtering here.
 
-- [ ] **Step 1: Capture the two instance fields in `OnPoll`**
+- [x] **Step 1: Capture the two instance fields in `OnPoll`**
 
 In the `readings.Add(new TimerReading { ... })` initializer, add:
 
@@ -312,7 +312,7 @@ In the `readings.Add(new TimerReading { ... })` initializer, add:
                         StartTime = instance.StartTime,
 ```
 
-- [ ] **Step 2: Flag per-instance records in `LogReading`**
+- [x] **Step 2: Flag per-instance records in `LogReading`**
 
 In the `_log.Write(new TimerSnapshotRecord { ... })` initializer, add:
 
@@ -322,7 +322,7 @@ In the `_log.Write(new TimerSnapshotRecord { ... })` initializer, add:
 
 (`Instances` stays null — per-instance records don't carry a count.)
 
-- [ ] **Step 3: Rewrite `LogFrameEvent` to largest-master + instance count**
+- [x] **Step 3: Rewrite `LogFrameEvent` to largest-master + instance count**
 
 Replace the method body (currently reads `timers[0].TimeLeft` — the misattribution flaw) with:
 
@@ -363,7 +363,7 @@ Replace the method body (currently reads `timers[0].TimeLeft` — the misattribu
 
 (`TimeLeft` = largest-master is null by construction on `removed` — no masters remain — matching SPEC §Diagnostic logging exactly. `Master` stays null: frame events are not per-instance.)
 
-- [ ] **Step 4: Verify — Core suite still green locally; plugin compile deferred to Task 5's CI push**
+- [x] **Step 4: Verify — Core suite still green locally; plugin compile deferred to Task 5's CI push**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (probe isn't in the Core test compile; this catches accidental Core edits only). Do NOT attempt a plugin build on the Mac.

@@ -62,7 +62,9 @@ namespace Eq2Auras.Plugin.Act
                         TotalSeconds = instance.TimerFinalDuration,
                         FillArgb = data.FillColor.ToArgb(),
                         ShowInPanelA = data.Panel1Display,
-                        ShowInPanelB = data.Panel2Display
+                        ShowInPanelB = data.Panel2Display,
+                        IsMaster = instance.MasterTimer,
+                        StartTime = instance.StartTime
                     });
                 }
             }
@@ -83,25 +85,41 @@ namespace Eq2Auras.Plugin.Act
                 WarningValue = reading.WarningValue,
                 TotalValue = reading.TotalSeconds,
                 PanelA = reading.ShowInPanelA,
-                PanelB = reading.ShowInPanelB
+                PanelB = reading.ShowInPanelB,
+                Master = reading.IsMaster
             });
         }
 
         private void LogFrameEvent(string kind, TimerFrame frame)
         {
             var timers = frame.SpellTimers;
-            int? timeLeft = timers != null && timers.Count > 0 ? timers[0].TimeLeft : (int?)null;
+            int? largestMaster = null;
+            int instances = 0;
+            if (timers != null)
+            {
+                instances = timers.Count;
+                foreach (var timer in timers)
+                {
+                    if (timer == null || !timer.MasterTimer) continue;
+                    if (!largestMaster.HasValue || timer.TimeLeft > largestMaster.Value)
+                    {
+                        largestMaster = timer.TimeLeft;
+                    }
+                }
+            }
+
             _log.Write(new TimerSnapshotRecord
             {
                 Kind = kind,
                 TimestampUnixMs = NowMs(),
                 Name = frame.Name ?? "",
                 Combatant = frame.Combatant ?? "",
-                TimeLeft = timeLeft,
+                TimeLeft = largestMaster,
                 WarningValue = frame.TimerData != null ? frame.TimerData.WarningValue : 0,
                 TotalValue = frame.TimerData != null ? frame.TimerData.TimerValue : 0,
                 PanelA = frame.TimerData != null && frame.TimerData.Panel1Display,
-                PanelB = frame.TimerData != null && frame.TimerData.Panel2Display
+                PanelB = frame.TimerData != null && frame.TimerData.Panel2Display,
+                Instances = instances
             });
         }
 
