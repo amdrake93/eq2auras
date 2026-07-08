@@ -7,14 +7,18 @@ using Xunit;
 public class EscalationTrackerTests
 {
 
+    private static readonly System.DateTime BaseStart = new System.DateTime(2026, 7, 8, 20, 0, 0, System.DateTimeKind.Utc);
+
     private static TimerReading Reading(string name, int timeLeft,
-        int warning = 10, int total = 30, string combatant = "none", int removeValue = -15)
+        int warning = 10, int total = 30, string combatant = "none", int removeValue = -15,
+        bool master = true, int startOffset = 0)
         => new TimerReading
         {
             Name = name, Combatant = combatant, TimeLeft = timeLeft,
             WarningValue = warning, TotalSeconds = total,
             RemoveValueSeconds = removeValue,
-            RawPreciseTimeLeft = timeLeft, FillArgb = -16776961
+            RawPreciseTimeLeft = timeLeft, FillArgb = -16776961,
+            IsMaster = master, StartTime = BaseStart.AddSeconds(startOffset)
         };
 
     private static List<TimerReading> R(params TimerReading[] readings) => readings.ToList();
@@ -116,30 +120,85 @@ public class EscalationTrackerTests
     }
 
     [Fact]
-    public void Refire_does_not_extend_the_governing_countdown()
+    public void Non_master_tick_never_governs_or_displays()
     {
-        // A re-fire adds a second SpellTimer instance, but ACT's engine kills the whole
-        // frame when the SOONEST instance expires (measured: `removed` fired at tL=2 with
-        // a live second instance). The soonest instance is therefore the only truthful
-        // countdown — exactly what ACT's own window shows. Never display the newer one.
+        // A DoT tick re-trigger arrives as a non-master instance (ACT pre-applies the
+        // OnlyMasterTicks config). It is diagnostics-only: the master keeps governing.
         var frame = new EscalationTracker().Tick(
-            R(Reading("boss", 5), Reading("boss", 30)));
+            R(Reading("boss", 20, startOffset: 0), Reading("boss", 45, master: false, startOffset: 6)));
 
-        Assert.Empty(frame.ListRows);                              // 5s governs -> escalated
-        var pie = Assert.Single(frame.CenterElements);
-        Assert.Equal(CenterElementKind.Pie, pie.Kind);
-        Assert.Equal(5, pie.SecondsLeft);                          // NOT 30
+        var row = Assert.Single(frame.ListRows);
+        Assert.Equal(20, row.TimeLeft);                      // NOT the tick's 45
     }
 
     [Fact]
-    public void Governing_instance_at_zero_goes_LATE_even_if_a_newer_instance_lingers()
+    public void Master_recast_governs_over_the_older_master()
     {
-        var tracker = new EscalationTracker();
-        tracker.Tick(R(Reading("boss", 3), Reading("boss", 20)));          // 3s governs
-        var frame = tracker.Tick(R(Reading("boss", -1), Reading("boss", 16)));
+        // Cooldown truth: the ability just fired, so the older prediction is falsified.
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 5, startOffset: 0), Reading("boss", 30, startOffset: 9)));
 
-        Assert.Empty(frame.ListRows);                              // no phantom 16s row
-        Assert.Equal(CenterElementKind.Late, Assert.Single(frame.CenterElements).Kind);
+        Assert.Empty(frame.CenterElements);                  // 5s no longer governs -> no pie
+        Assert.Equal(30, Assert.Single(frame.ListRows).TimeLeft);
+    }
+
+    [Fact]
+    public void Master_recast_while_LATE_clears_the_LATE_instantly()
+    {
+        // THE raid-night bug (observed 51x, 2026-07-05): the overdue corpse must not
+        // outrank a live recast while it awaits ACT's purge.
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", -9, startOffset: 0), Reading("boss", 35, total: 35, startOffset: 44)));
+
+        Assert.Empty(frame.CenterElements);                  // no LATE card survives the recast
+        Assert.Equal(35, Assert.Single(frame.ListRows).TimeLeft);
+    }
+
+    [Fact]
+    public void Newest_master_wins_even_with_less_time_than_an_older_modded_master()
+    {
+        // Timer mods can leave an older master with MORE remaining time; newest still wins
+        // (deliberately not ACT's largest-master display — SPEC §Timer identity).
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 40, total: 60, startOffset: 0), Reading("boss", 30, total: 30, startOffset: 20)));
+
+        Assert.Equal(30, Assert.Single(frame.ListRows).TimeLeft);
+    }
+
+    [Fact]
+    public void No_masters_displays_nothing_for_the_key()
+    {
+        // A poll landing mid-purge can see a master-less frame; ACT kills it the same
+        // engine pass. Ticks alone never earn display.
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 18, master: false), Reading("boss", 24, master: false, startOffset: 6)));
+
+        Assert.Empty(frame.ListRows);
+        Assert.Empty(frame.CenterElements);
+    }
+
+    [Fact]
+    public void Overdue_master_stays_LATE_when_only_ticks_are_newer()
+    {
+        // A recast landing inside a still-running tick stream stays non-master: LATE
+        // correctly holds until the overdue master purges (SPEC §The Overdue visual).
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", -4, startOffset: 0), Reading("boss", 45, master: false, startOffset: 30)));
+
+        Assert.Empty(frame.ListRows);
+        var late = Assert.Single(frame.CenterElements);
+        Assert.Equal(CenterElementKind.Late, late.Kind);
+        Assert.Equal(4, late.LateSeconds);
+    }
+
+    [Fact]
+    public void Equal_StartTime_masters_tie_break_to_the_larger_TimeLeft()
+    {
+        // Unreachable via ACT's 2s trigger dedup; defined for a total ordering.
+        var frame = new EscalationTracker().Tick(
+            R(Reading("boss", 5, startOffset: 0), Reading("boss", 30, startOffset: 0)));
+
+        Assert.Equal(30, Assert.Single(frame.ListRows).TimeLeft);
     }
 
     [Fact]

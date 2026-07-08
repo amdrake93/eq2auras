@@ -12,7 +12,7 @@ public class OverlayEngineTests
             Name = name, Combatant = "none", TimeLeft = timeLeft,
             RawPreciseTimeLeft = timeLeft, WarningValue = 10, TotalSeconds = 30,
             RemoveValueSeconds = -15, FillArgb = -16776961,
-            ShowInPanelA = inA, ShowInPanelB = inB
+            ShowInPanelA = inA, ShowInPanelB = inB, IsMaster = true
         };
 
     [Fact]

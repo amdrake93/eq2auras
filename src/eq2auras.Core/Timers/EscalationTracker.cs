@@ -25,14 +25,19 @@ namespace Eq2Auras.Core.Timers
 
         public OverlayFrame Tick(IReadOnlyList<TimerReading> readings, IReadOnlyList<int> paletteArgb = null)
         {
-            // A re-firing trigger ADDS a SpellTimer instance to the same frame — but ACT's
-            // engine kills the WHOLE frame when the soonest instance expires (measured:
-            // `removed` fired at tL=2 with a live second instance). So the SOONEST instance
-            // per (Name|Combatant) key is the only truthful countdown — the same one ACT's
-            // native window shows.
+            // Cooldown truth (SPEC §Timer identity; engine mechanics: docs/act-timer-engine.md):
+            // the LATEST-FIRED MASTER instance governs — every trigger means the ability just
+            // fired, so every older prediction is falsified. Non-master (DoT-tick) instances
+            // are diagnostics-only and never display, exactly as ACT's native window treats
+            // them. Timer mods can leave an older master with MORE remaining time; newest
+            // still wins. Tie-break (unreachable via ACT's 2s dedup): larger TimeLeft.
             var governing = readings
+                .Where(r => r.IsMaster)
                 .GroupBy(KeyOf)
-                .Select(g => g.OrderBy(TimerMath.PreciseOf).First())
+                .Select(g => g
+                    .OrderByDescending(r => r.StartTime)
+                    .ThenByDescending(r => r.TimeLeft)
+                    .First())
                 .Select(r => WithResolvedColor(r, paletteArgb))
                 .ToList();
 
@@ -106,6 +111,8 @@ namespace Eq2Auras.Core.Timers
                 TotalSeconds = reading.TotalSeconds,
                 ShowInPanelA = reading.ShowInPanelA,
                 ShowInPanelB = reading.ShowInPanelB,
+                IsMaster = reading.IsMaster,
+                StartTime = reading.StartTime,
                 FillArgb = ColorPolicy.Resolve(_settings.ColorSource, _palette.IndexFor(reading.Name), reading.FillArgb, paletteArgb)
             };
         }

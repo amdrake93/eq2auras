@@ -1,6 +1,6 @@
 # Newest-Master Governing Rule Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (project convention: executed inline, not via subagents, so Alex can watch). Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (project convention: executed inline, not via subagents, so Alex can watch). Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Replace soonest-instance-governs with newest-master-governs (SPEC §Timer identity, approved 2026-07-08) so a recast instantly resets its timer to the list and DoT-tick instances never display, plus the approved diagnostics ride-alongs.
 
@@ -31,7 +31,7 @@
 - Produces: `TimerReading.IsMaster` (`bool`) and `TimerReading.StartTime` (`System.DateTime`) — Task 3's probe sets both; `EscalationTracker.Tick` signature unchanged.
 - Watch items covered: #1 (selection + comment), #2's Core half (`TimerReading` fields), #6 (filter lives HERE, in the display pipeline — the adapter keeps snapshotting every instance).
 
-- [ ] **Step 1: Update the test helper and rewrite the two soonest-era tests as failing newest-master tests**
+- [x] **Step 1: Update the test helper and rewrite the two soonest-era tests as failing newest-master tests**
 
 In `EscalationTrackerTests.cs`, replace the `Reading` helper with:
 
@@ -139,12 +139,12 @@ DELETE `Refire_does_not_extend_the_governing_countdown` (lines 118-132) and `Gov
 
 In `OverlayEngineTests.cs`, add `IsMaster = true` to its private `Reading` helper's initializer (line ~10-21) — without it every engine-routing test frame goes empty under the new filter.
 
-- [ ] **Step 2: Run the Core tests to verify the new tests fail**
+- [x] **Step 2: Run the Core tests to verify the new tests fail**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: compile FAILURE — `TimerReading` has no `IsMaster`/`StartTime` (that is the failing state for a data-shape change; note it and continue).
 
-- [ ] **Step 3: Add the `TimerReading` fields**
+- [x] **Step 3: Add the `TimerReading` fields**
 
 In `TimerReading.cs`, add `using System;` at the top and two properties after `ShowInPanelB`:
 
@@ -153,11 +153,12 @@ In `TimerReading.cs`, add `using System;` at the top and two properties after `S
         public DateTime StartTime { get; set; }  // SpellTimer.StartTime — governing order: newest master wins
 ```
 
-- [ ] **Step 4: Run the tests again — new behavior tests now fail red, not the compile**
+- [x] **Step 4: Run the tests again — new behavior tests now fail red, not the compile**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: FAIL on exactly four —
-- `Master_recast_governs_over_the_older_master` and `Equal_StartTime_masters_tie_break_to_the_larger_TimeLeft`: the old rule governs by the 5s reading, which escalates to a pie — `Assert.Empty(frame.CenterElements)` throws (not a wrong row value).
+- `Master_recast_governs_over_the_older_master`: the old rule governs by the 5s reading, which escalates to a pie — `Assert.Empty(frame.CenterElements)` throws (not a wrong row value).
+- `Equal_StartTime_masters_tie_break_to_the_larger_TimeLeft`: same 5s-governs escalation, but this test only asserts the row — `Assert.Single(frame.ListRows)` throws on the empty list.
 - `Master_recast_while_LATE_clears_the_LATE_instantly`: a LATE card is present — `Assert.Empty(frame.CenterElements)` throws.
 - `No_masters_displays_nothing_for_the_key`: the old selection ignores `IsMaster`, so a row shows — `Assert.Empty(frame.ListRows)` throws.
 
@@ -168,7 +169,7 @@ Three PASS already and that is expected — their red phase was Step 2's compile
 
 Do not debug the three green tests; Step 6 confirms all seven hold under the new rule.
 
-- [ ] **Step 5: Implement the new governing selection**
+- [x] **Step 5: Implement the new governing selection**
 
 In `EscalationTracker.cs`, replace lines 28-37 (the stale soonest-governs comment AND the selection — watch item #1) with:
 
@@ -197,7 +198,7 @@ In `WithResolvedColor` (line ~96), the copy must stay lossless — add to the in
                 StartTime = reading.StartTime,
 ```
 
-- [ ] **Step 6: Run the full Core test suite to verify everything passes**
+- [x] **Step 6: Run the full Core test suite to verify everything passes**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS, zero failures — the seven new/kept governing tests plus every pre-existing test (single-instance tests ride on the helper's `master: true` default).
