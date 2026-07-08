@@ -450,7 +450,7 @@ git add docs/backlog.md
 git commit -m "Backlog: newest-master governing rule implemented on branch, pending merge + live verify"
 ```
 
-- [ ] **Step 3: Push the branch and watch verify-only CI**
+- [x] **Step 3: Push the branch and watch verify-only CI**
 
 ```bash
 git push -u origin newest-master-governs
