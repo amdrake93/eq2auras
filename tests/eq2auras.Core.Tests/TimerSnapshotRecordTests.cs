@@ -16,7 +16,9 @@ public class TimerSnapshotRecordTests
             WarningValue = 10,
             TotalValue = 30,
             PanelA = true,
-            PanelB = false
+            PanelB = false,
+            Master = true,
+            Instances = null
         };
 
         var json = record.ToJsonl();
@@ -24,7 +26,7 @@ public class TimerSnapshotRecordTests
         Assert.Equal(
             "{\"kind\":\"poll\",\"ts\":1750000000000,\"name\":\"Tank Buster\"," +
             "\"combatant\":\"Big Bad\",\"timeLeft\":12,\"warningValue\":10,\"totalValue\":30," +
-            "\"panelA\":true,\"panelB\":false}",
+            "\"panelA\":true,\"panelB\":false,\"master\":true,\"instances\":null}",
             json);
     }
 
@@ -47,8 +49,25 @@ public class TimerSnapshotRecordTests
         Assert.Equal(
             "{\"kind\":\"notify\",\"ts\":1,\"name\":\"He said \\\"hi\\\"\\tand\\\\left\"," +
             "\"combatant\":\"\",\"timeLeft\":-3,\"warningValue\":0,\"totalValue\":0," +
-            "\"panelA\":false,\"panelB\":false}",
+            "\"panelA\":false,\"panelB\":false,\"master\":null,\"instances\":null}",
             json);
+    }
+
+    [Fact]
+    public void ToJsonl_frame_event_carries_null_master_and_an_instance_count()
+    {
+        // `removed` semantics (SPEC §Diagnostic logging): value null by construction,
+        // positive instance count = evidence of killed non-masters.
+        var record = new TimerSnapshotRecord
+        {
+            Kind = "removed", TimestampUnixMs = 2, Name = "x", Combatant = "y",
+            TimeLeft = null, WarningValue = 0, TotalValue = 0,
+            PanelA = false, PanelB = false, Master = null, Instances = 10
+        };
+
+        Assert.Contains("\"timeLeft\":null", record.ToJsonl());
+        Assert.Contains("\"master\":null", record.ToJsonl());
+        Assert.Contains("\"instances\":10", record.ToJsonl());
     }
 
     [Fact]

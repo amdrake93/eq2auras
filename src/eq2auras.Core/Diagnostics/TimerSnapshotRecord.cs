@@ -18,6 +18,8 @@ namespace Eq2Auras.Core.Diagnostics
         public int TotalValue { get; set; }
         public bool PanelA { get; set; }    // TimerData.Panel1Display — group routing (SPEC §Diagnostic logging)
         public bool PanelB { get; set; }    // TimerData.Panel2Display
+        public bool? Master { get; set; }   // per-instance records: SpellTimer.MasterTimer; null on frame events
+        public int? Instances { get; set; } // frame events: live instance count at event time; null on per-instance records
 
         public string ToJsonl()
         {
@@ -33,6 +35,12 @@ namespace Eq2Auras.Core.Diagnostics
             sb.Append(",\"totalValue\":").Append(TotalValue);
             sb.Append(",\"panelA\":").Append(PanelA ? "true" : "false");
             sb.Append(",\"panelB\":").Append(PanelB ? "true" : "false");
+            sb.Append(",\"master\":");
+            if (Master.HasValue) sb.Append(Master.Value ? "true" : "false");
+            else sb.Append("null");
+            sb.Append(",\"instances\":");
+            if (Instances.HasValue) sb.Append(Instances.Value);
+            else sb.Append("null");
             sb.Append("}");
             return sb.ToString();
         }

@@ -203,7 +203,7 @@ In `WithResolvedColor` (line ~96), the copy must stay lossless — add to the in
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS, zero failures — the seven new/kept governing tests plus every pre-existing test (single-instance tests ride on the helper's `master: true` default).
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add src/eq2auras.Core/Timers/TimerReading.cs src/eq2auras.Core/Timers/EscalationTracker.cs tests/eq2auras.Core.Tests/EscalationTrackerTests.cs tests/eq2auras.Core.Tests/OverlayEngineTests.cs
@@ -222,7 +222,7 @@ git commit -m "Core: newest-master governing rule — masters only, newest Start
 - Produces: `TimerSnapshotRecord.Master` (`bool?`) and `TimerSnapshotRecord.Instances` (`int?`) — Task 3 sets `Master` on per-instance records and `Instances` on frame-event records; JSONL emits both keys on every record (null where not applicable) so field captures self-explain.
 - Watch item covered: #3.
 
-- [ ] **Step 1: Update the two existing serialization tests and add the null/combination test (failing)**
+- [x] **Step 1: Update the two existing serialization tests and add the null/combination test (failing)**
 
 In `TimerSnapshotRecordTests.cs`, extend the record initializer in `ToJsonl_serializes_all_fields` with `Master = true, Instances = null,` and change its expected string to:
 
@@ -255,12 +255,12 @@ In the escaping test, append `,\"master\":null,\"instances\":null` inside its ex
     }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter TimerSnapshotRecordTests`
 Expected: compile FAILURE — no `Master`/`Instances` members.
 
-- [ ] **Step 3: Implement the schema fields**
+- [x] **Step 3: Implement the schema fields**
 
 In `TimerSnapshotRecord.cs`, add after `PanelB`:
 
@@ -280,7 +280,7 @@ And in `ToJsonl()`, before the closing brace append:
             else sb.Append("null");
 ```
 
-- [ ] **Step 4: Run to verify pass**
+- [x] **Step 4: Run to verify pass**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (full suite — guards against other tests parsing the JSONL shape).
