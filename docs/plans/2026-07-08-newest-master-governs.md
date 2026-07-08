@@ -156,7 +156,17 @@ In `TimerReading.cs`, add `using System;` at the top and two properties after `S
 - [ ] **Step 4: Run the tests again — new behavior tests now fail red, not the compile**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
-Expected: FAIL — `Non_master_tick_never_governs_or_displays` (returns 45), `Master_recast_governs_over_the_older_master` (returns 5), `Master_recast_while_LATE_clears_the_LATE_instantly` (LATE card present), `Newest_master_wins_even_with_less_time_than_an_older_modded_master` (returns 40), `No_masters_displays_nothing_for_the_key` (rows present), `Equal_StartTime_masters_tie_break_to_the_larger_TimeLeft` (returns 5). `Overdue_master_stays_LATE_when_only_ticks_are_newer` may pass by accident (soonest = the overdue master) — fine.
+Expected: FAIL on exactly four —
+- `Master_recast_governs_over_the_older_master` and `Equal_StartTime_masters_tie_break_to_the_larger_TimeLeft`: the old rule governs by the 5s reading, which escalates to a pie — `Assert.Empty(frame.CenterElements)` throws (not a wrong row value).
+- `Master_recast_while_LATE_clears_the_LATE_instantly`: a LATE card is present — `Assert.Empty(frame.CenterElements)` throws.
+- `No_masters_displays_nothing_for_the_key`: the old selection ignores `IsMaster`, so a row shows — `Assert.Empty(frame.ListRows)` throws.
+
+Three PASS already and that is expected — their red phase was Step 2's compile failure, and each guards against a different wrong rule, not against soonest:
+- `Non_master_tick_never_governs_or_displays` guards against naive newest-wins (which would return the tick's 45).
+- `Newest_master_wins_even_with_less_time_than_an_older_modded_master` guards against largest-master/ACT-native display (which would return 40).
+- `Overdue_master_stays_LATE_when_only_ticks_are_newer` coincides with soonest here (the overdue master is soonest).
+
+Do not debug the three green tests; Step 6 confirms all seven hold under the new rule.
 
 - [ ] **Step 5: Implement the new governing selection**
 
