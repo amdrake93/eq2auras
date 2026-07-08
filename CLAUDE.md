@@ -5,7 +5,8 @@ ACT (Advanced Combat Tracker) overlay-suite plugin for EverQuest 2 — north sta
 ## Source of truth — read these first
 - `docs/SPEC.md` — how the whole system works NOW (architecture, escalation model, knob/config model, packaging, dev cycle). Present-tense, no changelog framing.
 - `docs/backlog.md` — triaged next work (top item = what's queued) + guild feedback.
-- `docs/plans/2026-07-01-spike-findings.md` — empirically measured ACT engine truths. Trust these over API docs.
+- `docs/act-timer-engine.md` — ACT engine ground truth (decompiled + field-verified: data model, trigger pipeline, master flags, purge rules). Trust over API docs; wins wherever an older doc conflicts.
+- `docs/plans/2026-07-01-spike-findings.md` — the Phase-0 spike record. Historical; partially superseded (see the engine doc's §Supersessions).
 - `docs/plans/` — dated implementation plans (`YYYY-MM-DD-<name>.md`), historical once executed.
 - `docs/sessions/` — session chronicles: the story between the docs (sagas, reversals, why-chains), written when a long context gets saved off. Read the latest one to catch up on how we work, not just what exists.
 

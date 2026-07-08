@@ -1,5 +1,7 @@
 # Spike Findings — ACT API reconnaissance + live behaviour
 
+> **⚠ PARTIALLY SUPERSEDED (2026-07-08):** `docs/act-timer-engine.md` (decompiled + raid-verified) is the engine ground truth and wins where this file conflicts — notably **soonest-instance-governs is dead** (now newest-master-governs) and **`RemoveValue` DOES govern removal**. See that doc's §Supersessions for why the measurements below misled.
+
 > **SLICE 2 LIVE + TUNED (2026-07-01/02):** full escalation working — calm bars → center radial pie at each timer's own `WarningValue` → gone (or LATE for linger-configured timers). Tuned via **controlled testing: one custom trigger, deliberately re-fired, on an idle log** — NOT raid conditions. **Still unvalidated: raid-scale behavior** (many concurrent timers, constant log flow — where ACT's log-driven clock behaves differently than the idle-log regime these fixes were tuned in). Lessons, each live-confirmed under test conditions:
 > - **Soonest instance governs** a frame's life; re-fires add instances that die with the frame — render soonest per key (ACT-native behavior), never newest ("phantom reset" bug).
 > - **Overdue window = the timer's own `RemoveValue`** — remove-at-0 timers must show nothing past zero (ACT lags reporting removal by 1-2s; displaying that lag reads as a bug). No artificial floor.
