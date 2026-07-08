@@ -20,7 +20,7 @@ ACT (Advanced Combat Tracker) overlay-suite plugin for EverQuest 2 — north sta
 - **Never reference `System.Web.Extensions`** (breaks the WPF XAML markup compiler in CI). JSON = `DataContractJsonSerializer`. DCJS skips field initializers on deserialize → **enum knob defaults must be the 0-value**.
 - **Never `Assembly.LoadFrom`** (locks files for the process lifetime).
 - **The wall clock owns the visuals** — ACT's `TimeLeft`/clock is log-line-driven and lurches when the log is quiet. Smooth animations from `RawPreciseTimeLeft`; ACT's ints for state decisions only.
-- **Never outlive the data**: display exactly what ACT reports. The soonest instance per `(Name, Combatant)` governs (re-fires add doomed instances). Overdue/LATE only for timers whose own `RemoveValue` < 0.
+- **Never outlive the data**: display exactly what ACT reports. Instance governance (master flags, newest-master rule, LATE windows) lives in SPEC §Timer identity + `docs/act-timer-engine.md` — read those before touching governing logic; don't restate the mechanics here.
 - **WPF: retain elements, animate properties** — never rebuild visuals per tick (kills animations); one linear drain-to-zero animation, re-targeted only past ~0.75s drift.
 - Timer **color** identity is keyed by normalized timer NAME only (ability identity — see SPEC §Timer colors).
 

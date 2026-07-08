@@ -53,6 +53,18 @@ Full-screen click-through grid, auto-shown with move mode, beneath the overlay w
 ### SHIPPED + FIELD-VERIFIED — slice 7: QoL knobs — 2026-07-05
 Live script passed: grow-flip + grow-up stacking work, spacing flat and correct (0 = touching), LATE respects font/size (bold + all-caps kept deliberately — urgency by style, not size), font label matches the picked points, regression clean. Field decisions: **escalation cap (3 center slots) stays** — 4 simultaneous escalations is an extreme case, queue-into-slots handles it; **mid-drag expiry test waived** — the seam is drag-suppressed compensation with self-correcting drag-end persistence, not worth choreographing.
 
+## From raid-night analysis — 2026-07-05 raid, analyzed 2026-07-06/08 (`spike-data/2026-07-05/`)
+
+First real raid capture (standing item "raid-scale validation" — first pass done). Overlay logs + full game log cross-referenced; ACT engine decompiled to explain the findings (`docs/act-timer-engine.md`).
+
+### IN FLIGHT — newest-master governing rule (branch `newest-master-governs`)
+**The raid bug:** timers already LATE in the escalation window did not reset to the list when the ability re-fired (observed 51×; Soul Paralysis cycled through it for 11 straight minutes). Root cause: soonest-instance-governs let an overdue corpse instance outrank a live recast for up to `|RemoveValue|` seconds, and DoT-tick (non-master) instances stacked into the display pipeline. Fix (spec amendment in review): **masters only; newest `StartTime` governs; non-masters diagnostics-only** — "master timer dictates all, let ACT do the work" (the per-instance flag pre-applies `OnlyMasterTicks` config; `Modable` mods likewise pre-applied, so timer mods always work). Ride-alongs: spike JSONL gains `master` flag; frame-event records log largest-master value + instance count (fixes misattributed `warning tl=-12` records); zero-byte log files deleted on close. Explicitly NOT needed: ACT-side trigger reconfiguration for DoTs.
+
+### Smaller findings (queued, not in the fix branch)
+- **LATE cards are uncapped + end-of-fight pileup** — pies cap at 3 center slots but the LATE stack is unbounded (4 simultaneous observed); when a fight ends every lingering timer goes LATE together for up to ~16s of dead-mob noise. Needs a design think (cap? post-combat suppression?).
+- **Trigger coverage gap** — after 21:29 the raid fought 75+ min with zero configured trigger hits (different encounters). Alex's trigger-authoring call, not plugin work.
+- Poll loop health confirmed at raid scale (2 sub-1.2s hiccups all night, none during combat).
+
 ### NEXT UP — grow-up row ordering fix (field finding, 2026-07-05)
 Grow-up lists render soonest-at-top, but **the soonest timer should sit nearest the anchored edge** (grow-down already does this by accident: anchor = top). Fix: `RenderRows` reverses visual order under `GrowDirection.Up` + one spec sentence in §Window growth ("row order anchors: soonest-to-expire sits at the anchored edge"). Small fix branch, fix-flow with spec review pause.
 

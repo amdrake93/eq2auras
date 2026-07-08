@@ -37,7 +37,8 @@ the native render).
 | `RestrictToMe` | false | only trigger when self is attacker/victim (or whitelisted) |
 | `RestrictToCategory` | false | category must match attacker/victim/zone |
 | `Panel1Display` / `Panel2Display` | true / false | panel routing flags |
-| `FillColor`, `Modable`, `ActiveInList`, `RadialDisplay`, sounds | — | display/sound config |
+| `Modable` | true | mods applied per instance at creation: `GetRecastMods(Attacker)` when true, empty list when false |
+| `FillColor`, `ActiveInList`, `RadialDisplay`, sounds | — | display/sound config |
 
 **`TimerFrame`** — one per `(Name, Combatant)` (`GetKey` = `"{SpellName} - {Combatant}"`),
 holds `List<SpellTimer> SpellTimers` plus sound-state flags (`WarningSounded`, `ExpireSounded`).
@@ -71,7 +72,12 @@ Every trigger match runs these gates **in order**:
    the start sound plays. `[field]` A 6s-cadence DoT (Blanket) therefore accumulates one master
    + N non-master ticks; a 41–46s recast (Soul Paralysis) produces all-masters.
 7. **Append, always** — the instance is added to `frame.SpellTimers`. Nothing is ever reset or
-   replaced by a trigger; frames only shrink in the purge loop.
+   replaced by a trigger; frames only shrink in the purge loop. Timer mods are baked in at this
+   moment, gated by `Modable`: a modable timer's instance gets `GetRecastMods(Attacker)` (debuffs
+   ACT tracks on the target that lengthen the recast), a non-modable one gets an empty list —
+   another pre-applied config, like the master flag. Mods can also be **removed from a live
+   instance** (mod owner dies ≤2s after start; debuff dispelled ≤1s after start), and since
+   `TimeLeft`/`TimerFinalDuration` recompute per read, consumers see duration changes live.
 8. **`OnSpellTimerNotify(frame)`** fires (after append).
 
 ## What ACT itself displays and sounds `[decompiled]`
