@@ -217,6 +217,7 @@ UI thread — tmrTick (1s): idle EndCombat fallback, UpdateMiniEnc, tree refresh
 This ACT binary contains **no built-in combat-line parser** — `SetEncounter` has zero internal
 callers; the installed EQ2 parsing plugin drives everything through `BeforeLogLineRead`.
 `SetupEQ2EnglishEnvironment` only installs the data environment and the EQ2 timestamp parser.
+The plugin itself is vendored and documented below (§The EQ2 parsing plugin).
 
 ### Event catalog
 
@@ -276,6 +277,114 @@ Companion state: `ZoneList`, `InCombat`, `LastKnownTime`/`LastEstimatedTime`,
    across fights and assume ACT still lists them** — the object survives but may be orphaned
    from `ZoneList`.
 
+## The EQ2 parsing plugin — the swing stream's author
+
+EQAditu's **"English Parsing Engine" v1.4.2.30** (ACT plugin id 46), distributed as C#
+*source* that ACT compiles at load — vendored verbatim at `ThirdParty/ACT_English_Parser.cs`
+(all line refs below are into that file). Self-updates via ACT's plugin-update mechanism, so
+re-verify after it updates on the Windows box.
+
+### Wiring (`InitPlugin`, line 260)
+
+Subscribes `BeforeLogLineRead` (the parse driver), `BeforeCombatAction` (data corrections),
+`OnLogLineRead` (selective-parsing capture of `/who`/`/consider` output), `UpdateCheckClicked`.
+**It also runs its own `SetupEQ2EnglishEnvironment()` (line 1904), which `Clear()`s and
+repopulates all five `ColumnDefs` dictionaries and both `ExportVariables` dictionaries at
+plugin-load time** — a superset of ACT's internal copy (adds `CritTypes` columns and a
+`MasterSwing` `CriticalStr` column reading `Tags["CriticalStr"]`, per-swing-type row colors).
+Consequence for us: **any ExportVariables/ColumnDefs we register are wiped if this plugin
+inits after ours** (plugin load order is ACT's plugin-list order), and again if the user
+toggles the parser plugin off/on. Register idempotently and re-register on
+`ActLifecycleChanged`/plugin-init events, or don't depend on registration surviving.
+
+### Line recognition (lines 330–390)
+
+14 compiled regexes tried **in order, first match wins** (`detectedType = i+1`), all prefixed
+`\(\d{10}\)\[.{24}\] `, gated by a keyword quick-fail: the line must contain one of
+`damage, point, ", but", killed, command, entered, hate, dispel, relieve, reduces`.
+Damage amounts arrive game-shortened (`1.23M`); `ExpandDamageAmount` (1062) expands
+commas and K/M/B/T/Q suffixes. Possessive splitting supports `’ ' 의 の` (EN + KR/JP glyphs).
+
+### The 14 cases → what swings actually exist
+
+| # | Log shape | Emission |
+|---|---|---|
+| 1 | "X is hit by Y for N damage" (unsourced) | NonMelee, attacker **"Unknown"**, only if `InCombat` |
+| 2 | "A hits/flurries/multi attacks/… V for N damage" | **`SetEncounter`** (starts combat) → Melee (no skill) / NonMelee (skill); attacker⁄skill split by apostrophe grammar (`SplitAttackerSkill`, 1115) |
+| 3 | "H heals V for N hit points" | Healing(3), DamageType `"Hitpoints"`, **requires `InCombat` — heals never start combat**; unsourced heals dropped |
+| 4 | "A tries to X V, but …" | Melee/NonMelee with fail Dnum (see below) via `SetEncounter` |
+| 5 | "A hits V but fails to inflict any damage" | 0-damage swing — or the **reconstructed ward/intercept value** (below) |
+| 6 | "A has killed V" | NonMelee Death swing (`"Killing"`/`"Death"`, `Dnum.Death`), if `InCombat`; also `RemoveTimerMods`+`DispellTimerMods(victim)` |
+| 7 | "Unknown command: 'act …'" | `ActCommands(...)` — the in-game `/act end` path |
+| 8 | "A's X slashes/burns/… V draining N power" | PowerDrain(10), `SetEncounter` |
+| 9 | "H absorbs N points of damage from being done to V …" | **Healing(3) with DamageType `"Absorption"`** — wards count into Healed/EncHPS; bleed-through & remaining in `Special` `"(N BT) [M left]"`; requires `InCombat` |
+| 10 | "You have entered Z" | `ChangeZone` |
+| 11 | "H refreshes V for N mana" | PowerHealing(13), DamageType `"Power"`, requires `InCombat` |
+| 12 | "O's X increases/reduces A hate with V by N threat/positions" | Threat(16), DamageType `"Increase"`/`"Decrease"`; **can start combat** (`SetEncounter(attacker,victim)` or `(owner,victim)`) |
+| 13 | "A's X dispels/relieves Y from V" | CureDispel(20), damage=1 (a count), `Special`=affliction; *dispels* can start combat, *relieves* (cures) require `InCombat` |
+| 14 | "H reduces the damage from A to V by N" | **Healing(3), AttackType `"Channeler Pet"`, DamageType `"Interception"`**, requires `InCombat` |
+
+**Emitted SwingTypes: 1, 2, 3, 10, 13, 16, 20 only** — matching ACT's EQ2 routing tables.
+
+**Fail types (case 4, `GetFailTypeEnglish`, 1274):** only a true miss gets `Dnum.Miss` (−1).
+**Everything else — parry, riposte, block, dodge, resist, reflect — arrives as
+`Dnum(−9, "<why text>")`**: ACT's per-type sentinels −2..−5 are *never emitted* by this
+parser. `CombatantData.Blocked` still counts them (its test is `< −1 && != Death`), but
+per-type avoidance breakdown exists only in the `DamageString` text.
+
+**Threat positions (case 12):** emitted as `new Dnum(Dnum.ThreatPosition, "N Positions")` —
+which, because the static self-clamps (§Data model), constructs **−9/Unknown**. Live proof of
+the Dnum trap: position-change swings are distinguishable from other Unknowns only by
+DamageString/DamageType.
+
+**Crits:** the `Critical` flag plus **`Tags["CriticalStr"]`** carrying the crit-tier text
+(Legendary/Fabled/Mythical) on damage, heal, power-heal, and threat swings — the plugin's own
+`CritTypes` columns aggregate it.
+
+### Wards & intercepts — the recalc trick (`cbRecalcWardedHits`, default ON)
+
+The game logs the absorb line *before* the hit line at the same 1s-resolution timestamp. The
+plugin records the absorb (case 9/14) into `lastWard*`/`lastIntercept*` state, then when the
+victim's hit arrives **in the same second** (`CheckWardedHit`, 1170), it adds the absorbed
+amount back: a fully-warded "no damage" hit becomes a swing with the true value, DamageType
+gaining a `warded/`/`intercepted/` prefix and DamageString like `"1,234/300/5"` (absorbed +
+per-type parts). Stoneskin no-damage hits can't be recalculated (help text, 1817). Channeler
+pet "focus" damage is normally suppressed in favor of the intercept-heal
+(`cbIncludeInterceptFocus`, default off).
+
+### Multi-type damage (`cbMultiDamageIsOne`, default ON)
+
+"300 crushing and 5 poison damage" → **one** swing, `Dnum(305, "300/5")`, DamageType
+`"crushing/poison"` (per-ability AttackType named by the combined verb form). Unchecked →
+one swing *per* damage type (inflates swing counts / ToHit%).
+
+### Pets, names, corrections
+
+- Pet combatants keep full names — `petSplit` (line 328): `Fluffy <Alex's warlock>` →
+  groups `petName`/`attacker`/`petClass`. The parser uses it only to drop self/own-pet hits
+  ("you don't get credit for attacking yourself or your own pet"); **no reattribution to
+  owner** — a meter wanting owner-merged pets applies this regex itself.
+- `EnglishPersonaReplace`: YOU/YOUR/YOURSELF → `ActGlobals.charName` (the you-relative log).
+- `BeforeCombatAction` corrections (1411): Ancestral Sentry intercedes synthesize a Healing
+  swing (DamageType `"Intercede"`); riposte/reflect return-damage pairs get annotated via
+  `DamageString2`; user-configured apostrophe-name fixes un-split mob names the grammar
+  splitter breaks.
+
+### Timer-engine tie-ins (cross-ref `act-timer-engine.md`)
+
+The parser never calls `NotifySpell` (a call sits commented out at line 513) — spell timers
+fire inside ACT's `AddCombatAction`. But it **is** the timer-mod source: a Traumatic Swipe hit
+→ `ApplyTimerMod(attacker, victim, skill, 0.5F, 30)`; its dispel → `DispellTimerMods`; any
+death → `RemoveTimerMods` + `DispellTimerMods`. This is the concrete origin of the "mods are
+the time travel" behavior in the timer doc.
+
+### Combat-start blind spot (meter-relevant)
+
+Only damage-shaped lines start encounters (cases 2, 4, 8, 12, 13-dispels). **Heals, wards,
+power heals, intercepts, and unsourced hits that precede the first hostile line are dropped
+entirely** — a healer pre-warding before a pull loses those wards from the parse. ACT-inherited;
+our meter sees exactly what ACT sees.
+
 ## Performance & correctness pitfalls
 
 - `isImport == true` in every handler during imports — early-out; the same pipeline replays.
@@ -306,11 +415,9 @@ Companion state: `ZoneList`, `InCombat`, `LastKnownTime`/`LastEstimatedTime`,
   plugin-extensible one. Worth considering as (or mapping onto) the meter's column/metric
   config surface.
 - `Tags` dictionaries at every level are sanctioned plugin scratch space on ACT's own objects.
-- **Known unknown — the EQ2 parsing plugin.** This doc characterizes the *engine*; the actual
-  swing stream is authored by the installed EQ2 parsing plugin (via `BeforeLogLineRead`),
-  which is **un-decompiled**. What it determines and we don't yet know: which `SwingType`s it
-  actually emits, how **wards** arrive (the engine is ward-aware — `maxhealward` "Highest
-  Heal/Ward", `FormActMain.cs:2826` — but ward production is the plugin's doing), pet
-  attribution, threat lines, and the live `DamageType` vocabulary. `[field]`-capture (log a
-  raid's `AfterCombatAction` stream) or a future decompile of that plugin closes this — make
-  it the meter spike's first question.
+- The swing stream's exact shape (SwingTypes, wards-as-heals, fail sentinels, pet naming,
+  the registration-wipe hazard) is documented in §The EQ2 parsing plugin from its vendored
+  source — closing the "known unknown" this section previously carried. Remaining
+  `[field]`-verification value: confirm the raid-scale stream matches (exotic log lines the
+  14 regexes miss simply produce no swings), and re-verify after the parser plugin
+  self-updates.
