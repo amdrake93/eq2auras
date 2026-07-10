@@ -3,7 +3,8 @@
 How development artifacts in this repo get written, reviewed, and merged. Two Claude sessions
 with separated roles — a **writer** (specs, plans, code, research docs) and a **reviewer** —
 plus the **human owner**, who ferries feedback between them and owns every gate. This doc is
-a process contract: hand it to a fresh session (§Bootstrap) and it can play either role.
+a process contract: hand it to a fresh session and it can play either role (§Bootstrap lists
+what each needs).
 
 ## The shape
 
@@ -115,7 +116,9 @@ verdict. The block is for the writer; the chat is for the human.
 - **New reviewer**: start a fresh session in a clone of this repo and give it this doc plus
   the target ("spec review \<branch\>", "review the plan", …). It needs: the repo (including
   `ThirdParty/` vendored binaries/sources for re-derivation), `git diff main..<branch>`, and
-  nothing from the writer's conversation. Its output is the feedback block above, relayed
+  nothing from the writer's conversation. For a **re-review**, the human also relays the
+  prior feedback block — findings live in blocks, not in the repo, so a fresh session can't
+  verify prior-finding closure without it. Its output is the feedback block above, relayed
   verbatim by the human.
 - **New writer**: a fresh session with this repo's CLAUDE.md gets the writer contract from
   its working-style section; this doc supplies the review-cycle detail.
