@@ -41,9 +41,10 @@ what each needs).
    artifact as it now stands. Edits-only verification is not a re-review. Closures use the
    header variant "review closure — no action required" and tick each finding ✓ with
    evidence.
-5. **Code review (on request only)** — implementation verification belongs to the owner's
-   merge gate: diff review, verify-only branch CI, and the live script. A reviewer code round
-   runs only when the owner requests one for a risky branch. Backlog/plan phrases like "the
+5. **Code review of implemented plans (on request only)** — implementation verification
+   belongs to the owner's merge gate: diff review, verify-only branch CI, and the live
+   script. A reviewer code round runs only when the owner requests one for a risky branch.
+   (Fix-flow branches carry their code review inherently — type 3.) Backlog/plan phrases like "the
    plan/code review verifies each" resolve to this split: the plan review verifies
    plan-watch items landed in the *plan*; their landing in *code* is checked at the owner's
    gate (or the requested code round).
