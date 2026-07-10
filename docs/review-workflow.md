@@ -165,7 +165,10 @@ a break condition.
 - **Every feedback block is surfaced verbatim** in the writer's conversation before being
   acted on — and the reviewer writes each block to the audit file named in the trigger, so a
   reviewer-authored copy exists outside the writer's retelling. The owner's audit reads the
-  reviewer's files, not the writer's reprints.
+  reviewer's files, not the writer's reprints. Audit files live **outside both git trees**
+  (session scratch/temp — never repo-relative, which would sweep blocks into fix commits;
+  never the reviewer's disposable worktree), one file per round, persisting until the
+  owner's audit.
 - The reviewer's separate chat summary (§The feedback block) is waived in automated mode —
   no human sits on the reviewer's channel; the writer surfaces each round's verdict line as
   the digest.
