@@ -6,10 +6,12 @@ shipped binary. Ground truth for the exact `Advanced Combat Tracker.exe` vendore
 `ThirdParty/` — re-derive after any ACT upgrade. Sibling to `act-timer-engine.md` (the spell
 timer side).
 
-**Sources:** everything below is `[decompiled]` — read from method bodies, not API docs. No
-field validation yet; mark findings `[field]` as raid captures confirm them. The full research
+**Sources:** everything below is `[decompiled]` — read from method bodies, not API docs —
+except §The EQ2 parsing plugin, which is read from vendored *source* (stronger). No field
+validation yet; mark findings `[field]` as raid captures confirm them. The full research
 report with complete file:line citations is archived at
-`docs/research/2026-07-09-act-parse-decompile-report.md`.
+`docs/research/2026-07-09-act-parse-decompile-report.md`; the parsing-plugin section has no
+separate archive — its source is vendored in-repo and citations are inline.
 
 ## Re-derivation
 
@@ -313,7 +315,7 @@ commas and K/M/B/T/Q suffixes. Possessive splitting supports `’ ' 의 の` (EN
 | 2 | "A hits/flurries/multi attacks/… V for N damage" | **`SetEncounter`** (starts combat) → Melee (no skill) / NonMelee (skill); attacker⁄skill split by apostrophe grammar (`SplitAttackerSkill`, 1115) |
 | 3 | "H heals V for N hit points" | Healing(3), DamageType `"Hitpoints"`, **requires `InCombat` — heals never start combat**; unsourced heals dropped |
 | 4 | "A tries to X V, but …" | Melee/NonMelee with fail Dnum (see below) via `SetEncounter` |
-| 5 | "A hits V but fails to inflict any damage" | 0-damage swing — or the **reconstructed ward/intercept value** (below) |
+| 5 | "A hits V but fails to inflict any damage" | 0-damage swing — or the **reconstructed ward/intercept value** when a same-second absorb preceded it (below) |
 | 6 | "A has killed V" | NonMelee Death swing (`"Killing"`/`"Death"`, `Dnum.Death`), if `InCombat`; also `RemoveTimerMods`+`DispellTimerMods(victim)` |
 | 7 | "Unknown command: 'act …'" | `ActCommands(...)` — the in-game `/act end` path |
 | 8 | "A's X slashes/burns/… V draining N power" | PowerDrain(10), `SetEncounter` |
