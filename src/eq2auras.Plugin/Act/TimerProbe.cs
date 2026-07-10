@@ -14,12 +14,14 @@ namespace Eq2Auras.Plugin.Act
     public sealed class TimerProbe : IDisposable
     {
         private readonly JsonlLogWriter _log;
+        private readonly Func<bool> _debugLogging;
         private readonly Action<List<TimerReading>> _onReadings;
         private readonly Timer _pollTimer;
 
-        public TimerProbe(JsonlLogWriter log, Action<List<TimerReading>> onReadings)
+        public TimerProbe(JsonlLogWriter log, Func<bool> debugLogging, Action<List<TimerReading>> onReadings)
         {
             _log = log;
+            _debugLogging = debugLogging;
             _onReadings = onReadings;
 
             ActGlobals.oFormSpellTimers.OnSpellTimerNotify += OnNotify;
@@ -69,7 +71,10 @@ namespace Eq2Auras.Plugin.Act
                 }
             }
 
-            foreach (var reading in readings) LogReading("poll", reading);
+            if (_debugLogging())
+            {
+                foreach (var reading in readings) LogReading("poll", reading);
+            }
             _onReadings(readings);
         }
 

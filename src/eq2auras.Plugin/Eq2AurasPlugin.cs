@@ -29,12 +29,15 @@ namespace Eq2Auras.Plugin
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
                 ?? "unknown";
 
-            _log = new JsonlLogWriter();
             _settings = SettingsStore.Load();
+            // Sweep BEFORE the session's log file opens; debug mode = keep everything.
+            if (!_settings.DebugLogging) JsonlLogWriter.SweepOldLogs();
+            _log = new JsonlLogWriter();
             _overlay = new OverlayHost(_settings);
             _overlay.Start();
             _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
             _probe = new TimerProbe(_log,
+                () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(
                     _engine.Tick(readings)));
 
