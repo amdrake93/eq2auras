@@ -44,8 +44,9 @@ NonMelee=2, Healing=3, PowerDrain=10, PowerHealing=13, Threat=16, CureDispel=20)
 `Critical`, `Special`, `ParentEncounter` (stamped on insert), `Tags`.
 
 **`Dnum`** — damage wrapper with implicit `long` conversions and sentinels: `NoDamage`=0,
-`Miss`=−1, resist/parry/riposte/block = −2..−8, `Unknown`=−9, `Death`=−10,
-`ThreatPosition`=−11. `operator +` ignores non-positive values.
+`Miss`=−1, Resist=−2, Parry=−3, Riposte=−4, Block=−5 (−6..−8 unmapped), `Unknown`=−9,
+`Death`=−10, `ThreatPosition`=−11 (implicit `long→Dnum` clamps anything < −10 to Unknown).
+`operator +` ignores negative values; zero participates.
 
 **`AttackType`** — where the numbers come from. Every metric is computed **lazily with
 incremental caching keyed on `Items.Count`**: each cached metric remembers the index it has
@@ -117,8 +118,9 @@ callback (+ fore/back color callbacks). After registering, call
 
 **Resolution** (`FormActMain.GetTextExport`): a `TextExportFormatOptions(PlayerFormat, Sorting,
 ShowOnlyAllies, ShowAlliedInfo, AlliesFormat)` preset is applied by regex
-`{(?<formatter>[^}:]+)(?::(?<extra>[^}]+))?}` — `{var:extra}` passes `extra` to the formatter
-(e.g. `{NAME:8}` truncates). Combatant list is snapshot-copied (bare try/catch returning `""`
+`{(?<formatter>[^}:]+)(?::(?<extra>[^}]+))?}|(?<text>[^{]+)` (the `text` branch passes
+literal text through) — `{var:extra}` passes `extra` to the formatter (e.g. `{NAME:8}`
+truncates). Combatant list is snapshot-copied (bare try/catch returning `""`
 on concurrent mutation — ACT's entire thread safety for exports), sorted descending by the
 preset's Sorting via `CombatantData.DualComparison`, header line = AlliesFormat against
 encounter variables, then one PlayerFormat line per combatant. Unknown tokens re-emit
