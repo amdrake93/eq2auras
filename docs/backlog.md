@@ -71,7 +71,7 @@ First real raid capture (standing item "raid-scale validation" — first pass do
 - **Trigger coverage gap** — after 21:29 the raid fought 75+ min with zero configured trigger hits (different encounters). Alex's trigger-authoring call, not plugin work.
 - Poll loop health confirmed at raid scale (2 sub-1.2s hiccups all night, none during combat).
 
-### SHIPPED (v0.1.95, 2026-07-09) — grow-up row ordering fix (field finding, 2026-07-05)
+### SHIPPED + FIELD-VERIFIED (v0.1.95, 2026-07-09) — grow-up row ordering fix (field finding, 2026-07-05)
 Grow-up lists render soonest-at-top, but **the soonest timer should sit nearest the anchored edge** (grow-down already does this by accident: anchor = top). Fix: `RenderRows` reverses visual order under `GrowDirection.Up` + one spec sentence in §Window growth ("row order anchors: soonest-to-expire sits at the anchored edge"). Small fix branch, fix-flow with spec review pause.
 
 ### Tab UI cleanup (Alex, 2026-07-05: "needs some work soon, but fine for now")
