@@ -141,7 +141,10 @@ verdict. The block is for the writer; the chat is for the human.
 
 The writer session may run the review loop itself by spawning the reviewer as an isolated
 subagent — replacing the human as ferry while leaving every human gate in place. This is the
-same contract with a mechanical relay; nothing else in this doc changes.
+same contract with a mechanical relay; nothing else in this doc changes. **The loop is a mode
+the owner explicitly invokes per artifact** — the writer never enters it on its own judgment.
+Invoking it is the owner's "go" for the whole loop: one authorized turn, ending at closure or
+a break condition.
 
 **Isolation requirements** (the non-negotiables):
 
@@ -155,11 +158,17 @@ same contract with a mechanical relay; nothing else in this doc changes.
   > You are the third-party reviewer for this repo. Read `docs/review-workflow.md` first and
   > operate strictly by it. Task: \<trigger phrase, e.g. "spec review branch \<name\>"\>.
   > You have the repo and `git diff main..<branch>`; you have no access to the writer's
-  > conversation — re-derive everything from the tree. Your final message must be exactly
-  > the feedback block the contract defines.
+  > conversation — re-derive everything from the tree. Write your feedback block verbatim to
+  > \<audit file path\>, then return it as your final message. The contract's separate chat
+  > summary is waived in this mode — the block's verdict line is the digest.
 
 - **Every feedback block is surfaced verbatim** in the writer's conversation before being
-  acted on — the owner audits the raw exchange, not a summary of it.
+  acted on — and the reviewer writes each block to the audit file named in the trigger, so a
+  reviewer-authored copy exists outside the writer's retelling. The owner's audit reads the
+  reviewer's files, not the writer's reprints.
+- The reviewer's separate chat summary (§The feedback block) is waived in automated mode —
+  no human sits on the reviewer's channel; the writer surfaces each round's verdict line as
+  the digest.
 
 **Loop mechanics:**
 
@@ -168,6 +177,10 @@ same contract with a mechanical relay; nothing else in this doc changes.
   re-review — its own round-to-round context persists, mirroring a standing reviewer
   session. If the agent is lost, fall back to a fresh reviewer plus the prior block
   (§Bootstrap re-review rule).
+- **Continuation messages are as constrained as the trigger**: only the re-review request
+  ("rereview — fixes are committed") plus contract-sanctioned pushback (evidence with
+  citations, per §The writer's side). Never narrative about why changes were made — that is
+  the same contamination the fixed trigger exists to exclude.
 - The loop runs until a **closure verdict** ("review closure — no action required"). The
   writer then presents the branch at the owner's merge gate, exactly as in the manual flow.
 
