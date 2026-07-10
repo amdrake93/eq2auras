@@ -41,7 +41,13 @@ what each needs).
    artifact as it now stands. Edits-only verification is not a re-review. Closures use the
    header variant "review closure — no action required" and tick each finding ✓ with
    evidence.
-5. **Research / ground-truth doc review** — verified by **re-derivation**, not reading: the
+5. **Code review (on request only)** — implementation verification belongs to the owner's
+   merge gate: diff review, verify-only branch CI, and the live script. A reviewer code round
+   runs only when the owner requests one for a risky branch. Backlog/plan phrases like "the
+   plan/code review verifies each" resolve to this split: the plan review verifies
+   plan-watch items landed in the *plan*; their landing in *code* is checked at the owner's
+   gate (or the requested code round).
+6. **Research / ground-truth doc review** — verified by **re-derivation**, not reading: the
    reviewer independently reproduces the artifact (decompile the vendored binary, clone the
    referenced upstream, read the vendored source) and samples claims and `file:line`
    citations against it. Coverage is stated honestly — which claims were sampled, which were
