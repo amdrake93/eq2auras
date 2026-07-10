@@ -1,6 +1,6 @@
 # Debug Mode + Log Retention Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (project convention: executed inline so Alex can watch). Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task (project convention: executed inline so Alex can watch). Steps use checkbox (`- [x]`) syntax for tracking.
 
 **Goal:** Make diagnostic logging match SPEC §Diagnostic logging: events-only by default, full per-tick dump behind a persisted Debug mode checkbox, and a rolling 14-day/200 MB retention sweep at plugin load (suppressed while debug is on).
 
@@ -28,7 +28,7 @@
 **Interfaces:**
 - Produces: `Settings.DebugLogging` (`bool`, `[DataMember(Name = "debugLogging")]`, default `false`) — Task 3 reads it in `InitPlugin` and through the probe's `Func<bool>`; Task 4's checkbox mutates it via `SettingsStore.Update`.
 
-- [ ] **Step 1: Write the failing test**
+- [x] **Step 1: Write the failing test**
 
 Add to `tests/eq2auras.Core.Tests/SettingsTests.cs`:
 
@@ -44,12 +44,12 @@ Add to `tests/eq2auras.Core.Tests/SettingsTests.cs`:
     }
 ```
 
-- [ ] **Step 2: Run test to verify it fails**
+- [x] **Step 2: Run test to verify it fails**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter DebugLogging_defaults_off_and_round_trips`
 Expected: compile FAILURE — `'Settings' does not contain a definition for 'DebugLogging'`.
 
-- [ ] **Step 3: Add the property**
+- [x] **Step 3: Add the property**
 
 In `src/eq2auras.Core/Config/Settings.cs`, after the `EscalationStyle` property:
 
@@ -58,12 +58,12 @@ In `src/eq2auras.Core/Config/Settings.cs`, after the `EscalationStyle` property:
         public bool DebugLogging { get; set; }   // global knob (SPEC §Diagnostic logging): off = lifecycle events only
 ```
 
-- [ ] **Step 4: Run the full Core suite**
+- [x] **Step 4: Run the full Core suite**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS, zero failures.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Core/Config/Settings.cs tests/eq2auras.Core.Tests/SettingsTests.cs
@@ -85,7 +85,7 @@ git commit -m "Core: DebugLogging global knob (default off, DCJS 0-value)"
   Task 3's plugin sweep is a thin IO wrapper around this.
 - **Plan-watch item (sweep edge semantics), pinned here:** age source = **file last-write time (UTC)** — robust against filename-format drift and cheap to read; deletion = over-age first, then **oldest-first while total size exceeds the cap and more than one file survives** — so a lone newest file over 200 MB survives (newest always wins on size; age still applies to it).
 
-- [ ] **Step 1: Write the failing tests**
+- [x] **Step 1: Write the failing tests**
 
 Create `tests/eq2auras.Core.Tests/LogRetentionPolicyTests.cs`:
 
@@ -170,12 +170,12 @@ public class LogRetentionPolicyTests
 }
 ```
 
-- [ ] **Step 2: Run to verify failure**
+- [x] **Step 2: Run to verify failure**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter LogRetentionPolicyTests`
 Expected: compile FAILURE — `LogFileInfo`/`LogRetentionPolicy` do not exist.
 
-- [ ] **Step 3: Implement the policy**
+- [x] **Step 3: Implement the policy**
 
 Create `src/eq2auras.Core/Diagnostics/LogRetentionPolicy.cs`:
 
@@ -233,12 +233,12 @@ namespace Eq2Auras.Core.Diagnostics
 }
 ```
 
-- [ ] **Step 4: Run the full Core suite**
+- [x] **Step 4: Run the full Core suite**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS — the eight new tests plus everything pre-existing. (Note `Age_and_size_rules_compose` expects age-doomed paths listed before size-doomed ones — the implementation appends in that order.)
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Core/Diagnostics/LogRetentionPolicy.cs tests/eq2auras.Core.Tests/LogRetentionPolicyTests.cs
@@ -260,7 +260,7 @@ git commit -m "Core: LogRetentionPolicy — 14d/200MB rolling window, newest sur
   `TimerProbe(JsonlLogWriter log, Func<bool> debugLogging, Action<List<TimerReading>> onReadings)` — Task 4's checkbox needs no probe access (it mutates `_settings`, which the `Func` closes over).
 - **Plan-watch items, pinned here:** (a) **init order flips** to load-settings → sweep → open-writer — today `Eq2AurasPlugin.cs:32-33` constructs the writer first; (b) **`TimerProbe` gets its flag via a `Func<bool>` ctor param** — checkbox handler and poll share ACT's UI thread, so no synchronization beyond that; (c) the sweep runs **before** the session's writer exists, so it can never touch the file about to open, and it is **skipped entirely when `DebugLogging` is on** (SPEC: verbose = keep everything).
 
-- [ ] **Step 1: Extract the logs-directory helper and add the sweep to `JsonlLogWriter`**
+- [x] **Step 1: Extract the logs-directory helper and add the sweep to `JsonlLogWriter`**
 
 In `src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs`, add `using System.Linq;` (the only missing import — `Eq2Auras.Core.Diagnostics` is already imported). Replace the constructor's dir computation and add the static members:
 
@@ -312,7 +312,7 @@ In `src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs`, add `using System.Linq;`
         }
 ```
 
-- [ ] **Step 2: Gate per-poll logging in `TimerProbe`**
+- [x] **Step 2: Gate per-poll logging in `TimerProbe`**
 
 Change the fields/ctor (currently `TimerProbe(JsonlLogWriter log, Action<List<TimerReading>> onReadings)`):
 
@@ -339,7 +339,7 @@ Change the fields/ctor (currently `TimerProbe(JsonlLogWriter log, Action<List<Ti
             _onReadings(readings);
 ```
 
-- [ ] **Step 3: Flip the init order and wire the probe in `Eq2AurasPlugin.InitPlugin`**
+- [x] **Step 3: Flip the init order and wire the probe in `Eq2AurasPlugin.InitPlugin`**
 
 Replace lines 32-39 (`_log = ...` through the probe construction):
 
@@ -357,12 +357,12 @@ Replace lines 32-39 (`_log = ...` through the probe construction):
                     _engine.Tick(readings)));
 ```
 
-- [ ] **Step 4: Verify — Core suite still green locally (plugin compile is Task 5's CI push)**
+- [x] **Step 4: Verify — Core suite still green locally (plugin compile is Task 5's CI push)**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS. Do NOT attempt a plugin build on the Mac.
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs src/eq2auras.Plugin/Act/TimerProbe.cs src/eq2auras.Plugin/Eq2AurasPlugin.cs
@@ -379,7 +379,7 @@ git commit -m "Plugin: retention sweep before session open (skipped in debug mod
 **Interfaces:**
 - Consumes: `Settings.DebugLogging` (Task 1), `SettingsStore.Update` (existing persistence gate). Live-apply is free: the probe's `Func<bool>` re-reads `_settings.DebugLogging` every poll, and checkbox + poll share ACT's UI thread.
 
-- [ ] **Step 1: Add the checkbox**
+- [x] **Step 1: Add the checkbox**
 
 In `BuildConfigTab`, after the `moveBox` declaration block (`moveBox` sits at `Top = 674`):
 
@@ -401,12 +401,12 @@ and add it to the tab alongside the others:
             tab.Controls.Add(debugBox);
 ```
 
-- [ ] **Step 2: Verify — Core suite unaffected**
+- [x] **Step 2: Verify — Core suite unaffected**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj`
 Expected: PASS (plugin-only edit; compile verified by Task 5's CI push).
 
-- [ ] **Step 3: Commit**
+- [x] **Step 3: Commit**
 
 ```bash
 git add src/eq2auras.Plugin/Eq2AurasPlugin.cs
@@ -420,11 +420,11 @@ git commit -m "Plugin: Debug logging checkbox on the tab (persisted, live-apply 
 **Files:**
 - Modify: `docs/backlog.md` (the in-flight Phase-1-odds entry)
 
-- [ ] **Step 1: Update the backlog entry**
+- [x] **Step 1: Update the backlog entry**
 
 In `docs/backlog.md`, in the standing-items bullet that begins `- Phase-1 odds → IN FLIGHT (branch \`qol-debug-mode-log-retention\`, 2026-07-08):`, change `IN FLIGHT` to `IMPLEMENTED ON BRANCH, PENDING MERGE + LIVE VERIFY` and append to that bullet: ` Plan: docs/plans/2026-07-09-debug-mode-log-retention.md.`
 
-- [ ] **Step 2: Commit and push the branch; watch verify-only CI**
+- [x] **Step 2: Commit and push the branch; watch verify-only CI**
 
 ```bash
 git add docs/backlog.md
@@ -436,7 +436,7 @@ gh run watch $(gh run list --branch qol-debug-mode-log-retention --limit 1 --jso
 
 Expected: green — Core tests on `windows-latest` AND the net472+WPF plugin compile.
 
-- [ ] **Step 3: Hand off at the merge gate — do NOT merge**
+- [x] **Step 3: Hand off at the merge gate — do NOT merge**
 
 Report to Alex: branch ready (`git diff main..qol-debug-mode-log-retention`), CI green, live script:
 1. **Default = events-only**: update, double-click a timer through a full lifecycle → the session JSONL contains `notify`/`warning`/`expire`/`removed` records and **zero `poll` records**.
