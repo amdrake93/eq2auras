@@ -10,8 +10,9 @@ what each needs).
 
 - **Writer and reviewer never see each other's conversation.** The separation is the point:
   the reviewer re-derives from the working tree, binaries, and vendored sources — never from
-  the writer's narrative. Feedback travels as one self-contained block the human relays
-  verbatim.
+  the writer's narrative. Feedback travels as one self-contained block relayed verbatim —
+  by the human between two sessions, or mechanically by the writer session itself
+  (§Automated orchestration; both are instantiations of the same contract).
 - **The human owns every gate**: phase transitions (brainstorm → spec → plan → implement),
   accept/reject of each finding, and the merge decision. The reviewer never pronounces on
   merge-readiness; the writer presents work as ready-for-review, never ready-to-merge.
@@ -133,5 +134,53 @@ verdict. The block is for the writer; the chat is for the human.
 - **New writer**: a fresh session with this repo's CLAUDE.md gets the writer contract from
   its working-style section; this doc supplies the review-cycle detail.
 - **New human coordinator**: your jobs are the ones agents can't do — relay blocks verbatim
-  in both directions, decide each Question finding, gate phase transitions, and call the
-  merge.
+  in both directions (or delegate the relay per §Automated orchestration), decide each
+  Question finding, gate phase transitions, and call the merge.
+
+## Automated orchestration
+
+The writer session may run the review loop itself by spawning the reviewer as an isolated
+subagent — replacing the human as ferry while leaving every human gate in place. This is the
+same contract with a mechanical relay; nothing else in this doc changes.
+
+**Isolation requirements** (the non-negotiables):
+
+- The reviewer is a **fresh agent** — never a context-inheriting fork of the writer. It sees
+  only: the fixed trigger prompt below, the repo (CLAUDE.md included), and the diff. Nothing
+  of the writer's conversation reaches it. Give it its own git worktree when available.
+- The trigger prompt is **fixed and minimal** — the writer must not editorialize, summarize
+  the artifact, or explain decisions in it. Everything load-bearing reaches the reviewer
+  through the repo, same as a human-bootstrapped session:
+
+  > You are the third-party reviewer for this repo. Read `docs/review-workflow.md` first and
+  > operate strictly by it. Task: \<trigger phrase, e.g. "spec review branch \<name\>"\>.
+  > You have the repo and `git diff main..<branch>`; you have no access to the writer's
+  > conversation — re-derive everything from the tree. Your final message must be exactly
+  > the feedback block the contract defines.
+
+- **Every feedback block is surfaced verbatim** in the writer's conversation before being
+  acted on — the owner audits the raw exchange, not a summary of it.
+
+**Loop mechanics:**
+
+- The writer processes each block under §The writer's side (verification, pushback with
+  evidence, one commit per finding), then continues the **same reviewer agent** for the
+  re-review — its own round-to-round context persists, mirroring a standing reviewer
+  session. If the agent is lost, fall back to a fresh reviewer plus the prior block
+  (§Bootstrap re-review rule).
+- The loop runs until a **closure verdict** ("review closure — no action required"). The
+  writer then presents the branch at the owner's merge gate, exactly as in the manual flow.
+
+**Three conditions break the loop to the owner** — these are never automated past:
+
+1. **Question findings** — the loop pauses, the owner decides, the decision is recorded
+   (§Decision routing), then the loop resumes.
+2. **Deadlock** — the writer disputes a finding with evidence and the reviewer re-asserts
+   it. A genuine disagreement is escalated with both positions, not ping-ponged.
+3. **Round cap: 5.** Hitting it means the artifact or the process is wrong; the owner sees
+   the state as-is rather than the loop grinding on.
+
+**What the owner gives up and keeps:** given up — the independent channel (everything
+reaches the owner through the writer's conversation, mitigated by verbatim surfacing);
+kept — Question decisions, the merge gate, and the option to run a separate-session
+reviewer as an extra independent pass on any artifact, at any time.
