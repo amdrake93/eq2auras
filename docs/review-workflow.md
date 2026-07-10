@@ -45,9 +45,11 @@ what each needs).
    reviewer independently reproduces the artifact (decompile the vendored binary, clone the
    referenced upstream, read the vendored source) and samples claims and `file:line`
    citations against it. Coverage is stated honestly — which claims were sampled, which were
-   not. Verbatim agent research reports are archived in `docs/research/`; errors found there
-   are flagged in a review-status header at the top, never silently patched — the reference
-   doc is the maintained distillation, the archive is provenance.
+   not. Verbatim agent research reports on *external* artifacts (decompiles, upstream clones)
+   are archived in `docs/research/`; errors found there are flagged in a review-status header
+   at the top, never silently patched — the reference doc is the maintained distillation, the
+   archive is provenance. Research read from source vendored in-repo with inline citations
+   may skip the archive, with the skip recorded in the reference doc.
 
 ## The verification standard (reviewer)
 
@@ -105,8 +107,9 @@ verdict. The block is for the writer; the chat is for the human.
 - **Record everything the reviewer will need next round**: plan-watch items into the
   backlog's in-flight entry; "no change" resolutions into a doc (spec phrase, backlog line,
   or archive header) — a decision that lives only in conversation will be re-raised.
-- **Preserve provenance**: research distillations cite `file:line`; verbatim source reports
-  go to `docs/research/` with review-status headers; errors discovered later are flagged in
+- **Preserve provenance**: research distillations cite `file:line`; verbatim reports on
+  external artifacts go to `docs/research/` with review-status headers (vendored-source
+  research may skip the archive, recording the skip); errors discovered later are flagged in
   those headers, never silently patched.
 - **Present, don't merge**: every branch — including fix-flow — stops at ready-for-review.
   The reviewer's approval and the owner's merge call are separate gates, in that order.
