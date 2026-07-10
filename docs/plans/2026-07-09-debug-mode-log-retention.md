@@ -262,7 +262,7 @@ git commit -m "Core: LogRetentionPolicy — 14d/200MB rolling window, newest sur
 
 - [ ] **Step 1: Extract the logs-directory helper and add the sweep to `JsonlLogWriter`**
 
-In `src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs`, add `using System.Linq;` and `using Eq2Auras.Core.Diagnostics;` is already present. Replace the constructor's dir computation and add the static members:
+In `src/eq2auras.Plugin/Diagnostics/JsonlLogWriter.cs`, add `using System.Linq;` (the only missing import — `Eq2Auras.Core.Diagnostics` is already imported). Replace the constructor's dir computation and add the static members:
 
 ```csharp
         public JsonlLogWriter()
@@ -430,6 +430,7 @@ In `docs/backlog.md`, in the standing-items bullet that begins `- Phase-1 odds �
 git add docs/backlog.md
 git commit -m "Backlog: debug mode + retention implemented on branch"
 git push -u origin qol-debug-mode-log-retention
+sleep 10   # give the workflow run a moment to register before listing
 gh run watch $(gh run list --branch qol-debug-mode-log-retention --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status
 ```
 
