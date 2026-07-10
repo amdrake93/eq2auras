@@ -7,7 +7,9 @@ shipped binary. Ground truth for the exact `Advanced Combat Tracker.exe` vendore
 timer side).
 
 **Sources:** everything below is `[decompiled]` — read from method bodies, not API docs. No
-field validation yet; mark findings `[field]` as raid captures confirm them.
+field validation yet; mark findings `[field]` as raid captures confirm them. The full research
+report with complete file:line citations is archived at
+`docs/research/2026-07-09-act-parse-decompile-report.md`.
 
 ## Re-derivation
 

@@ -5,6 +5,8 @@ actual source (shallow clone of `Tercioo/Details-Damage-Meter`, retail `main`, a
 2026-07-09). This is design input for the eq2auras Parse Meter module — ACT replaces Details'
 capture layer; the display architecture is what we're here to learn. The repo's own
 `API General.txt` / `API Custom Displays.txt` / `API UI.txt` are its real docs; the wiki is thin.
+The full research report with complete file:line citations is archived at
+`docs/research/2026-07-09-details-deep-dive-report.md`.
 
 ## The pipeline
 
