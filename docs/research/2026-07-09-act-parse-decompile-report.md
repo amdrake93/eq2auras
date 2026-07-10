@@ -6,14 +6,19 @@ preserves the complete citation-level detail (file:line references against the f
 ilspycmd decompile — reproduce it with the recipe at the top of the reference doc; line
 numbers are stable for the exact binary vendored in `ThirdParty/`).
 
-**Review status:** third-party re-derivation review 2026-07-09 — approved; ~20 claims
-spot-checked against the binary, all landed except one. **Known errors, corrected in the
-reference doc but left as-is below:** the `Dnum` claim "values −2..−8 are
-resist/parry/riposte/block variants" is wrong — the mapping is Resist=−2, Parry=−3,
-Riposte=−4, Block=−5, with −6..−8 unmapped; and `operator +` ignores *negative* values (zero
-participates), not "non-positive". Claims the review sampled but did not individually verify
-were re-verified against the decompile on 2026-07-09: `nudMiniUpdateInterval` bounds min 1 /
-max 60 (`Options_MiniParse.cs:239–240`) and the GDI `MeasureString` column alignment
+**Review status:** third-party re-derivation reviews 2026-07-09 (two rounds) — approved;
+round 2 sampled 14 of this report's citations (12 exact, 2 within a line or two). **Known
+errors/omissions, corrected in the reference doc but left as-is below:** the `Dnum` claim
+"values −2..−8 are resist/parry/riposte/block variants" is wrong — the mapping is Resist=−2,
+Parry=−3, Riposte=−4, Block=−5, with −6..−8 unmapped. The report's `Dnum.ThreatPosition = -11`
+sentinel is incomplete: the static's getter (`=> -11L`) compiles through the clamping implicit
+operator and actually returns `Dnum(−9)`/Unknown (only `new Dnum(-11)` yields −11; ACT itself
+compares against both values in different places — see the reference doc). Typo in §3:
+"line 22388–2391" should read 22388–22391. (The reference doc's original "`operator +`
+ignores non-positive values" error was introduced in distillation — the report below
+correctly says "negative".) Claims the review sampled but did not individually verify in
+round 1 were re-verified against the decompile on 2026-07-09: `nudMiniUpdateInterval` bounds
+min 1 / max 60 (`Options_MiniParse.cs:239–240`) and the GDI `MeasureString` column alignment
 (`FormActMain.cs:17010–17033`).
 
 ---

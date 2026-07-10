@@ -47,7 +47,12 @@ NonMelee=2, Healing=3, PowerDrain=10, PowerHealing=13, Threat=16, CureDispel=20)
 
 **`Dnum`** — damage wrapper with implicit `long` conversions and sentinels: `NoDamage`=0,
 `Miss`=−1, Resist=−2, Parry=−3, Riposte=−4, Block=−5 (−6..−8 unmapped), `Unknown`=−9,
-`Death`=−10, `ThreatPosition`=−11 (implicit `long→Dnum` clamps anything < −10 to Unknown).
+`Death`=−10, `ThreatPosition`=−11. Implicit `long→Dnum` clamps anything < −10 to Unknown —
+**including the `ThreatPosition` static itself**: its getter (`=> -11L`) compiles through the
+implicit operator, so it actually returns `Dnum(−9)`; only `new Dnum(-11)` (the constructor
+doesn't clamp) yields a real −11. ACT is internally split by this — `CombatantData` compares
+swings against the clamped static (= −9) while `FormActMain` switches on raw `-11L` — so
+never key threat detection on `Dnum.ThreatPosition` or it silently matches Unknown.
 `operator +` ignores negative values; zero participates.
 
 **`AttackType`** — where the numbers come from. Every metric is computed **lazily with
