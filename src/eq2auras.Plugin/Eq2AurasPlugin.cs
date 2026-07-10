@@ -91,6 +91,15 @@ namespace Eq2Auras.Plugin
             var moveBox = new CheckBox { Text = "Move overlay windows", Left = 10, Top = 674, Width = 200 };
             moveBox.CheckedChanged += (s, e) => _overlay.SetMoveMode(moveBox.Checked);
 
+            var debugBox = new CheckBox
+            {
+                Text = "Debug logging (full per-tick dump)",
+                Left = 10, Top = 702, Width = 280,
+                Checked = _settings.DebugLogging
+            };
+            debugBox.CheckedChanged += (s, e) =>
+                SettingsStore.Update(_settings, () => _settings.DebugLogging = debugBox.Checked);
+
             tab.Controls.Add(tokenBox);
             tab.Controls.Add(saveTokenButton);
             tab.Controls.Add(updateButton);
@@ -99,6 +108,7 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(paletteLabel);
             tab.Controls.Add(_paletteRow);
             tab.Controls.Add(moveBox);
+            tab.Controls.Add(debugBox);
         }
 
         /// One labeled control set per group (SPEC §Configuration — no group selector).
