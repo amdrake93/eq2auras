@@ -158,14 +158,16 @@ a break condition.
   > You are the third-party reviewer for this repo. Read `docs/review-workflow.md` first and
   > operate strictly by it. Task: \<trigger phrase, e.g. "spec review branch \<name\>"\>.
   > You have the repo and `git diff main..<branch>`; you have no access to the writer's
-  > conversation — re-derive everything from the tree. Write your feedback block verbatim to
-  > \<audit file path\>, then return it as your final message. The contract's separate chat
-  > summary is waived in this mode — the block's verdict line is the digest.
+  > conversation — re-derive everything from the tree. Write each round's feedback block
+  > verbatim to \<audit dir\>/round-N.md (incrementing N yourself per round), then return it
+  > as your final message. The contract's separate chat summary is waived in this mode — the
+  > block's verdict line is the digest.
 
 - **Every feedback block is surfaced verbatim** in the writer's conversation before being
-  acted on — and the reviewer writes each block to the audit file named in the trigger, so a
-  reviewer-authored copy exists outside the writer's retelling. The owner's audit reads the
-  reviewer's files, not the writer's reprints. Audit files live **outside both git trees**
+  acted on — and the reviewer writes each round's block to a round-numbered file in the
+  audit directory named in the trigger, so reviewer-authored copies exist outside the
+  writer's retelling. The owner's audit reads the reviewer's files, not the writer's
+  reprints. Audit files live **outside both git trees**
   (session scratch/temp — never repo-relative, which would sweep blocks into fix commits;
   never the reviewer's disposable worktree), one file per round, persisting until the
   owner's audit.
