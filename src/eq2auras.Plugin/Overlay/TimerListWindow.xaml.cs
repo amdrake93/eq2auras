@@ -93,11 +93,17 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         /// Called on the overlay's dispatcher thread with a fresh sorted snapshot.
+        /// Row order anchors with the window (SPEC §Window growth): soonest-to-expire
+        /// sits nearest the anchored edge, so grow-up reverses the visual order.
         public void RenderRows(List<TimerRow> rows)
         {
+            var ordered = _growDirection == GrowDirection.Up
+                ? Enumerable.Reverse(rows)
+                : rows;
+
             var seen = new HashSet<string>();
             RowsPanel.Children.Clear();   // same element instances re-added in sort order — animations continue
-            foreach (var row in rows)
+            foreach (var row in ordered)
             {
                 var key = row.Name + "|" + row.Combatant;
                 seen.Add(key);
