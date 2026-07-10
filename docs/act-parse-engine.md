@@ -306,3 +306,11 @@ Companion state: `ZoneList`, `InCombat`, `LastKnownTime`/`LastEstimatedTime`,
   plugin-extensible one. Worth considering as (or mapping onto) the meter's column/metric
   config surface.
 - `Tags` dictionaries at every level are sanctioned plugin scratch space on ACT's own objects.
+- **Known unknown — the EQ2 parsing plugin.** This doc characterizes the *engine*; the actual
+  swing stream is authored by the installed EQ2 parsing plugin (via `BeforeLogLineRead`),
+  which is **un-decompiled**. What it determines and we don't yet know: which `SwingType`s it
+  actually emits, how **wards** arrive (the engine is ward-aware — `maxhealward` "Highest
+  Heal/Ward", `FormActMain.cs:2826` — but ward production is the plugin's doing), pet
+  attribution, threat lines, and the live `DamageType` vocabulary. `[field]`-capture (log a
+  raid's `AfterCombatAction` stream) or a future decompile of that plugin closes this — make
+  it the meter spike's first question.
