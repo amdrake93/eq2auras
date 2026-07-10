@@ -205,4 +205,14 @@ public class SettingsTests
 
         Assert.Same(palette, settings.PaletteArgb);
     }
+
+    [Fact]
+    public void DebugLogging_defaults_off_and_round_trips()
+    {
+        // DCJS 0-value rule: absent from an old settings.json -> false = off.
+        Assert.False(Settings.Parse("{}").DebugLogging);
+
+        var settings = new Settings { DebugLogging = true };
+        Assert.True(Settings.Parse(settings.ToJson()).DebugLogging);
+    }
 }
