@@ -14,8 +14,10 @@ what each needs).
   by the human between two sessions, or mechanically by the writer session itself
   (§Automated orchestration; both are instantiations of the same contract).
 - **The human owns every gate**: phase transitions (brainstorm → spec → plan → implement),
-  accept/reject of each finding, and the merge decision. The reviewer never pronounces on
-  merge-readiness; the writer presents work as ready-for-review, never ready-to-merge.
+  accept/reject of each finding (owner-held in the manual flow; delegated to the writer in
+  automated mode — §Automated orchestration), and the merge decision. The reviewer never
+  pronounces on merge-readiness; the writer presents work as ready-for-review, never
+  ready-to-merge.
 - Work happens on descriptively-named branches; the reviewer reviews
   `git diff main..<branch>`. Merge to `main` only on the owner's explicit call
   (see CLAUDE.md §Working style for branch/release mechanics).
@@ -145,7 +147,8 @@ verdict. The block is for the writer; the chat is for the human.
 
 The writer session may run the review loop itself by spawning the reviewer as an isolated
 subagent — replacing the human as ferry while leaving the owner's phase and merge gates in
-place. This is the same contract with a mechanical relay; nothing else in this doc changes. **The loop is a mode
+place. This is the same contract with a mechanical relay; the review mechanics (review types,
+verification standard, block format, decision routing) apply unchanged. **The loop is a mode
 the owner explicitly invokes per artifact** — the writer never enters it on its own judgment.
 Invoking it is the owner's "go" for the whole loop: one authorized turn, ending at closure or
 a break condition.
