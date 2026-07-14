@@ -86,11 +86,13 @@ context inline — the writer has none of the review conversation. Structure, in
    > acting on it; push back on anything that doesn't hold.
 2. Header: `# Review feedback: <thing> (<commit>, branch)`.
 3. **Bold verdict sentence up top** — exactly one of **approved** or **request changes**,
-   with a one-phrase scope of what must change.
+   with a one-phrase scope of the outstanding defect(s).
 4. `## What checks out` — verified strengths, with citations. Load-bearing: it tells the
    writer which claims survived independent verification.
-5. `## Findings` — numbered, severity-tagged: **Important** = behavior or ambiguity that must
-   close before the artifact is right; **Minor** = one-to-two-line fixes. Verdict is
+5. `## Findings` — numbered, severity-tagged on the impact axis: **Important** = a defect
+   (wrong behavior or load-bearing ambiguity) that must close before the artifact is right;
+   **Minor** = a real but non-blocking defect — a smaller correctness or clarity gap that
+   should close but does not gate approval. Verdict is
    "request changes" iff any Important finding exists (Minor-only → approved, findings listed
    for follow-up). **A finding names the defect, not the remedy.** Characterize what is wrong
    — precisely enough to be actionable, with `file:line` evidence — and stop. How to resolve
@@ -100,7 +102,9 @@ context inline — the writer has none of the review conversation. Structure, in
    re-verifying the defect — the "did the writer do what I said?" trap (this hides easily
    when the artifact under review is itself about process, where a proposed change reads as
    review content rather than as overstep). Illustrating for clarity is fine; authoring the
-   solution is the writer's job.
+   solution is the writer's job. (The merge-gate live script and plan-watch items are not
+   remedies and stand — a live script is a verification procedure, plan-watch items are
+   forward-flags for the plan.)
 6. Optional take-or-leave nits — explicitly the writer's call; a re-review does not count
    them unaddressed.
 
