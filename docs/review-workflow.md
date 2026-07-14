@@ -40,8 +40,11 @@ what each needs).
    **merge-gate live script** (concrete "do X, expect Y" steps) since there is no plan doc to
    hold one.
 4. **Re-review / closure** ("rereview", "verify edits") — strictly two parts: (a) verify each
-   prior finding's edit against the fix diff, AND (b) a fresh holistic pass over the whole
-   artifact as it now stands. Edits-only verification is not a re-review. Closures use the
+   prior finding is **resolved in the current artifact** — judged fresh against the tree,
+   asking "is the defect gone?", never "did the writer make the change I expected?" (the
+   finding named a defect, not a remedy, so there is no prescribed fix to confirm) — AND
+   (b) a fresh holistic pass over the whole artifact as it now stands. Edits-only
+   verification is not a re-review. Closures use the
    header variant "review closure — no action required" and tick each finding ✓ with
    evidence.
 5. **Code review of implemented plans (on request only)** — implementation verification
@@ -89,7 +92,15 @@ context inline — the writer has none of the review conversation. Structure, in
 5. `## Findings` — numbered, severity-tagged: **Important** = behavior or ambiguity that must
    close before the artifact is right; **Minor** = one-to-two-line fixes. Verdict is
    "request changes" iff any Important finding exists (Minor-only → approved, findings listed
-   for follow-up).
+   for follow-up). **A finding names the defect, not the remedy.** Characterize what is wrong
+   — precisely enough to be actionable, with `file:line` evidence — and stop. How to resolve
+   it is the writer's call, made with the full context the reviewer is deliberately denied;
+   the reviewer, reviewing from outside, is the party least equipped to author the fix.
+   Prescribing one also manufactures a remedy the re-review then checks *instead of*
+   re-verifying the defect — the "did the writer do what I said?" trap (this hides easily
+   when the artifact under review is itself about process, where a proposed change reads as
+   review content rather than as overstep). Illustrating for clarity is fine; authoring the
+   solution is the writer's job.
 6. Optional take-or-leave nits — explicitly the writer's call; a re-review does not count
    them unaddressed.
 
