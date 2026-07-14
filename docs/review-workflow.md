@@ -202,8 +202,9 @@ a break condition.
    (§Decision routing), then the loop resumes.
 2. **Deadlock** — the writer disputes a finding with evidence and the reviewer re-asserts
    it. A genuine disagreement is escalated with both positions, not ping-ponged.
-3. **Round cap: 5.** Hitting it means the artifact or the process is wrong; the owner sees
-   the state as-is rather than the loop grinding on.
+3. **Round cap: 5.** A round = one feedback block received; a Question-finding pause does
+   not consume a round. Hitting the cap means the artifact or the process is wrong; the
+   owner sees the state as-is rather than the loop grinding on.
 
 **What the owner gives up and keeps:** given up — the independent channel (everything
 reaches the owner through the writer's conversation, mitigated by verbatim surfacing), and
