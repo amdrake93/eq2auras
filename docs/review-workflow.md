@@ -186,7 +186,10 @@ a break condition.
   ("rereview — fixes are committed") plus contract-sanctioned pushback (evidence with
   citations, per §The writer's side). Never narrative about why changes were made — that is
   the same contamination the fixed trigger exists to exclude.
-- The loop runs until a **closure verdict** ("review closure — no action required"). The
+- The loop terminates on a round with **nothing left to fix**: an **approved** verdict with
+  no findings (possible in round 1) or a closure ("review closure — no action required") on
+  a re-review round. An approved verdict *with* Minor findings continues the loop — the
+  writer closes them and seeks closure, so nothing is left "for follow-up" at the gate. The
   writer then presents the branch at the owner's merge gate, exactly as in the manual flow.
 
 **Three conditions break the loop to the owner** — these are never automated past:
