@@ -110,8 +110,12 @@ verdict. The block is for the writer; the chat is for the human.
 
 - **Process every feedback block with `superpowers:receiving-code-review`**: verify each
   claim against the working tree before acting on it; push back with evidence when a finding
-  doesn't hold; no performative agreement. Corrections found valid get fixed one at a time
-  and committed with the finding named.
+  doesn't hold; no performative agreement. Corrections found valid are committed with each
+  fix named in the message. **Commit granularity is the writer's call** (owner decision,
+  2026-07-14) — one commit per finding, one omnibus commit naming each, or amended/reverted
+  commits while iterating toward a fix. Re-reviews verify against the fix commit range, not
+  per commit, so granularity carries no review weight; keep the history iterable, keep every
+  fix named.
 - **Record everything the reviewer will need next round**: plan-watch items into the
   backlog's in-flight entry; "no change" resolutions into a doc (spec phrase, backlog line,
   or archive header) — a decision that lives only in conversation will be re-raised.
@@ -181,7 +185,7 @@ a break condition.
 **Loop mechanics:**
 
 - The writer processes each block under §The writer's side (verification, pushback with
-  evidence, one commit per finding), then continues the **same reviewer agent** for the
+  evidence, fixes committed with each named), then continues the **same reviewer agent** for the
   re-review — its own round-to-round context persists, mirroring a standing reviewer
   session. If the agent is lost, fall back to a fresh reviewer plus the prior block
   (§Bootstrap re-review rule).
