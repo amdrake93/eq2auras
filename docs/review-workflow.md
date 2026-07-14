@@ -140,8 +140,8 @@ verdict. The block is for the writer; the chat is for the human.
 ## Automated orchestration
 
 The writer session may run the review loop itself by spawning the reviewer as an isolated
-subagent — replacing the human as ferry while leaving every human gate in place. This is the
-same contract with a mechanical relay; nothing else in this doc changes. **The loop is a mode
+subagent — replacing the human as ferry while leaving the owner's phase and merge gates in
+place. This is the same contract with a mechanical relay; nothing else in this doc changes. **The loop is a mode
 the owner explicitly invokes per artifact** — the writer never enters it on its own judgment.
 Invoking it is the owner's "go" for the whole loop: one authorized turn, ending at closure or
 a break condition.
@@ -202,6 +202,8 @@ a break condition.
    the state as-is rather than the loop grinding on.
 
 **What the owner gives up and keeps:** given up — the independent channel (everything
-reaches the owner through the writer's conversation, mitigated by verbatim surfacing);
-kept — Question decisions, the merge gate, and the option to run a separate-session
-reviewer as an extra independent pass on any artifact, at any time.
+reaches the owner through the writer's conversation, mitigated by verbatim surfacing), and
+**per-finding accept/reject** (§The shape's gate list), delegated to the writer's
+evidence-based verification and recoverable at the owner's audit; kept — Question decisions,
+the merge gate, and the option to run a separate-session reviewer as an extra independent
+pass on any artifact, at any time.
