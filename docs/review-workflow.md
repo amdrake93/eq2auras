@@ -148,8 +148,9 @@ a break condition.
 
 **Isolation requirements** (the non-negotiables):
 
-- The reviewer is a **fresh agent** — never a context-inheriting fork of the writer. It sees
-  only: the fixed trigger prompt below, the repo (CLAUDE.md included), and the diff. Nothing
+- The reviewer is a **fresh agent** — never a context-inheriting fork of the writer. At the
+  initial spawn it sees only: the fixed trigger prompt below, the repo (CLAUDE.md included),
+  and the diff; later rounds add only the constrained continuation messages below. Nothing
   of the writer's conversation reaches it. Give it its own git worktree when available.
 - The trigger prompt is **fixed and minimal** — the writer must not editorialize, summarize
   the artifact, or explain decisions in it. Everything load-bearing reaches the reviewer
@@ -163,14 +164,16 @@ a break condition.
   > as your final message. The contract's separate chat summary is waived in this mode — the
   > block's verdict line is the digest.
 
-- **Every feedback block is surfaced verbatim** in the writer's conversation before being
-  acted on — and the reviewer writes each round's block to a round-numbered file in the
+- **Both directions of the exchange are surfaced verbatim** in the writer's conversation —
+  every reviewer block before it is acted on, and every writer→reviewer message when it is
+  sent. The reviewer additionally writes each round's block to a round-numbered file in the
   audit directory named in the trigger, so reviewer-authored copies exist outside the
-  writer's retelling. The owner's audit reads the reviewer's files, not the writer's
-  reprints. Audit files live **outside both git trees**
-  (session scratch/temp — never repo-relative, which would sweep blocks into fix commits;
-  never the reviewer's disposable worktree), one file per round, persisting until the
-  owner's audit.
+  writer's retelling: the owner's audit reads the reviewer's files, not the writer's
+  reprints. Audit files live **outside both git trees** (session scratch/temp — never
+  repo-relative, which would sweep blocks into fix commits; never the reviewer's disposable
+  worktree), one file per round, persisting until the owner's audit. Surfacing is an **audit
+  trail, not a pause gate** (owner decision, 2026-07-10): the loop runs to closure without
+  waiting for the owner to read each round.
 - The reviewer's separate chat summary (§The feedback block) is waived in automated mode —
   no human sits on the reviewer's channel; the writer surfaces each round's verdict line as
   the digest.
@@ -183,9 +186,10 @@ a break condition.
   session. If the agent is lost, fall back to a fresh reviewer plus the prior block
   (§Bootstrap re-review rule).
 - **Continuation messages are as constrained as the trigger**: only the re-review request
-  ("rereview — fixes are committed") plus contract-sanctioned pushback (evidence with
-  citations, per §The writer's side). Never narrative about why changes were made — that is
-  the same contamination the fixed trigger exists to exclude.
+  with the fix commit range ("rereview — fixes are committed, range \<old\>..\<new\>") plus
+  contract-sanctioned pushback (`file:line` evidence, per §The writer's side). Never
+  narrative about why changes were made — that is the same contamination the fixed trigger
+  exists to exclude.
 - The loop terminates on a round with **nothing left to fix**: an **approved** verdict with
   no findings (possible in round 1) or a closure ("review closure — no action required") on
   a re-review round. An approved verdict *with* Minor findings continues the loop — the
