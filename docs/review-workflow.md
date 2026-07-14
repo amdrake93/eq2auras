@@ -2,7 +2,8 @@
 
 How development artifacts in this repo get written, reviewed, and merged. Two Claude sessions
 with separated roles — a **writer** (specs, plans, code, research docs) and a **reviewer** —
-plus the **human owner**, who ferries feedback between them and owns every gate. This doc is
+plus the **human owner**, who owns the gates and relays feedback between the sessions —
+manually, or via the writer-run loop (§Automated orchestration). This doc is
 a process contract: hand it to a fresh session and it can play either role (§Bootstrap lists
 what each needs).
 
@@ -71,13 +72,14 @@ what each needs).
   only unverifiable or false claims become findings.
 - Hand-trace test expectations through implementations; run exhaustive greps for
   "only"/"never"/"zero callers" claims rather than sampling them.
-- When the human disputes a finding's mechanics, verify their claim against the code before
+- When the human — or, in automated mode, the writer — disputes a finding's mechanics, verify their claim against the code before
   conceding — then update the still-pending feedback block.
 
 ## The feedback block (the reviewer's deliverable)
 
 One self-contained markdown block **addressed to the writing agent in second person**, pasted
-verbatim by the human. Self-contained means: SPEC section refs, `file:line` refs, and all
+verbatim by the human (or surfaced by the writer in automated mode — §Automated
+orchestration). Self-contained means: SPEC section refs, `file:line` refs, and all
 context inline — the writer has none of the review conversation. Structure, in order:
 
 1. Opening receiver directive, verbatim:
@@ -145,7 +147,8 @@ verdict. The block is for the writer; the chat is for the human.
 
 ## Bootstrap
 
-- **New reviewer**: start a fresh session in a clone of this repo and give it this doc plus
+- **New reviewer** (manual-flow bootstrap; automated mode spawns and relays per §Automated
+  orchestration): start a fresh session in a clone of this repo and give it this doc plus
   the target ("spec review \<branch\>", "review the plan", …). It needs: the repo (including
   `ThirdParty/` vendored binaries/sources for re-derivation), `git diff main..<branch>`, and
   nothing from the writer's conversation. For a **re-review**, the human also relays the
@@ -206,7 +209,7 @@ a break condition.
   evidence, fixes committed with each named), then continues the **same reviewer agent** for the
   re-review — its own round-to-round context persists, mirroring a standing reviewer
   session. If the agent is lost, fall back to a fresh reviewer plus the prior block
-  (§Bootstrap re-review rule).
+  (§Bootstrap, New reviewer).
 - **Continuation messages are as constrained as the trigger**: only the re-review request
   with the fix commit range ("rereview — fixes are committed, range \<old\>..\<new\>") plus
   contract-sanctioned pushback (`file:line` evidence, per §The writer's side). Never
