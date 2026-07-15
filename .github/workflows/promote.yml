@@ -1,0 +1,48 @@
+name: promote
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to promote (blank = current dev-latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the dev-latest build being promoted
+        id: dev
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="$(gh release view dev-latest --repo ${{ github.repository }} --json name -q .name)"
+          sha="$(gh api repos/${{ github.repository }}/git/ref/tags/dev-latest -q .object.sha)"
+          want="${{ github.event.inputs.version }}"
+          if [ -n "$want" ] && [ "$want" != "$name" ]; then
+            echo "::error::Requested $want but dev-latest currently holds $name. Accept the default to promote the current build, or restore that version's run artifact first (escape hatch)."
+            exit 1
+          fi
+          echo "version=$name" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the dev-latest DLL (exact bytes — no recompile)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download dev-latest --repo ${{ github.repository }} --pattern eq2auras.dll --dir dist --clobber
+
+      - name: Publish stable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: stable
+          name: ${{ steps.dev.outputs.version }}
+          prerelease: false
+          body: "Promoted from dev build ${{ steps.dev.outputs.version }} (source commit ${{ steps.dev.outputs.sha }})."
+          files: dist/eq2auras.dll
