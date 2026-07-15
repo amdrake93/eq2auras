@@ -31,6 +31,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "debugLogging")]
         public bool DebugLogging { get; set; }   // global knob (SPEC §Diagnostic logging): off = lifecycle events only
 
+        [DataMember(Name = "betaChannel")]
+        public bool BetaChannel { get; set; }    // global knob (SPEC §Two channels): false (0-value) = stable channel
+
         public const int GroupCount = 2;
         public const int MaxPaletteSize = 16;
         public const double MinRowWidth = 100, MaxRowWidth = 800;

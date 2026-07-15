@@ -215,4 +215,14 @@ public class SettingsTests
         var settings = new Settings { DebugLogging = true };
         Assert.True(Settings.Parse(settings.ToJson()).DebugLogging);
     }
+
+    [Fact]
+    public void BetaChannel_defaults_off_and_round_trips()
+    {
+        // DCJS 0-value rule: absent from an old settings.json -> false = stable channel.
+        Assert.False(Settings.Parse("{}").BetaChannel);
+
+        var settings = new Settings { BetaChannel = true };
+        Assert.True(Settings.Parse(settings.ToJson()).BetaChannel);
+    }
 }
