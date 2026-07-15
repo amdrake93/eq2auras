@@ -1,11 +1,8 @@
 # eq2auras
 
-<!-- status:begin -->
-<!-- devpill:begin -->[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![dev](https://img.shields.io/badge/dev-0.1.98-56B4E9)<!-- devpill:end -->
-<!-- stablepill:begin --> ![stable](https://img.shields.io/badge/stable-0.1.98-009E73) ![released](https://img.shields.io/badge/released-2026--07--15-E69F00)<!-- stablepill:end -->
+[![build](https://img.shields.io/github/actions/workflow/status/amdrake93/eq2auras/build.yml?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) [![stable](https://img.shields.io/github/v/release/amdrake93/eq2auras?label=stable&color=009E73)](https://github.com/amdrake93/eq2auras/releases/tag/stable) [![license](https://img.shields.io/github/license/amdrake93/eq2auras?color=E69F00)](LICENSE)
 
-`dev-latest` · [releases](https://github.com/amdrake93/eq2auras/releases) · [CI runs](https://github.com/amdrake93/eq2auras/actions) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
-<!-- status:end -->
+[stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 
 A personal **ACT (Advanced Combat Tracker) overlay suite for EverQuest 2** — configurable, good-looking overlays that source their data from ACT's existing systems and render their own UI on top.
 
