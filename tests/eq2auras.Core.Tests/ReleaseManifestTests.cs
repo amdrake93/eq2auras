@@ -42,6 +42,17 @@ public class ReleaseManifestTests
     }
 
     [Fact]
+    public void Parse_reads_release_name_and_asset_browser_download_url()
+    {
+        var manifest = ReleaseManifest.Parse(SampleJson);
+
+        Assert.Equal("dev-latest", manifest.Name);
+        Assert.Equal(
+            "https://github.com/amdrake93/eq2auras/releases/download/dev-latest/eq2auras.Core.dll",
+            manifest.Assets[0].BrowserDownloadUrl);
+    }
+
+    [Fact]
     public void Parse_tolerates_missing_assets()
     {
         var manifest = ReleaseManifest.Parse(@"{ ""tag_name"": ""x"", ""published_at"": ""y"" }");
