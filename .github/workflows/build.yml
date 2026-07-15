@@ -78,20 +78,3 @@ jobs:
           name: ${{ steps.ver.outputs.version }}
           prerelease: true
           files: dist/*
-
-      - name: Stamp README dev pill
-        if: github.ref == 'refs/heads/main'
-        shell: bash
-        env:
-          VERSION: ${{ steps.ver.outputs.version }}
-        run: |
-          export DEVPILL="<!-- devpill:begin -->[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![dev](https://img.shields.io/badge/dev-${VERSION}-56B4E9)<!-- devpill:end -->"
-          perl -0777 -pi -e 's/<!-- devpill:begin -->.*?<!-- devpill:end -->/$ENV{DEVPILL}/s' README.md
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add README.md
-          if git commit -m "README: stamp dev pill v${VERSION} [skip ci]"; then
-            git pull --rebase origin main || true
-            git push origin HEAD:main \
-              || echo "::warning::status stamp push failed — block stays stale until next release"
-          fi
