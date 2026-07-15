@@ -25,3 +25,9 @@ Ships as a single ACT plugin (one `.dll`) that anyone can drop into their ACT `P
 
 - **.NET Framework 4.x** class library (ACT is a .NET Framework host — .NET Core / 5+ will not load).
 - Overlay renders over **borderless-windowed** EQ2 (not exclusive-fullscreen — a documented ACT overlay limitation).
+
+## License
+
+© 2026 Alex Drake. Licensed under the [GNU General Public License v3.0](LICENSE).
+
+You're free to use, modify, and share eq2auras — but any version you distribute must stay open-source under the GPL and keep attribution. (Same copyleft spirit as WeakAuras.) The bundled `Advanced Combat Tracker` reference is EQAditu's freeware, fetched from its own public release at build time and not covered by this license.
