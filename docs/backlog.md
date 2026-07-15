@@ -2,6 +2,11 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-14
+
+### SHIPPED — go public + dual release channels (spec + plan reviewed, merged, repo public)
+Repo is **public** (GPL-3.0 licensed); the update **token is retired** — the self-updater pulls public `browser_download_url`, targeting a per-channel tag (`stable` default | `dev-latest` beta via one `BetaChannel` checkbox), installing by **identity equality on the release name, never version order** (beta→stable can go numerically backward). Stable is an in-the-moment **promotion** of a playtested dev build's exact bytes (`promote.yml`, `workflow_dispatch`, no recompile, records source SHA). Notify-on-startup on both the tab label + ACT status label. CI **fetches ACT's own latest public release** instead of vendoring the exe (untracked). SPEC §"Release channels & public distribution"; plan `docs/plans/2026-07-14-go-public-dual-channel.md`. **Remaining owner steps:** cut the first `stable` (run `promote`) + the live-verify script (tokenless install, notify, forward update, backward beta→stable downgrade, already-up-to-date, empty-stable guard). **Deferred** (SPEC §Open decisions): versioning scheme, ACT-toast spike, automated canary.
+
 ## From guild feedback — 2026-07-02 (voice, streamed dev session)
 
 > **ALL THREE SHIPPED (slice 3, 2026-07-02) and guild-verified live:** session-stable palette colors (name-keyed), greyscale + ACT-color modes, escalation style radial/in-place — all live-switchable from the tab, persisted to `settings.json`. "Big kudos for the live changing."
