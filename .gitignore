@@ -8,6 +8,9 @@ x86/
 *.dll
 *.pdb
 
+# ACT is fetched by CI from its own public release, never vendored (SPEC §Building against live ACT)
+/ThirdParty/Advanced Combat Tracker.exe
+
 # Visual Studio / Rider
 .vs/
 .idea/

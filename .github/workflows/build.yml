@@ -23,6 +23,36 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
+      - name: Resolve ACT latest release tag
+        id: act
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: echo "tag=$(gh release view --repo EQAditu/AdvancedCombatTracker --json tagName -q .tagName)" >> "$GITHUB_OUTPUT"
+
+      - name: Cache ACT zip (keyed on the resolved tag)
+        id: actcache
+        uses: actions/cache@v4
+        with:
+          path: act.zip
+          key: act-${{ steps.act.outputs.tag }}
+
+      - name: Download ACT if not cached
+        if: steps.actcache.outputs.cache-hit != 'true'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release download "${{ steps.act.outputs.tag }}" --repo EQAditu/AdvancedCombatTracker --pattern ACTv3.zip --output act.zip --clobber
+
+      - name: Extract ACT exe to the reference HintPath
+        shell: pwsh
+        run: |
+          Write-Host "Building against ACT ${{ steps.act.outputs.tag }}"
+          New-Item -ItemType Directory -Force -Path ThirdParty | Out-Null
+          Expand-Archive -Path act.zip -DestinationPath act-extracted -Force
+          Copy-Item "act-extracted/Advanced Combat Tracker.exe" "ThirdParty/Advanced Combat Tracker.exe" -Force
+          if (-not (Test-Path "ThirdParty/Advanced Combat Tracker.exe")) { throw "ACT exe not found in ACTv3.zip" }
+
       - name: Run Core unit tests
         run: dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj -c Release
 
@@ -45,7 +75,7 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           tag_name: dev-latest
-          name: dev-latest
+          name: ${{ steps.ver.outputs.version }}
           prerelease: true
           files: dist/*
 
