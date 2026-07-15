@@ -14,6 +14,8 @@ You do **not** need a GitHub account, a login, or an access token. Everything do
 
 ## Install
 
+> **Tip:** close ACT before you drop the plugin in, then reopen it once the file's in place. ACT loads eq2auras cleanly on startup that way — adding it while ACT is running can make ACT tell you it needs to restart.
+
 ### 1. Download the plugin into ACT's plugins folder
 
 Go to the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) and download the **`eq2auras.dll`** asset. Save it into **ACT's plugins folder**:
