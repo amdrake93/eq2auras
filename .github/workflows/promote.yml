@@ -46,3 +46,20 @@ jobs:
           prerelease: false
           body: "Promoted from dev build ${{ steps.dev.outputs.version }} (source commit ${{ steps.dev.outputs.sha }})."
           files: dist/eq2auras.dll
+
+      - uses: actions/checkout@v4
+      - name: Stamp README stable pill
+        shell: bash
+        env:
+          VERSION: ${{ steps.dev.outputs.version }}
+        run: |
+          today="$(date -u +%Y-%m-%d)"
+          export STABLEPILL="<!-- stablepill:begin --> ![stable](https://img.shields.io/badge/stable-${VERSION}-009E73) ![released](https://img.shields.io/badge/released-${today//-/--}-E69F00)<!-- stablepill:end -->"
+          perl -0777 -pi -e 's/<!-- stablepill:begin -->.*?<!-- stablepill:end -->/$ENV{STABLEPILL}/s' README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git commit -m "README: stamp stable v${VERSION} [skip ci]"; then
+            git pull --rebase origin main || true
+            git push origin HEAD:main || echo "::warning::stable pill push failed — corrected next promotion"
+          fi
