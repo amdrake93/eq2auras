@@ -2,6 +2,15 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-15
+
+### NEXT — BUG: "update available" fires always, even right after updating
+Field report 2026-07-15 (someone installed via the new guide — install itself field-validated). The update check *always* says a new version is available, forever.
+
+**Strong-suspect root cause (one on-box confirm needed):** identity is a **raw string inequality** — `UpdateDecision.UpdateAvailable` = `releaseVersion != installedVersion` (`src/eq2auras.Core/SelfUpdate/UpdateDecision.cs:17`). The installed side is the assembly's `AssemblyInformationalVersionAttribute.InformationalVersion` read **verbatim, untrimmed** (`src/eq2auras.Plugin/Eq2AurasPlugin.cs:30-31`); the release side is CI's plain `0.1.<run_number>` (`.github/workflows/build.yml:18` compute, `:78` release name). On a deterministic/SourceLink build the .NET SDK **appends the git commit** to InformationalVersion (`0.1.199+<sha>`), so installed (`0.1.199+abc…`) never string-equals the bare release name (`0.1.199`) → `UpdateAvailable` is always true. **Confirm on the box:** the ACT status label renders `eq2auras v<version>` (`Eq2AurasPlugin.cs:50`) — if it shows a trailing `+<hash>`, that's the smoking gun. (This also means the startup notify nags on every launch, and "Check for updates" re-downloads + reloads every time.)
+
+**Candidate fixes (pick during the fix brainstorm):** trim installed version at the first `+` before comparing (`Split('+')[0]`); and/or set `<IncludeSourceRevisionInInformationalVersion>false</IncludeSourceRevisionInInformationalVersion>` in the plugin csproj so the stamp is bare; and/or normalize both sides inside `UpdateDecision`. **Test gap to close:** the Core `UpdateDecision` test only exercises pure string equality — it can't see that the real build feeds a `+sha`-suffixed installed value against a bare release name, so it passes while the field breaks. The fix must add a case pinning normalized-identity behavior with a realistic InformationalVersion input.
+
 ## From Alex — 2026-07-14
 
 ### SHIPPED — go public + dual release channels (spec + plan reviewed, merged, repo public)
