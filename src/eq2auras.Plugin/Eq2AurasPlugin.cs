@@ -48,6 +48,18 @@ namespace Eq2Auras.Plugin
             // The CI-stamped version is the build tracer: it bumps every push, and with
             // single-assembly packaging Core cannot diverge from it.
             _statusLabel.Text = "eq2auras v" + _version + " | logging to " + _log.FilePath;
+
+            // Notify-only startup check on the selected channel (SPEC §Notify on startup).
+            // Best-effort, background; never blocks InitPlugin, never auto-installs.
+            // Surfaces the notice on BOTH the tab label and the ACT status label ("both … and").
+            new SelfUpdater(SetStatusThreadSafe, ReloadSelf).CheckInBackground(
+                _settings.BetaChannel, _version,
+                available =>
+                {
+                    var notice = "update available: v" + available + " — click \"Check for updates\"";
+                    SetTabNoticeThreadSafe(notice);
+                    SetStatusThreadSafe(notice);
+                });
         }
 
         public void DeInitPlugin()
