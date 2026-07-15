@@ -20,8 +20,8 @@ It reads ACT's data only. Your triggers and timers stay in ACT's native framewor
 
 You need ACT already installed and parsing EverQuest 2 (see the [install guide](docs/install.md) for the prerequisite links). Then:
 
-1. **Download** `eq2auras.dll` from the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable).
-2. **Add it** to ACT: *Plugins* tab → *Plugin Listing* → browse to the file → **Add/Enable**.
+1. **Download** `eq2auras.dll` from the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) and put it in ACT's plugins folder: `%APPDATA%\Advanced Combat Tracker\Plugins`.
+2. **Enable it** in ACT: *Plugins* tab → *Plugin Listing* → tick **eq2auras** (or **Browse…** to it → **Add/Enable**).
 3. **Unblock if asked** — Windows marks freshly-downloaded files; if ACT prompts to unblock the DLL, accept it.
 4. **Check for updates** from the eq2auras tab to stay current — it also notifies you on startup when a new build is out.
 

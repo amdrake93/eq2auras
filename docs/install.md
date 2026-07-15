@@ -14,17 +14,21 @@ You do **not** need a GitHub account, a login, or an access token. Everything do
 
 ## Install
 
-### 1. Download the plugin
+### 1. Download the plugin into ACT's plugins folder
 
-Go to the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) and download the **`eq2auras.dll`** asset. Save it somewhere permanent (not your Downloads folder if you tend to clear it) — for example a folder next to your other ACT plugins. ACT loads it from wherever it lives; it doesn't have to sit in any special directory.
+Go to the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) and download the **`eq2auras.dll`** asset. Save it into **ACT's plugins folder**:
 
-### 2. Add it to ACT
+```
+%APPDATA%\Advanced Combat Tracker\Plugins
+```
 
-In ACT's main window:
+(Paste that path into the Windows Explorer address bar — or press **Win+R**, paste it, and hit Enter — to open the folder.)
 
-1. Open the **Plugins** tab, then the **Plugin Listing** sub-tab.
-2. Use the **Browse…** button near the bottom to select the `eq2auras.dll` you just downloaded.
-3. Click **Add/Enable**.
+**This location matters.** When the plugin updates itself it writes the new build into this folder, so a copy installed anywhere else (like your Downloads folder) will keep loading the *old* build and updates won't take effect. Put it here and updates just work. (See [Troubleshooting](#troubleshooting) if you already added it from elsewhere.)
+
+### 2. Enable it in ACT
+
+In ACT's main window, open the **Plugins** tab, then the **Plugin Listing** sub-tab. Because the DLL is in the plugins folder, **eq2auras** may already be listed — if so, just tick its checkbox. If it isn't listed, use the **Browse…** button near the bottom to select the `eq2auras.dll` in the plugins folder, then click **Add/Enable**.
 
 eq2auras appears in the plugin list with its checkbox ticked, and a new **eq2auras** tab appears in ACT.
 
@@ -53,6 +57,9 @@ eq2auras updates itself — no reinstalling.
 
 **The plugin won't load, or no eq2auras tab appears.**
 The DLL is probably still blocked by Windows. Close ACT, find `eq2auras.dll`, right-click it → **Properties** → tick **Unblock** (bottom of the *General* tab) → **OK**, then re-add it in ACT. Also confirm you downloaded the `.dll` asset itself, not the source zip.
+
+**I clicked *Check for updates*, it said installed, but nothing changed.**
+The plugin must live in ACT's plugins folder — `%APPDATA%\Advanced Combat Tracker\Plugins`. Updates are written there; if you originally added the DLL from somewhere else (like Downloads), ACT keeps reloading that older copy and the update never takes hold. To fix it: remove eq2auras from ACT's Plugin Listing, move `eq2auras.dll` into the plugins folder, and add it again from there.
 
 **The overlay doesn't show up.**
 - Make sure EverQuest 2 is in **borderless-windowed** mode — over exclusive-fullscreen the overlay can't draw.
