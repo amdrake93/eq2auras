@@ -36,7 +36,7 @@ The tasks land together on the branch, but the **go-live order after merge** is 
 
 **Files:**
 - Modify: `.github/workflows/build.yml` (add ACT-fetch steps before the msbuild step at `:29-30`; change publish `name:` at `:48`)
-- Modify: `.gitignore:8` region (stop excepting the exe; it is `*.dll`-ignored already, so just ensure no tracked copy remains)
+- Modify: `.gitignore` (add an ignore rule for the vendored exe — a `.exe`, **not** covered by the existing `*.dll` at `:8`, and currently tracked with no ignore rule shadowing it, so Step 2's rule is load-bearing, not a no-op)
 - Delete from git index (keep nothing): `ThirdParty/Advanced Combat Tracker.exe`
 
 **Interfaces:**
@@ -274,7 +274,7 @@ namespace Eq2Auras.Core.SelfUpdate
 - [ ] **Step 4: Run tests to verify they pass**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter "FullyQualifiedName~UpdateDecisionTests"`
-Expected: PASS (all 8 cases).
+Expected: PASS (all 7 data rows across the 3 methods).
 
 - [ ] **Step 5: Commit**
 
@@ -512,12 +512,12 @@ git commit -m "Plugin: SelfUpdater tokenless + channel-aware + identity-gated; a
 ## Task 6: Plugin — tab surface: drop token UI, add Beta checkbox, delete TokenStore
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (`BuildConfigTab` at `:63-112` — remove token controls `:69-77`; change the update button handler `:79-81`; add a Beta checkbox)
+- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (`BuildConfigTab` at `:63-112` — remove token controls `:69-77`; change the update button handler `:79-81`; add a Beta checkbox and an on-tab update-notice label; add a `SetTabNoticeThreadSafe` helper near `:309-312`)
 - Delete: `src/eq2auras.Plugin/SelfUpdate/TokenStore.cs`
 
 **Interfaces:**
 - Consumes: `Settings.BetaChannel` (Task 4); `SelfUpdater.RunInBackground(pluginsDir, betaChannel, installedVersion)` (Task 5); `SettingsStore.Update` (existing).
-- Produces: a persisted, live-toggle Beta checkbox on the tab.
+- Produces: a persisted, live-toggle Beta checkbox on the tab; an on-tab `_updateNotice` `Label` (next to the update button) plus a `SetTabNoticeThreadSafe(string)` helper — both consumed by Task 7 to satisfy the spec's two-surface notice.
 
 **Verification:** CI compile + Task 10 live script.
 
@@ -578,6 +578,28 @@ Add near the update button (choose a free position in the update control group, 
 
 Add `betaCheck` to the tab's controls alongside `updateButton`.
 
+Also add the **on-tab update-notice label** next to the update button — SPEC §Notify on startup requires the notice on the tab *and* the status label (the tab string is the primary ask). Add a field near `_statusLabel`:
+
+```csharp
+        private System.Windows.Forms.Label _updateNotice;
+```
+
+Create the label (initially empty) and add it to the tab's controls:
+
+```csharp
+            _updateNotice = new Label { Left = 10, Top = 72, Width = 420, Text = "" };
+```
+
+Add a thread-safe setter near `SetStatusThreadSafe` (`:309-312`), marshaling to ACT's UI thread exactly as that method does:
+
+```csharp
+        private void SetTabNoticeThreadSafe(string message)
+        {
+            if (_updateNotice == null) return;
+            ActGlobals.oFormActMain.Invoke((MethodInvoker)(() => _updateNotice.Text = message));
+        }
+```
+
 - [ ] **Step 4: Delete TokenStore (its last caller is now gone)**
 
 ```bash
@@ -607,7 +629,7 @@ git commit -m "Plugin: drop token UI, add Beta channel checkbox, delete TokenSto
 - Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (`InitPlugin`, after `BuildConfigTab` and the status-line assignment)
 
 **Interfaces:**
-- Consumes: `SelfUpdater.CheckInBackground(betaChannel, installedVersion, onUpdateAvailable)` (Task 5); `_settings.BetaChannel`, `_version`, `SetStatusThreadSafe` (existing).
+- Consumes: `SelfUpdater.CheckInBackground(betaChannel, installedVersion, onUpdateAvailable)` (Task 5); `SetTabNoticeThreadSafe` (Task 6); `_settings.BetaChannel`, `_version`, `SetStatusThreadSafe` (existing).
 
 **Verification:** CI compile + Task 10 live script.
 
@@ -618,10 +640,15 @@ After the `_statusLabel.Text = "eq2auras v" + _version + ...` line (`:48`), add:
 ```csharp
             // Notify-only startup check on the selected channel (SPEC §Notify on startup).
             // Best-effort, background; never blocks InitPlugin, never auto-installs.
+            // Surfaces the notice on BOTH the tab label and the ACT status label (spec: "both … and").
             new SelfUpdater(SetStatusThreadSafe, ReloadSelf).CheckInBackground(
                 _settings.BetaChannel, _version,
-                available => SetStatusThreadSafe(
-                    "update available: v" + available + " — click \"Check for updates\""));
+                available =>
+                {
+                    var notice = "update available: v" + available + " — click \"Check for updates\"";
+                    SetTabNoticeThreadSafe(notice);
+                    SetStatusThreadSafe(notice);
+                });
 ```
 
 (`SetStatusThreadSafe` already marshals to ACT's UI thread via `oFormActMain.Invoke`. The check reuses the synchronous `Task.Run` path; nothing here is `async`.)
@@ -814,7 +841,7 @@ Break to the owner if any live step fails; otherwise the branch is done.
 - Two channels, one boolean → Task 4 (knob) + Task 6 (checkbox). ✓
 - Stable = promotion of exact bytes, defaults to current dev-latest, records commit SHA, name = version, not prerelease → Task 8. ✓
 - Identity, never version order → Task 3 (rule + backward-case test) + Task 5 (gate). ✓
-- Notify on startup (status string, notify-only) → Task 7. ✓
+- Notify on startup — the notice on **both** the on-tab label and the ACT status label, notify-only → Task 6 (label + `SetTabNoticeThreadSafe`) + Task 7 (wiring). ✓
 - Building against live ACT (untracked exe, fetch latest, record version, cache fallback) → Task 1. ✓
 - README stable pill joins the dev one → Task 9. ✓
 - Rollout/cutover + first-stable-before-public + empty-stable handling → Task 10 + Task 5 null path. ✓
