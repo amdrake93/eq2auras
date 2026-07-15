@@ -15,6 +15,8 @@ namespace Eq2Auras.Plugin
     public class Eq2AurasPlugin : IActPluginV1
     {
         private Label _statusLabel;
+        private Label _updateNotice;
+        private string _version = "unknown";
         private FlowLayoutPanel _paletteRow;
         private JsonlLogWriter _log;
         private TimerProbe _probe;
@@ -25,7 +27,7 @@ namespace Eq2Auras.Plugin
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
         {
             _statusLabel = pluginStatusText;
-            var version = Assembly.GetExecutingAssembly()
+            _version = Assembly.GetExecutingAssembly()
                 .GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion
                 ?? "unknown";
 
@@ -45,7 +47,7 @@ namespace Eq2Auras.Plugin
             BuildConfigTab(pluginScreenSpace);
             // The CI-stamped version is the build tracer: it bumps every push, and with
             // single-assembly packaging Core cannot diverge from it.
-            _statusLabel.Text = "eq2auras v" + version + " | logging to " + _log.FilePath;
+            _statusLabel.Text = "eq2auras v" + _version + " | logging to " + _log.FilePath;
         }
 
         public void DeInitPlugin()
@@ -66,19 +68,28 @@ namespace Eq2Auras.Plugin
 
             var pluginsDir = Path.Combine(ActGlobals.oFormActMain.AppDataFolder.FullName, "Plugins");
 
-            var tokenBox = new TextBox { Left = 10, Top = 12, Width = 300, UseSystemPasswordChar = true };
-            var saveTokenButton = new Button { Left = 320, Top = 10, Width = 110, Text = "Save token" };
-            saveTokenButton.Click += (s, e) =>
+            var updateButton = new Button { Left = 10, Top = 12, Width = 150, Text = "Check for updates" };
+            updateButton.Click += (s, e) =>
+                new SelfUpdater(SetStatusThreadSafe, ReloadSelf)
+                    .RunInBackground(pluginsDir, _settings.BetaChannel, _version);
+
+            var betaCheck = new CheckBox
             {
-                if (string.IsNullOrEmpty(tokenBox.Text)) return;
-                TokenStore.Save(tokenBox.Text);
-                tokenBox.Clear();
-                _statusLabel.Text = "update token saved (DPAPI)";
+                Left = 170, Top = 14, Width = 220,
+                Text = "Beta channel (bleeding edge)",
+                Checked = _settings.BetaChannel
+            };
+            betaCheck.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => _settings.BetaChannel = betaCheck.Checked);
+                // Toggling triggers a check against the now-selected channel (SPEC §Updates target by channel identity).
+                new SelfUpdater(SetStatusThreadSafe, ReloadSelf)
+                    .RunInBackground(pluginsDir, _settings.BetaChannel, _version);
             };
 
-            var updateButton = new Button { Left = 10, Top = 44, Width = 150, Text = "Check for updates" };
-            updateButton.Click += (s, e) =>
-                new SelfUpdater(SetStatusThreadSafe, ReloadSelf).RunInBackground(pluginsDir);
+            // Update-available notice — the tab surface of the two the spec requires
+            // (the other is the ACT status label). Filled by the startup check (Task 7).
+            _updateNotice = new Label { Left = 10, Top = 44, Width = 420, Text = "" };
 
             var panelABox = BuildPanelGroupBox("Panel A", _settings.Panels[0], 78);
             var panelBBox = BuildPanelGroupBox("Panel B", _settings.Panels[1], 336);
@@ -100,9 +111,9 @@ namespace Eq2Auras.Plugin
             debugBox.CheckedChanged += (s, e) =>
                 SettingsStore.Update(_settings, () => _settings.DebugLogging = debugBox.Checked);
 
-            tab.Controls.Add(tokenBox);
-            tab.Controls.Add(saveTokenButton);
             tab.Controls.Add(updateButton);
+            tab.Controls.Add(betaCheck);
+            tab.Controls.Add(_updateNotice);
             tab.Controls.Add(panelABox);
             tab.Controls.Add(panelBBox);
             tab.Controls.Add(paletteLabel);
@@ -309,6 +320,12 @@ namespace Eq2Auras.Plugin
         private void SetStatusThreadSafe(string message)
         {
             ActGlobals.oFormActMain.Invoke((MethodInvoker)(() => _statusLabel.Text = message));
+        }
+
+        private void SetTabNoticeThreadSafe(string message)
+        {
+            if (_updateNotice == null) return;
+            ActGlobals.oFormActMain.Invoke((MethodInvoker)(() => _updateNotice.Text = message));
         }
 
         /// Toggling our own Enabled checkbox drives DeInitPlugin -> InitPlugin, and the
