@@ -2,7 +2,7 @@
 
 <!-- status:begin -->
 <!-- devpill:begin -->[![build](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml/badge.svg?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) ![dev](https://img.shields.io/badge/dev-0.1.98-56B4E9)<!-- devpill:end -->
-<!-- stablepill:begin --> ![stable](https://img.shields.io/badge/stable-none-lightgrey)<!-- stablepill:end -->
+<!-- stablepill:begin --> ![stable](https://img.shields.io/badge/stable-0.1.98-009E73) ![released](https://img.shields.io/badge/released-2026--07--15-E69F00)<!-- stablepill:end -->
 
 `dev-latest` · [releases](https://github.com/amdrake93/eq2auras/releases) · [CI runs](https://github.com/amdrake93/eq2auras/actions) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 <!-- status:end -->
