@@ -2,26 +2,40 @@
 
 [![build](https://img.shields.io/github/actions/workflow/status/amdrake93/eq2auras/build.yml?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) [![stable](https://img.shields.io/github/v/release/amdrake93/eq2auras?label=stable&color=009E73)](https://github.com/amdrake93/eq2auras/releases/tag/stable) [![license](https://img.shields.io/github/license/amdrake93/eq2auras?color=E69F00)](LICENSE)
 
-[stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
+[install guide](docs/install.md) · [stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 
-A personal **ACT (Advanced Combat Tracker) overlay suite for EverQuest 2** — configurable, good-looking overlays that source their data from ACT's existing systems and render their own UI on top.
+**eq2auras** is an [ACT (Advanced Combat Tracker)](https://advancedcombattracker.com/) overlay for **EverQuest 2**. It takes the spell timers you already track in ACT and draws them as a clean, glanceable overlay that quietly counts down — then escalates each ability into view as it comes due, so you catch the recast without staring at a wall of bars. The north star is *"WeakAuras for EQ2."*
 
-The north star is *"WeakAuras for EQ2"*: a reusable overlay framework that hosts many overlay features over time. It is built as a **shared core + feature modules**, so each new overlay is a module on common plumbing rather than a fresh project.
+It reads ACT's data only. Your triggers and timers stay in ACT's native framework, so a teammate who **doesn't** run eq2auras still shares timers with you through ACT exactly as before.
 
-## Architecture
+## What you get
 
-- **Core (reusable):** the transparent, top-most, click-through overlay window; the render loop; rendering primitives (bars / text / radial / positioning) and the escalation/conditions engine; configuration; and diagnostic logging.
-- **ACT data adapters:** thin, feature-specific layers that read from ACT — a *timer adapter* (`FormSpellTimers.GetTimerFrames`) today, an *encounter adapter* (combatant/DPS) later.
-- **Feature modules:** built on the core.
-  - **Timer Overlay** — *live (shipped through slice 4: escalation, knobs, palette colors, dual panels, movable windows).* A calm glanceable list of upcoming ACT spell timers that escalates each timer as it approaches, driven by the timer's own ACT `WarningValue`.
-  - **Parse Meter** — *future.* A replacement for ACT's "mini parse" (names / DPS) window.
+- **A calm list that escalates.** Upcoming timers sit quiet in a compact list; as an ability nears its recast it escalates — either into a large radial countdown in the center of your screen or highlighted in place — driven by each timer's own ACT warning value.
+- **Colour that means something.** Timers draw from a hand-picked palette, assigned in the order abilities first fire, so a given ability keeps its colour across pulls and wipes. (Assignments start fresh whenever the plugin reloads — for example after taking an update.) Greyscale and "use ACT's own colour" modes are a click away, and you can supply your own palette.
+- **Put it where you want it.** Two independent panels, each freely draggable into place and sized with simple width/height knobs, with its own font. Unlock, drag against an on-screen placement grid, re-lock — positions persist.
+- **No re-authoring.** It surfaces the timers ACT already knows about; there's nothing to re-enter. Point it at your existing setup and it just shows up.
+- **Self-updating.** A built-in *Check for updates* pulls the latest build and reloads live — no ACT restart. Runs a **stable** channel by default, with an opt-in **beta** channel for early builds.
 
-Ships as a single ACT plugin (one `.dll`) that anyone can drop into their ACT `Plugins` folder; individual features are toggleable. It reads ACT's data only — triggers and timers stay in ACT's native framework, so a teammate who does **not** use eq2auras still shares timers through ACT as normal.
+## Getting Started
 
-## Platform
+You need ACT already installed and parsing EverQuest 2 (see the [install guide](docs/install.md) for the prerequisite links). Then:
 
-- **.NET Framework 4.x** class library (ACT is a .NET Framework host — .NET Core / 5+ will not load).
-- Overlay renders over **borderless-windowed** EQ2 (not exclusive-fullscreen — a documented ACT overlay limitation).
+1. **Download** `eq2auras.dll` from the [latest stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) and put it in ACT's plugins folder: `%APPDATA%\Advanced Combat Tracker\Plugins`.
+2. **Enable it** in ACT: *Plugins* tab → *Plugin Listing* → tick **eq2auras** (or **Browse…** to it → **Add/Enable**).
+3. **Unblock if asked** — Windows marks freshly-downloaded files; if ACT prompts to unblock the DLL, accept it.
+4. **Check for updates** from the eq2auras tab to stay current — it also notifies you on startup when a new build is out.
+
+**→ Full step-by-step, updating, and troubleshooting: [docs/install.md](docs/install.md).**
+
+## How it works
+
+eq2auras ships as a **single ACT plugin** — one `eq2auras.dll` you drop into ACT. Inside, a reusable overlay core (the transparent, top-most, click-through window; the render loop; bars/text/radial rendering; the escalation engine) sits under feature modules that read ACT through thin adapters. The shipped module is the **Timer Overlay**; a **Parse Meter** (a nicer replacement for ACT's mini parse) is planned. Features are individually toggleable.
+
+**Requirements:** Windows with ACT running and parsing EQ2; EverQuest 2 in **borderless-windowed** mode (overlays can't draw over exclusive-fullscreen — a documented ACT limitation); .NET Framework 4.x (already present on modern Windows).
+
+## Contributing & internals
+
+The architecture, engine rules, and roadmap live in [docs/SPEC.md](docs/SPEC.md); queued work and field feedback are in [docs/backlog.md](docs/backlog.md). Start there.
 
 ## License
 
