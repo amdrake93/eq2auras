@@ -1,0 +1,65 @@
+name: promote
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version to promote (blank = current dev-latest)"
+        required: false
+        default: ""
+
+permissions:
+  contents: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Resolve the dev-latest build being promoted
+        id: dev
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          name="$(gh release view dev-latest --repo ${{ github.repository }} --json name -q .name)"
+          sha="$(gh api repos/${{ github.repository }}/git/ref/tags/dev-latest -q .object.sha)"
+          want="${{ github.event.inputs.version }}"
+          if [ -n "$want" ] && [ "$want" != "$name" ]; then
+            echo "::error::Requested $want but dev-latest currently holds $name. Accept the default to promote the current build, or restore that version's run artifact first (escape hatch)."
+            exit 1
+          fi
+          echo "version=$name" >> "$GITHUB_OUTPUT"
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+
+      - name: Download the dev-latest DLL (exact bytes — no recompile)
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir dist
+          gh release download dev-latest --repo ${{ github.repository }} --pattern eq2auras.dll --dir dist --clobber
+
+      - name: Publish stable
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: stable
+          name: ${{ steps.dev.outputs.version }}
+          prerelease: false
+          body: "Promoted from dev build ${{ steps.dev.outputs.version }} (source commit ${{ steps.dev.outputs.sha }})."
+          files: dist/eq2auras.dll
+
+      - uses: actions/checkout@v4
+      - name: Stamp README stable pill
+        shell: bash
+        env:
+          VERSION: ${{ steps.dev.outputs.version }}
+        run: |
+          today="$(date -u +%Y-%m-%d)"
+          export STABLEPILL="<!-- stablepill:begin --> ![stable](https://img.shields.io/badge/stable-${VERSION}-009E73) ![released](https://img.shields.io/badge/released-${today//-/--}-E69F00)<!-- stablepill:end -->"
+          perl -0777 -pi -e 's/<!-- stablepill:begin -->.*?<!-- stablepill:end -->/$ENV{STABLEPILL}/s' README.md
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add README.md
+          if git commit -m "README: stamp stable v${VERSION} [skip ci]"; then
+            git pull --rebase origin main || true
+            git push origin HEAD:main || echo "::warning::stable pill push failed — corrected next promotion"
+          fi

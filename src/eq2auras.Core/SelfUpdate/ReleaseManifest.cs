@@ -15,6 +15,9 @@ namespace Eq2Auras.Core.SelfUpdate
         [DataMember(Name = "tag_name")]
         public string TagName { get; set; }
 
+        [DataMember(Name = "name")]
+        public string Name { get; set; }   // release display name — CI stamps it with the version (the identity token)
+
         [DataMember(Name = "published_at")]
         public string PublishedAt { get; set; }
 
@@ -43,5 +46,10 @@ namespace Eq2Auras.Core.SelfUpdate
         /// returns the binary (works for private repos, unlike browser_download_url).
         [DataMember(Name = "url")]
         public string ApiUrl { get; set; }
+
+        /// The public download URL — works without auth on a public repo; the tokenless
+        /// self-updater fetches this directly (SPEC §Going public).
+        [DataMember(Name = "browser_download_url")]
+        public string BrowserDownloadUrl { get; set; }
     }
 }

@@ -2,34 +2,25 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Net.Http;
-using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using Eq2Auras.Core.SelfUpdate;
 
 namespace Eq2Auras.Plugin.SelfUpdate
 {
-    /// Downloads the dev-latest release's DLLs and live-reloads the plugin.
-    /// Flow (all empirically proven): fetch release JSON -> download every asset to
-    /// memory -> write all files into the Plugins folder (no locks: ACT byte-loads the
-    /// plugin, our resolver byte-loads Core) -> toggle our own Enabled checkbox, which
-    /// re-reads the files from disk and runs the new bytes. No ACT restart.
+    /// Downloads the selected channel's release DLL and live-reloads the plugin.
+    /// Public repo: no token, no Authorization header — assets come from the public
+    /// browser_download_url. The install decision is identity equality on the release
+    /// name (the version), never version ordering (SPEC §Release channels).
     ///
     /// ⚠ SCAN-SAFETY RULE — everything here is deliberately SYNCHRONOUS (sync-over-async
-    /// on the background thread). ACT's plugin scan (Assembly.GetTypes, BEFORE InitPlugin
-    /// registers our AssemblyResolve handler) resolves the types of all FIELDS in the
-    /// assembly — and `async` methods hoist awaited locals into fields of hidden
-    /// state-machine structs. An async method with a Core-typed local (e.g.
-    /// ReleaseManifest) makes the scan demand eq2auras.Core.dll and fail. No async, no
-    /// hoisted fields, no scan-time Core dependency. The same rule forbids Core/non-GAC
-    /// types in ordinary fields anywhere in this assembly.
+    /// on a background thread). No async: hoisted state-machine fields are a scan-time
+    /// hazard. Core types appear only as locals, never fields.
     public sealed class SelfUpdater
     {
         private const string Owner = "amdrake93";
         private const string Repo = "eq2auras";
-        private const string Tag = "dev-latest";
 
         private readonly Action<string> _status;   // caller marshals to the UI thread
-        private readonly Action _applyReload;      // caller toggles cbEnabled on the UI thread
+        private readonly Action _applyReload;       // caller toggles cbEnabled on the UI thread
 
         public SelfUpdater(Action<string> status, Action applyReload)
         {
@@ -37,43 +28,58 @@ namespace Eq2Auras.Plugin.SelfUpdate
             _applyReload = applyReload;
         }
 
-        /// Manual "check for updates": always downloads and reloads (spike behaviour;
-        /// a published_at gate for auto-checks is a later refinement).
-        public void RunInBackground(string pluginsDir)
+        /// Manual "check for updates": install the selected channel's build if its
+        /// identity differs from what is running; otherwise report already-up-to-date.
+        public void RunInBackground(string pluginsDir, bool betaChannel, string installedVersion)
         {
-            Task.Run(() =>
+            Task_Run(() =>
             {
-                try { Run(pluginsDir); }
+                try { Run(pluginsDir, betaChannel, installedVersion); }
                 catch (Exception ex) { _status("update failed: " + ex.Message); }
             });
         }
 
-        private void Run(string pluginsDir)
+        /// Startup notify: no download, no reload. Calls onUpdateAvailable(version) only
+        /// when the channel has a build whose identity differs from installedVersion.
+        public void CheckInBackground(bool betaChannel, string installedVersion, Action<string> onUpdateAvailable)
         {
-            var token = TokenStore.Load();
-            if (token == null)
+            Task_Run(() =>
             {
-                _status("no update token saved — paste it on the eq2auras tab first");
+                try
+                {
+                    var release = FetchRelease(betaChannel);
+                    if (release != null && UpdateDecision.UpdateAvailable(installedVersion, release.Name))
+                    {
+                        onUpdateAvailable(release.Name);
+                    }
+                }
+                catch { /* notify is best-effort; never surface a startup error */ }
+            });
+        }
+
+        private void Run(string pluginsDir, bool betaChannel, string installedVersion)
+        {
+            var tag = UpdateDecision.TagForChannel(betaChannel);
+            var release = FetchRelease(betaChannel);
+            if (release == null)
+            {
+                _status("no " + tag + " release yet");
+                return;
+            }
+            if (!UpdateDecision.UpdateAvailable(installedVersion, release.Name))
+            {
+                _status("already up to date (v" + installedVersion + ")");
                 return;
             }
 
-            using (var http = new HttpClient())
+            using (var http = NewClient())
             {
-                http.DefaultRequestHeaders.UserAgent.ParseAdd("eq2auras-updater");
-                http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-                _status("checking " + Tag + "…");
-                var releaseJson = http.GetStringAsync(
-                    "https://api.github.com/repos/" + Owner + "/" + Repo + "/releases/tags/" + Tag)
-                    .GetAwaiter().GetResult();
-                var release = ReleaseManifest.Parse(releaseJson);
-
                 var downloaded = new List<KeyValuePair<string, byte[]>>();
                 foreach (var asset in release.Assets)
                 {
                     _status("downloading " + asset.Name + "…");
                     downloaded.Add(new KeyValuePair<string, byte[]>(
-                        asset.Name, DownloadAsset(http, asset.ApiUrl)));
+                        asset.Name, http.GetByteArrayAsync(asset.BrowserDownloadUrl).GetAwaiter().GetResult()));
                 }
 
                 // All-or-nothing: only touch disk once every download succeeded.
@@ -81,24 +87,39 @@ namespace Eq2Auras.Plugin.SelfUpdate
                 {
                     File.WriteAllBytes(Path.Combine(pluginsDir, file.Key), file.Value);
                 }
-
-                _status("update " + release.PublishedAt + " installed — reloading…");
-                _applyReload();
             }
+
+            _status("update v" + release.Name + " installed — reloading…");
+            _applyReload();
         }
 
-        private static byte[] DownloadAsset(HttpClient http, string apiUrl)
+        /// Returns the channel release, or null if the tag has no release yet
+        /// (e.g. stable before the first promotion).
+        private ReleaseManifest FetchRelease(bool betaChannel)
         {
-            using (var request = new HttpRequestMessage(HttpMethod.Get, apiUrl))
+            var tag = UpdateDecision.TagForChannel(betaChannel);
+            using (var http = NewClient())
             {
-                request.Headers.Accept.Clear();
-                request.Headers.Accept.Add(new MediaTypeWithQualityHeaderValue("application/octet-stream"));
-                using (var response = http.SendAsync(request).GetAwaiter().GetResult())
+                var url = "https://api.github.com/repos/" + Owner + "/" + Repo + "/releases/tags/" + tag;
+                using (var response = http.GetAsync(url).GetAwaiter().GetResult())
                 {
+                    if (response.StatusCode == System.Net.HttpStatusCode.NotFound) return null;
                     response.EnsureSuccessStatusCode();
-                    return response.Content.ReadAsByteArrayAsync().GetAwaiter().GetResult();
+                    var json = response.Content.ReadAsStringAsync().GetAwaiter().GetResult();
+                    return ReleaseManifest.Parse(json);
                 }
             }
         }
+
+        private static HttpClient NewClient()
+        {
+            var http = new HttpClient();
+            http.DefaultRequestHeaders.UserAgent.ParseAdd("eq2auras-updater");   // GitHub requires a UA; no auth on a public repo
+            return http;
+        }
+
+        // Local wrapper so the file has no `using System.Threading.Tasks;` at type scope;
+        // keeps Task types out of field-adjacent positions (scan-safety belt-and-suspenders).
+        private static void Task_Run(Action body) => System.Threading.Tasks.Task.Run(body);
     }
 }
