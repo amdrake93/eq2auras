@@ -11,7 +11,7 @@ It reads ACT's data only. Your triggers and timers stay in ACT's native framewor
 ## What you get
 
 - **A calm list that escalates.** Upcoming timers sit quiet in a compact list; as an ability nears its recast it escalates — either into a large radial countdown in the center of your screen or highlighted in place — driven by each timer's own ACT warning value.
-- **Colour that means something.** Timers draw from a hand-picked palette, assigned in the order abilities first fire and stable for the rest of your session, so a given ability keeps its colour across pulls and wipes. Greyscale and "use ACT's own colour" modes are a click away, and you can supply your own palette.
+- **Colour that means something.** Timers draw from a hand-picked palette, assigned in the order abilities first fire, so a given ability keeps its colour across pulls and wipes. (Assignments start fresh whenever the plugin reloads — for example after taking an update.) Greyscale and "use ACT's own colour" modes are a click away, and you can supply your own palette.
 - **Put it where you want it.** Two independent panels, each freely draggable into place and sized with simple width/height knobs, with its own font. Unlock, drag against an on-screen placement grid, re-lock — positions persist.
 - **No re-authoring.** It surfaces the timers ACT already knows about; there's nothing to re-enter. Point it at your existing setup and it just shows up.
 - **Self-updating.** A built-in *Check for updates* pulls the latest build and reloads live — no ACT restart. Runs a **stable** channel by default, with an opt-in **beta** channel for early builds.

@@ -47,7 +47,7 @@ eq2auras updates itself — no reinstalling.
 ### Channels: stable vs beta
 
 - **Stable** (default) — curated, playtested builds. Leave it here unless you want early features.
-- **Beta** (`dev-latest`) — the latest development build, updated continuously. Tick the **beta channel** checkbox on the eq2auras tab to opt in. Un-ticking it moves you back to stable on the next check, even if that means moving to a lower version number — that's normal and installs cleanly.
+- **Beta** (`dev-latest`) — the latest development build, updated continuously. Tick the **Beta channel (bleeding edge)** checkbox on the eq2auras tab to opt in. Un-ticking it moves you back to stable on the next check, even if that means moving to a lower version number — that's normal and installs cleanly.
 
 ## Troubleshooting
 
