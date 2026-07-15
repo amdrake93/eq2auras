@@ -28,4 +28,18 @@ public class UpdateDecisionTests
     {
         Assert.False(UpdateDecision.UpdateAvailable("0.1.96", release));
     }
+
+    [Theory]
+    // The shipped DLL's InformationalVersion carries the SDK's +<sha> build metadata
+    // (e.g. 0.1.98+362dc28…) while the release name is bare 0.1.98 — same build.
+    [InlineData("0.1.98+362dc2825a34bf6e5d88859aab0c13a536eeb0b3", "0.1.98", false)]
+    // A genuinely newer bare release against a suffixed installed value still updates.
+    [InlineData("0.1.98+362dc2825a34bf6e5d88859aab0c13a536eeb0b3", "0.1.103", true)]
+    // Suffix on the release side too — normalized both sides, still same identity.
+    [InlineData("0.1.98+abc", "0.1.98+def", false)]
+    public void UpdateAvailable_ignores_build_metadata_after_plus(
+        string installed, string release, bool expected)
+    {
+        Assert.Equal(expected, UpdateDecision.UpdateAvailable(installed, release));
+    }
 }
