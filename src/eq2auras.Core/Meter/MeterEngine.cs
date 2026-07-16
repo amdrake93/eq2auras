@@ -37,11 +37,7 @@ namespace Eq2Auras.Core.Meter
             // the user acts (no allies classified) every combatant shows, mob included,
             // which self-heals the instant the user engages. "Unknown" is always dropped.
             var all = combatants ?? new List<CombatantReading>();
-            bool anyAlly = false;
-            foreach (var c in all)
-            {
-                if (c.IsAlly) { anyAlly = true; break; }
-            }
+            bool anyAlly = all.Any(c => c.IsAlly);   // ACT's `list2.Count > 0` escape-hatch guard
 
             var rows = new List<MeterRow>();
             double total = 0;

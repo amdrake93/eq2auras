@@ -1,8 +1,9 @@
 namespace Eq2Auras.Core.Meter
 {
-    /// One ally's per-poll totals, snapshotted from ACT's computed model under the
-    /// data lock (SPEC Part III §The one data rule): corrections already applied,
-    /// no ACT types, no WPF types.
+    /// One combatant's per-poll totals, snapshotted from ACT's computed model under
+    /// the data lock (SPEC Part III §The one data rule): corrections already applied,
+    /// no ACT types, no WPF types. Carries every combatant (allies and not — see
+    /// IsAlly); the mini-parse filter in MeterEngine decides visibility.
     public sealed class CombatantReading
     {
         public string Name { get; set; }
