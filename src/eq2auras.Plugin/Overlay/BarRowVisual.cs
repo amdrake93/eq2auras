@@ -18,6 +18,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private readonly double _rowWidth;
         private readonly bool _spark;
+        private readonly byte _fillAlpha;
         private readonly Border _root;
         private readonly Border _fill;
         private readonly TextBlock _name;
@@ -32,10 +33,15 @@ namespace Eq2Auras.Plugin.Overlay
         public double UsableWidth => _rowWidth - 2;
         public double CurrentFillWidth => _fill.Width;   // reflects the animated value
 
-        public BarRowVisual(VisualStyle style, bool spark)
+        // fillAlpha defaults to the timer's translucent value (90); the meter passes a
+        // higher, vivid value for at-a-glance readability (SPEC Part III §Meter display
+        // defaults). A construction parameter, not a blanket change — the timer is
+        // untouched by the default.
+        public BarRowVisual(VisualStyle style, bool spark, byte fillAlpha = 90)
         {
             _rowWidth = style.RowWidth;
             _spark = spark;
+            _fillAlpha = fillAlpha;
             double hr = style.HeightRatio;
 
             _fill = new Border
@@ -57,6 +63,9 @@ namespace Eq2Auras.Plugin.Overlay
             style.ApplyFont(_name, style.RowText);
             _trailing = new TextBlock
             {
+                // Readable-light default: the meter relies on it; the timer overrides
+                // per-urgency every tick, so this never changes the timer (SPEC Part III).
+                Foreground = new SolidColorBrush(OverlayTheme.Text),
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
@@ -91,7 +100,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void SetFillColor(int argb)
         {
             var color = OverlayTheme.FromArgbInt(argb);
-            _fill.Background = new SolidColorBrush(Color.FromArgb(90, color.R, color.G, color.B));
+            _fill.Background = new SolidColorBrush(Color.FromArgb(_fillAlpha, color.R, color.G, color.B));
             if (_spark) _fill.BorderBrush = new SolidColorBrush(OverlayTheme.Spark(color));
         }
 

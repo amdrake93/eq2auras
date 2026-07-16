@@ -92,7 +92,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void CreateMeterWindow()
         {
-            var style = new VisualStyle();   // slice 1: baked defaults matching the timer look (SPEC Part III §Settings)
+            var style = new VisualStyle { RowSpacing = 0 };   // meter rows touch (SPEC Part III §Meter display defaults); other dims are slice-1 baked defaults
             var meter = _settings.Meter;
             _meterWindow = new MeterWindow(
                 meter.Left ?? SystemParameters.PrimaryScreenWidth - style.RowWidth - 60,
