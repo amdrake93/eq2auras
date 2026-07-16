@@ -64,10 +64,19 @@ namespace Eq2Auras.Plugin.Overlay
             _totalText = HeaderBlock(style, dim: false);
             _totalText.FontWeight = FontWeights.SemiBold;
 
-            var leftPanel = new StackPanel { Orientation = Orientation.Horizontal, VerticalAlignment = VerticalAlignment.Center };
-            leftPanel.Children.Add(_durationText);
-            leftPanel.Children.Add(_titleText);
-            leftPanel.Children.Add(_metricText);
+            // Left cluster: duration | title | metric — the TITLE column is the only
+            // flexible one (star), so a long EQ2 mob name trims to an ellipsis while
+            // duration and metric stay fixed and visible (SPEC Part III §Header).
+            var leftGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
+            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(_durationText, 0);
+            Grid.SetColumn(_titleText, 1);
+            Grid.SetColumn(_metricText, 2);
+            leftGrid.Children.Add(_durationText);
+            leftGrid.Children.Add(_titleText);
+            leftGrid.Children.Add(_metricText);
 
             var affordance = HeaderBlock(style, dim: true);
             affordance.Text = " ⋯";   // ⋯ — hints the right-click menu (SPEC Part III §Header)
@@ -80,8 +89,15 @@ namespace Eq2Auras.Plugin.Overlay
             rightPanel.Children.Add(_totalText);
             rightPanel.Children.Add(affordance);
 
+            // Outer: left cluster (star, bounds the title) | right cluster (auto,
+            // total + affordance always visible). This is what stops "— DPS" and the
+            // total from overlapping when the title is long.
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
-            headerGrid.Children.Add(leftPanel);
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+            Grid.SetColumn(leftGrid, 0);
+            Grid.SetColumn(rightPanel, 1);
+            headerGrid.Children.Add(leftGrid);
             headerGrid.Children.Add(rightPanel);
 
             var header = new Border
