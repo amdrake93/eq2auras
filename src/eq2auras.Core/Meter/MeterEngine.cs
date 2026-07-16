@@ -14,7 +14,7 @@ namespace Eq2Auras.Core.Meter
     {
         private readonly PaletteAssigner _palette = new PaletteAssigner();
 
-        public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> allies,
+        public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
             string metricKey, IReadOnlyList<int> paletteArgb)
         {
             var metric = MetricRegistry.Resolve(metricKey);
@@ -31,16 +31,31 @@ namespace Eq2Auras.Core.Meter
                     : encounter.FinalDurationSeconds);
             }
 
+            // Mirror ACT's mini parse combatant selection (SPEC Part III §Displayed
+            // combatants). Base set = every combatant; ShowOnlyAllies hides non-allies
+            // BUT only when the ally set is non-empty (ACT's escape hatch) — so before
+            // the user acts (no allies classified) every combatant shows, mob included,
+            // which self-heals the instant the user engages. "Unknown" is always dropped.
+            var all = combatants ?? new List<CombatantReading>();
+            bool anyAlly = false;
+            foreach (var c in all)
+            {
+                if (c.IsAlly) { anyAlly = true; break; }
+            }
+
             var rows = new List<MeterRow>();
             double total = 0;
-            foreach (var ally in allies ?? new List<CombatantReading>())
+            foreach (var combatant in all)
             {
-                double raw = metric.Select(ally);
+                if (combatant.Name == "Unknown") continue;
+                if (anyAlly && !combatant.IsAlly) continue;
+
+                double raw = metric.Select(combatant);
                 double value = metric.IsRate
                     ? (duration > 0 ? raw / duration : 0)
                     : raw;
                 total += value;
-                rows.Add(new MeterRow { Name = ally.Name ?? "", Value = value });
+                rows.Add(new MeterRow { Name = combatant.Name ?? "", Value = value });
             }
 
             rows.Sort((a, b) => a.Value != b.Value
@@ -52,7 +67,7 @@ namespace Eq2Auras.Core.Meter
 
             foreach (var row in rows)
             {
-                row.Percent = total > 0 ? row.Value / total : 0;     // share of ALL allies
+                row.Percent = total > 0 ? row.Value / total : 0;     // share of the displayed set
                 row.FormattedPercent = Math.Round(row.Percent * 100) + "%";
                 row.BarFraction = top > 0 ? row.Value / top : 0;     // rank 1 = full bar
                 row.FormattedValue = metric.Format(row.Value);

@@ -9,8 +9,8 @@ public class MeterEngineTests
     private static EncounterReading Live(double seconds) => new()
         { Exists = true, Active = true, Title = "Vithnok", LiveDurationSeconds = seconds, FinalDurationSeconds = 0 };
 
-    private static CombatantReading Ally(string name, long damage = 0, long healed = 0, int cures = 0)
-        => new() { Name = name, Damage = damage, Healed = healed, CureDispels = cures };
+    private static CombatantReading Ally(string name, long damage = 0, long healed = 0, int cures = 0, bool isAlly = true)
+        => new() { Name = name, Damage = damage, Healed = healed, CureDispels = cures, IsAlly = isAlly };
 
     [Fact]
     public void Rates_divide_totals_by_the_live_wall_clock_while_active()
@@ -149,6 +149,57 @@ public class MeterEngineTests
 
         Assert.NotNull(frame.Rows[0].Secondaries);
         Assert.Empty(frame.Rows[0].Secondaries);
+    }
+
+    [Fact]
+    public void Non_allies_are_hidden_when_any_ally_is_present()
+    {
+        // Mirror ACT's mini parse: ShowOnlyAllies engages once the ally set is non-empty.
+        var combatants = new List<CombatantReading>
+        {
+            Ally("Biffels", damage: 500, isAlly: true),
+            Ally("a lamia deathcaller", damage: 9000, isAlly: false),   // the mob — big number, must not show
+        };
+
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+
+        Assert.Single(frame.Rows);
+        Assert.Equal("Biffels", frame.Rows[0].Name);
+        Assert.Equal("50", frame.TotalText);            // 500/10s — the mob is NOT in the total
+    }
+
+    [Fact]
+    public void All_combatants_show_when_none_is_classified_ally()
+    {
+        // The escape hatch: before the user acts, GetAllies() is empty, so ACT's
+        // filter switches off and every combatant shows (groupmate AND mob) — the
+        // transient pre-engage state that self-heals once the user engages.
+        var combatants = new List<CombatantReading>
+        {
+            Ally("Groupmate", damage: 800, isAlly: false),
+            Ally("a lamia deathcaller", damage: 200, isAlly: false),
+        };
+
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+
+        Assert.Equal(2, frame.Rows.Count);
+        Assert.Equal("Groupmate", frame.Rows[0].Name);   // shows even though unlinked — fixes the field bug
+    }
+
+    [Fact]
+    public void The_Unknown_combatant_is_always_dropped()
+    {
+        // The parser emits attacker "Unknown" for unsourced hits; ACT's export drops it.
+        var combatants = new List<CombatantReading>
+        {
+            Ally("Biffels", damage: 500, isAlly: true),
+            Ally("Unknown", damage: 300, isAlly: false),
+        };
+
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+
+        Assert.Single(frame.Rows);
+        Assert.Equal("Biffels", frame.Rows[0].Name);
     }
 
     [Fact]

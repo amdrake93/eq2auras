@@ -9,6 +9,7 @@ namespace Eq2Auras.Core.Meter
         public long Damage { get; set; }
         public long Healed { get; set; }      // includes wards — the EQ2 parser folds absorbs in
         public int CureDispels { get; set; }
+        public bool IsAlly { get; set; }      // was this combatant in ACT's GetAllies()? — drives the mini-parse ShowOnlyAllies filter
     }
 
     /// The current segment's per-poll identity/duration. Both duration branches
