@@ -16,13 +16,16 @@ namespace Eq2Auras.Plugin.Act
         private readonly JsonlLogWriter _log;
         private readonly Func<bool> _debugLogging;
         private readonly Action<List<TimerReading>> _onReadings;
+        private readonly Action _onPollTick;
         private readonly Timer _pollTimer;
 
-        public TimerProbe(JsonlLogWriter log, Func<bool> debugLogging, Action<List<TimerReading>> onReadings)
+        public TimerProbe(JsonlLogWriter log, Func<bool> debugLogging,
+            Action<List<TimerReading>> onReadings, Action onPollTick = null)
         {
             _log = log;
             _debugLogging = debugLogging;
             _onReadings = onReadings;
+            _onPollTick = onPollTick;
 
             ActGlobals.oFormSpellTimers.OnSpellTimerNotify += OnNotify;
             ActGlobals.oFormSpellTimers.OnSpellTimerWarning += OnWarning;
@@ -38,6 +41,10 @@ namespace Eq2Auras.Plugin.Act
 
         private void OnPoll(object sender, EventArgs e)
         {
+            // First line, before the timer-read early-outs: the meter's sampling
+            // cadence must not be coupled to GetTimerFrames() succeeding.
+            _onPollTick?.Invoke();
+
             List<TimerFrame> frames;
             try { frames = ActGlobals.oFormSpellTimers.GetTimerFrames(); }
             catch { return; }
