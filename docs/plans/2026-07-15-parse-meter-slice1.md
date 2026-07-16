@@ -189,7 +189,7 @@ public class MetricRegistryTests
     [InlineData(null)]
     [InlineData("")]
     [InlineData("no-such-metric")]      // file from a future version
-    public void Unknown_or_missing_key_resolves_to_the_dps_default(string key)
+    public void Unknown_or_missing_key_resolves_to_the_dps_default(string? key)
         => Assert.Equal(MetricRegistry.DefaultKey, MetricRegistry.Resolve(key).Key);
 
     [Fact]
@@ -693,9 +693,9 @@ git commit -m "Core: MeterEngine — wall-clock rates, freeze-at-final branch, s
 **Interfaces:**
 - Consumes: existing `ClickThrough.Set(Window, bool)`, `GrowDirection`.
 - Produces (Task 6 relies on): `OverlayWindowBase : Window` with protected ctor `(double left, double top, GrowDirection grow, Action<double,double> persistPosition, bool clickThroughBaseline)`, `public double AnchorY`, `public void SetGrowDirection(GrowDirection)`, `protected void BeginDragAndPersist()`, `protected void SetClickThrough(bool)`.
-- The duplicated grow/anchor/drag/persist block (identical in both timer windows today: `TimerListWindow.xaml.cs:22-23,29-44,47-93` ≈ `CenterZoneWindow.xaml.cs:27-101`) moves to the base **verbatim in logic and order**.
+- The duplicated members move to the base **verbatim in logic and order** — the moved set, present identically in both timer windows today: the `_persistPosition`/`_growDirection`/`_dragging` fields, the anchor-seeding ctor lines (`Left`/`Top` assignment + the click-through `SourceInitialized` hook + the `SizeChanged` subscription), `AnchorY`, `OnSizeChanged`, `SetGrowDirection`, and the drag-persist sequence inside `OnDragStart`. **Not** moved (they stay per-window): `SetMoveMode`, `SetStyle`, the move-chrome field/build, and each window's render method.
 
-No Mac-runnable test exists for plugin code — the gates are (a) code moves verbatim, (b) the Task-5 CI checkpoint compiles it, (c) the merge-gate timer-regression pass.
+No Mac-runnable test exists for plugin code — the gates are (a) code moves verbatim, (b) the Task-5 CI checkpoint compiles it, (c) the merge-gate timer-regression pass. **Known residual after a green CI:** the XAML roots re-parent onto an abstract base with no parameterless ctor; the markup compile is what CI arbitrates, but a BAML-*load*-time failure would only surface in the live script — if the windows fail to construct on the box despite green CI, the fallback is composition (move the base's behaviors into a controller object attached from each window's ctor; same extraction, different mechanics).
 
 - [ ] **Step 1: Create the base class**
 
@@ -1154,7 +1154,7 @@ Expected: verify-only CI green (Core tests + WPF plugin compile + artifact). If 
 
 **Interfaces:**
 - Consumes: Task 4's `OverlayWindowBase`, Task 5's `BarRowVisual`, Task 2's `MeterFrame`/`MeterRow`, `MetricRegistry.All`, `VisualStyle`, `OverlayTheme`.
-- Produces (Task 8 relies on): `MeterWindow` ctor `(double left, double top, VisualStyle style, string metricKey, bool locked, Action<double,double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)`; `void Render(MeterFrame frame)` (dispatcher thread); `void SetLocked(bool)`.
+- Produces (Task 8 relies on): `MeterWindow` ctor `(double left, double top, VisualStyle style, string metricKey, bool locked, Action<double,double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)`; `void Render(MeterFrame frame)` (dispatcher thread). Lock state is menu-owned: the window self-syncs on click and reports via `onLockChanged` — no external setter exists (YAGNI; slice 1 has no other lock surface).
 
 - [ ] **Step 1: The meter row visual**
 
@@ -1324,6 +1324,7 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonDown += OnHeaderDrag;
 
             _menu = BuildMenu();
+            SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
             header.ContextMenu = _menu;   // WPF opens it on right-click
 
             _rowsPanel = new StackPanel();
@@ -1369,8 +1370,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _onLockChanged(_locked);
             };
             menu.Items.Add(lockItem);
-            SyncMenuChecks();
-            return menu;
+            return menu;   // no sync here — _menu is still null until the ctor assigns it
         }
 
         private void SyncMenuChecks()
@@ -1386,12 +1386,6 @@ namespace Eq2Auras.Plugin.Overlay
         {
             if (_locked) return;   // lock freezes geometry ONLY — the menu keeps working
             BeginDragAndPersist();
-        }
-
-        public void SetLocked(bool locked)
-        {
-            _locked = locked;
-            SyncMenuChecks();
         }
 
         /// Called on the overlay's dispatcher thread with a fresh frame. Slot-keyed
@@ -1456,11 +1450,13 @@ In `TimerProbe.cs`: add a field `private readonly Action _onPollTick;`, extend t
             Action<List<TimerReading>> onReadings, Action onPollTick = null)
 ```
 
-assign `_onPollTick = onPollTick;`, and add as the **last line** of `OnPoll` (after `_onReadings(readings);`):
+assign `_onPollTick = onPollTick;`, and add as the **first line** of `OnPoll` (before the `GetTimerFrames()` try/catch):
 
 ```csharp
             _onPollTick?.Invoke();
 ```
+
+First-line placement is deliberate: `OnPoll` has two early-outs (a throwing `GetTimerFrames()` and a null frame list), and the meter's sampling cadence must not be coupled to the timer read succeeding.
 
 - [ ] **Step 2: The encounter adapter**
 
@@ -1518,7 +1514,7 @@ namespace Eq2Auras.Plugin.Act
                         {
                             Exists = true,
                             Active = active,
-                            Title = encounter.GetStrongestEnemy(),
+                            Title = encounter.GetStrongestEnemy(ActGlobals.charName),
                             // Degenerate pre-first-swing polls (StartTime == DateTime.MaxValue)
                             // produce a hugely negative estimate here — MeterEngine clamps.
                             LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,
@@ -1549,7 +1545,7 @@ namespace Eq2Auras.Plugin.Act
 }
 ```
 
-**Signature notes for the implementer** (the docs record these shapes; CI is the arbiter — if it flags a mismatch, adapt the call site, not the design): `GetStrongestEnemy()` is recorded no-arg in `docs/act-parse-engine.md`; `EncounterData.Duration` is expected `TimeSpan` (hence `.TotalSeconds`) — if it compiles as seconds directly, drop the property access; `CombatantData.Damage`/`Healed` convert implicitly to `long` whether the property is `long` or `Dnum`.
+**Signature notes for the implementer** (CI is the arbiter — if it flags a mismatch, adapt the call site, not the design): `GetStrongestEnemy(string)` is the only overload — `ActGlobals.charName` is the argument ACT's own combat-end finalize passes, which is exactly the you-relative perspective the title wants; `EncounterData.Duration` is `TimeSpan` (hence `.TotalSeconds`); `CombatantData.Damage`/`Healed` convert implicitly to `long` whether the property is `long` or `Dnum`.
 
 - [ ] **Step 3: Commit**
 
