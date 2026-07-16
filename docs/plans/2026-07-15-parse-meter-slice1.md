@@ -406,7 +406,7 @@ git commit -m "Core: meter DTOs, K/M/B formatter, flat metric registry (encdps/e
 
 **Interfaces:**
 - Consumes: Task 2's DTOs + registry; existing `PaletteAssigner` (`Eq2Auras.Core.Timers`).
-- Produces: `MeterEngine` (stateful — owns its own `PaletteAssigner` instance, NOT the timer module's) with `MeterFrame Tick(EncounterReading encounter, List<CombatantReading> allies, string metricKey, IReadOnlyList<int> paletteArgb)`. `MeterEngine.MaxRows == 10`. Task 8 constructs one and calls `Tick` per sample.
+- Produces: `MeterEngine` (stateful — owns its own `PaletteAssigner` instance, NOT the timer module's) with `MeterFrame Tick(EncounterReading encounter, List<CombatantReading> allies, string metricKey, IReadOnlyList<int> paletteArgb)`. The frame carries **every ally, sorted — no truncation**: visibility is the window's scroll concern (SPEC Part III §The meter window — Scrolling), never the data's. Task 8 constructs one and calls `Tick` per sample.
 
 - [ ] **Step 1: Write the failing tests**
 
@@ -495,7 +495,7 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void Sorts_descending_with_ordinal_name_tiebreak_and_truncates_to_ten()
+    public void Sorts_descending_with_ordinal_name_tiebreak_and_keeps_every_ally()
     {
         var allies = new List<CombatantReading>();
         for (int i = 0; i < 12; i++) allies.Add(Ally("P" + i.ToString("00"), damage: 1000 - i * 50));
@@ -503,8 +503,8 @@ public class MeterEngineTests
 
         var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette);
 
-        Assert.Equal(MeterEngine.MaxRows, frame.Rows.Count);          // 13 allies -> 10 rows
-        Assert.Equal("Aardvark", frame.Rows[0].Name);                 // tie -> ordinal ascending
+        Assert.Equal(13, frame.Rows.Count);              // NO truncation — the window scrolls (SPEC Part III)
+        Assert.Equal("Aardvark", frame.Rows[0].Name);    // tie -> ordinal ascending
         Assert.Equal("P00", frame.Rows[1].Name);
         Assert.True(frame.Rows[1].Value >= frame.Rows[2].Value);
     }
@@ -525,14 +525,14 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void Truncation_never_changes_percents_or_the_header_total()
+    public void Percents_and_the_header_total_cover_the_full_ally_set()
     {
         var allies = new List<CombatantReading>();
         for (int i = 0; i < 20; i++) allies.Add(Ally("P" + i.ToString("00"), damage: 100));
 
         var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette);
 
-        Assert.Equal(10, frame.Rows.Count);
+        Assert.Equal(20, frame.Rows.Count);                // every ally in the frame
         Assert.Equal(0.05, frame.Rows[0].Percent, 3);      // 1/20 of the ALL-allies total
         Assert.Equal("200", frame.TotalText);              // all 20 counted: 2000/10s
     }
@@ -601,8 +601,6 @@ namespace Eq2Auras.Core.Meter
     /// (SPEC Part III §The meter window — Rows).
     public sealed class MeterEngine
     {
-        public const int MaxRows = 10;   // slice-1 baked constant (SPEC Part III §The metric registry)
-
         private readonly PaletteAssigner _palette = new PaletteAssigner();
 
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> allies,
@@ -638,11 +636,12 @@ namespace Eq2Auras.Core.Meter
                 ? b.Value.CompareTo(a.Value)
                 : string.CompareOrdinal(a.Name, b.Name));   // deterministic tie-break, never epsilon-seeding
             double top = rows.Count > 0 ? rows[0].Value : 0;
-            if (rows.Count > MaxRows) rows.RemoveRange(MaxRows, rows.Count - MaxRows);
+            // NO truncation: every ally travels; visibility is the window's scroll
+            // concern (SPEC Part III §The meter window — Scrolling), never the data's.
 
             foreach (var row in rows)
             {
-                row.Percent = total > 0 ? row.Value / total : 0;     // share of ALL allies — truncation never changes it
+                row.Percent = total > 0 ? row.Value / total : 0;     // share of ALL allies
                 row.FormattedPercent = Math.Round(row.Percent * 100) + "%";
                 row.BarFraction = top > 0 ? row.Value / top : 0;     // rank 1 = full bar
                 row.FormattedValue = metric.Format(row.Value);
@@ -678,7 +677,7 @@ Expected: PASS (all).
 
 ```bash
 git add src/eq2auras.Core/Meter/MeterEngine.cs tests/eq2auras.Core.Tests/MeterEngineTests.cs
-git commit -m "Core: MeterEngine — wall-clock rates, freeze-at-final branch, sort/tiebreak/truncate, own palette map"
+git commit -m "Core: MeterEngine — wall-clock rates, freeze-at-final branch, sort/tiebreak over the full ally set, own palette map"
 ```
 
 ---
@@ -1154,7 +1153,7 @@ Expected: verify-only CI green (Core tests + WPF plugin compile + artifact). If 
 
 **Interfaces:**
 - Consumes: Task 4's `OverlayWindowBase`, Task 5's `BarRowVisual`, Task 2's `MeterFrame`/`MeterRow`, `MetricRegistry.All`, `VisualStyle`, `OverlayTheme`.
-- Produces (Task 8 relies on): `MeterWindow` ctor `(double left, double top, VisualStyle style, string metricKey, bool locked, Action<double,double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)`; `void Render(MeterFrame frame)` (dispatcher thread). Lock state is menu-owned: the window self-syncs on click and reports via `onLockChanged` — no external setter exists (YAGNI; slice 1 has no other lock surface).
+- Produces (Task 8 relies on): `MeterWindow` ctor `(double left, double top, VisualStyle style, string metricKey, bool locked, Action<double,double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)`; `void Render(MeterFrame frame)` (dispatcher thread). Lock state is menu-owned: the window self-syncs on click and reports via `onLockChanged` — no external setter exists (YAGNI; slice 1 has no other lock surface). Scrolling is fully internal (`VisibleRows` slots + a transient wheel offset over the frame's full row list) — nothing for Task 8 to wire.
 
 - [ ] **Step 1: The meter row visual**
 
@@ -1240,15 +1239,20 @@ using Eq2Auras.Core.Meter;
 namespace Eq2Auras.Plugin.Overlay
 {
     /// The Parse Meter window (SPEC Part III §The meter window): INTERACTIVE — never
-    /// click-through — with the header as the whole interaction surface: drag handle,
+    /// click-through — with the header as the interaction surface: drag handle,
     /// state display ((duration) title — metric | total), and right-click menu
     /// (metric picker + lock). Lock freezes geometry only; content stays clickable.
-    /// The timer module's move mode does not govern this window.
+    /// The mouse wheel scrolls the rank window (Details' model — no scrollbar chrome;
+    /// works while locked: scrolling is content, not geometry). The timer module's
+    /// move mode does not govern this window.
     public sealed class MeterWindow : OverlayWindowBase
     {
+        public const int VisibleRows = 10;   // view constant: slot count; the frame always carries every ally
         private const double WindowSlack = 10;
 
         private readonly List<MeterRowVisual> _slots = new List<MeterRowVisual>();
+        private MeterFrame _lastFrame;
+        private int _scrollOffset;           // transient view state — never persisted, clamps to the data
         private readonly VisualStyle _style;
         private readonly Action<string> _onMetricPicked;
         private readonly Action<bool> _onLockChanged;
@@ -1322,6 +1326,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Child = headerGrid
             };
             header.MouseLeftButtonDown += OnHeaderDrag;
+            MouseWheel += OnScroll;   // window-wide: header and rows both scroll
 
             _menu = BuildMenu();
             SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
@@ -1388,32 +1393,53 @@ namespace Eq2Auras.Plugin.Overlay
             BeginDragAndPersist();
         }
 
+        /// One wheel notch = one rank. No lock check — scrolling is content
+        /// interaction, same side of the lock axis as the menu (SPEC Part III).
+        private void OnScroll(object sender, MouseWheelEventArgs e)
+        {
+            if (_lastFrame == null) return;
+            _scrollOffset += e.Delta < 0 ? 1 : -1;
+            RenderSlots();   // immediate re-bind from the retained frame — no waiting for the next poll
+        }
+
         /// Called on the overlay's dispatcher thread with a fresh frame. Slot-keyed
-        /// pool: visual i always shows rank i; grow with fade-in, shrink with fade-out.
+        /// pool: visual i shows rank (_scrollOffset + i); grow with fade-in, shrink
+        /// with fade-out; the offset clamps to the data on every render.
         public void Render(MeterFrame frame)
         {
+            _lastFrame = frame;
             _durationText.Text = "(" + frame.DurationText + ") ";
             _titleText.Text = frame.Title;
             _metricText.Text = (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel;
             _totalText.Text = frame.TotalText;
 
-            while (_slots.Count < frame.Rows.Count)
+            RenderSlots();
+        }
+
+        private void RenderSlots()
+        {
+            var rows = _lastFrame.Rows;
+            int total = rows.Count;
+            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - VisibleRows));   // <= 10 allies -> always 0
+            int visible = Math.Min(VisibleRows, total);
+
+            while (_slots.Count < visible)
             {
                 var slot = new MeterRowVisual(_style);
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
             }
-            while (_slots.Count > frame.Rows.Count)
+            while (_slots.Count > visible)
             {
                 var last = _slots[_slots.Count - 1];
                 _slots.RemoveAt(_slots.Count - 1);
                 last.FadeOutAndRemove(_rowsPanel);
             }
 
-            for (int i = 0; i < frame.Rows.Count; i++)
+            for (int i = 0; i < visible; i++)
             {
-                _slots[i].Update(frame.Rows[i]);
+                _slots[i].Update(rows[_scrollOffset + i]);
             }
         }
     }
@@ -1426,7 +1452,7 @@ namespace Eq2Auras.Plugin.Overlay
 
 ```bash
 git add src/eq2auras.Plugin/Overlay/MeterRowVisual.cs src/eq2auras.Plugin/Overlay/MeterWindow.cs
-git commit -m "Plugin: MeterWindow (interactive header/menu/lock) + MeterRowVisual on the shared primitives"
+git commit -m "Plugin: MeterWindow (interactive header/menu/lock, wheel-scrolled rank window) + MeterRowVisual on the shared primitives"
 ```
 
 ---
@@ -1759,7 +1785,7 @@ Concrete "do X, expect Y" — meter verification first, then the timer-regressio
 6. Let combat end → numbers freeze at final totals (the rate may step up slightly at the freeze — the finalized duration excludes trailing heals; **expected**, not a bug). Frozen totals stay while idle.
 7. Zone → the frozen totals **remain** displayed; first fight in the new zone replaces them (SPEC Part III lifecycle).
 8. `/act clear` (or the Clear All button) → the meter empties: no rows, header shows `(0:00) DPS | 0` (no title, so no ` — ` separator).
-9. Group/raid opportunity: multiple allies → rows sort live, an overtake reads via the converging bar widths (no row sliding), ally colors stable across a re-pull.
+9. Group/raid opportunity: multiple allies → rows sort live, an overtake reads via the converging bar widths (no row sliding), ally colors stable across a re-pull. With **more than 10 allies**: exactly 10 rows show; mouse-wheel down walks deeper ranks and clamps at the bottom; wheel up returns and clamps at rank 1; **scrolling still works while locked**; percents and the header total are unchanged by scrolling (they cover the whole raid).
 10. Uncheck the meter checkbox → window disappears live. Disable the plugin entirely → no leaked meter window.
 
 **Timer-regression pass (the extractions must be invisible):**
@@ -1774,6 +1800,6 @@ Concrete "do X, expect Y" — meter verification first, then the timer-regressio
 
 ## Self-review notes (run before presenting)
 
-- Spec coverage: Part III §data rule → Task 7; §segments/lifecycle → Tasks 3+7 (Exists/Active branches); §wall clock → Task 3; §registry/two-tier → Tasks 2–3; §window/header/menu/lock → Task 6; §row animation → Tasks 5–6; §shared substrate + both-brackets guardrail → Tasks 4–5; §assembly split/polling/settings/teardown → Tasks 1, 7, 8; §slice map deferred list → nothing here builds it (YAGNI held); plan-watch items 1–3 → Task 3 tests + merge-gate script.
+- Spec coverage: Part III §data rule → Task 7; §segments/lifecycle → Tasks 3+7 (Exists/Active branches); §wall clock → Task 3; §registry/two-tier → Tasks 2–3; §window/header/menu/lock/scrolling → Task 6 (rank window: `VisibleRows` slots + wheel offset; frame carries every ally per Task 3); §row animation → Tasks 5–6; §shared substrate + both-brackets guardrail → Tasks 4–5; §assembly split/polling/settings/teardown → Tasks 1, 7, 8; §slice map deferred list → nothing here builds it (YAGNI held); plan-watch items 1–3 → Task 3 tests + merge-gate script.
 - The `Settings.ToJson()` legacy-mirror path and `Normalize()` clamps are untouched — old settings files round-trip with the new `meter` section added.
 - Plugin code cannot be tested on the Mac: the two CI checkpoints (Tasks 5, 8) are the compile gates; the merge-gate script is the behavior gate.
