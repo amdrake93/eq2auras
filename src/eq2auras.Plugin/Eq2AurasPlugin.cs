@@ -44,8 +44,8 @@ namespace Eq2Auras.Plugin
             _meterEngine = new MeterEngine();
             _encounterProbe = new EncounterProbe(
                 () => _settings.Meter.Enabled,
-                (encounter, allies) => _overlay.UpdateMeterFrame(
-                    _meterEngine.Tick(encounter, allies, _settings.Meter.MetricKey, _settings.PaletteArgb)));
+                (encounter, combatants) => _overlay.UpdateMeterFrame(
+                    _meterEngine.Tick(encounter, combatants, _settings.Meter.MetricKey, _settings.PaletteArgb)));
             _probe = new TimerProbe(_log,
                 () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(

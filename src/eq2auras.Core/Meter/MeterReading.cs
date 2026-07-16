@@ -1,14 +1,16 @@
 namespace Eq2Auras.Core.Meter
 {
-    /// One ally's per-poll totals, snapshotted from ACT's computed model under the
-    /// data lock (SPEC Part III §The one data rule): corrections already applied,
-    /// no ACT types, no WPF types.
+    /// One combatant's per-poll totals, snapshotted from ACT's computed model under
+    /// the data lock (SPEC Part III §The one data rule): corrections already applied,
+    /// no ACT types, no WPF types. Carries every combatant (allies and not — see
+    /// IsAlly); the mini-parse filter in MeterEngine decides visibility.
     public sealed class CombatantReading
     {
         public string Name { get; set; }
         public long Damage { get; set; }
         public long Healed { get; set; }      // includes wards — the EQ2 parser folds absorbs in
         public int CureDispels { get; set; }
+        public bool IsAlly { get; set; }      // was this combatant in ACT's GetAllies()? — drives the mini-parse ShowOnlyAllies filter
     }
 
     /// The current segment's per-poll identity/duration. Both duration branches

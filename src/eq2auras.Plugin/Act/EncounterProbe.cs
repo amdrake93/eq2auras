@@ -8,9 +8,10 @@ namespace Eq2Auras.Plugin.Act
     /// The encounter adapter (SPEC Part III §Assembly split & polling): samples ACT's
     /// computed combat model on a divider of the existing 100 ms poll tick — briefly
     /// under AfterCombatActionDataLock, snapshot into Core DTOs, release, hand off.
-    /// Reads only the cheap shapes: per-combatant totals, the ally list, the live
-    /// title, StartTime (live branch) / Duration (frozen branch). Never holds an
-    /// EncounterData reference across ticks; never touches EncId/GetHashCode.
+    /// Reads only the cheap shapes: every combatant's totals + its ally flag (from
+    /// GetAllies membership), the live title, StartTime (live branch) / Duration
+    /// (frozen branch). Never holds an EncounterData reference across ticks; never
+    /// touches EncId/GetHashCode.
     public sealed class EncounterProbe
     {
         public const int SampleEveryNthTick = 3;   // 100 ms tick -> ~300 ms effective (SPEC: ~2-4 Hz)
@@ -32,7 +33,7 @@ namespace Eq2Auras.Plugin.Act
             if (!_enabled()) return;
 
             EncounterReading encounterReading;
-            var allies = new List<CombatantReading>();
+            var combatants = new List<CombatantReading>();
             try
             {
                 var form = ActGlobals.oFormActMain;
@@ -57,14 +58,22 @@ namespace Eq2Auras.Plugin.Act
                             FinalDurationSeconds = active ? 0 : encounter.Duration.TotalSeconds,
                         };
 
-                        foreach (var ally in encounter.GetAllies())
+                        // Mirror ACT's mini parse: base set is EVERY combatant
+                        // (Items.Values); the ally set only *filters* it, in Core,
+                        // via the same ShowOnlyAllies-with-escape-hatch rule ACT uses
+                        // (SPEC Part III §Displayed combatants). GetAllies() is
+                        // you-relative, so an un-linked groupmate isn't an ally yet —
+                        // that's the flag Core keys the filter on, not who we include.
+                        var allySet = new HashSet<CombatantData>(encounter.GetAllies());
+                        foreach (var combatant in encounter.Items.Values)
                         {
-                            allies.Add(new CombatantReading
+                            combatants.Add(new CombatantReading
                             {
-                                Name = ally.Name,
-                                Damage = ally.Damage,
-                                Healed = ally.Healed,
-                                CureDispels = ally.CureDispels,
+                                Name = combatant.Name,
+                                Damage = combatant.Damage,
+                                Healed = combatant.Healed,
+                                CureDispels = combatant.CureDispels,
+                                IsAlly = allySet.Contains(combatant),
                             });
                         }
                     }
@@ -75,7 +84,7 @@ namespace Eq2Auras.Plugin.Act
                 return;   // same defensive stance as TimerProbe's GetTimerFrames read
             }
 
-            _onSample(encounterReading, allies);   // outside the lock — hold it briefly
+            _onSample(encounterReading, combatants);   // outside the lock — hold it briefly
         }
     }
 }
