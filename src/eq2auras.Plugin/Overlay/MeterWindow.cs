@@ -84,7 +84,8 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 Orientation = Orientation.Horizontal,
                 HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(10 * hr, 0, 0, 0)   // breathing room between the metric label and the total
             };
             rightPanel.Children.Add(_totalText);
             rightPanel.Children.Add(affordance);
