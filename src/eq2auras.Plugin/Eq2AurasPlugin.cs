@@ -4,6 +4,7 @@ using System.Reflection;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
 using Eq2Auras.Core.Config;
+using Eq2Auras.Core.Meter;
 using Eq2Auras.Core.Timers;
 using Eq2Auras.Plugin.Act;
 using Eq2Auras.Plugin.Diagnostics;
@@ -22,6 +23,8 @@ namespace Eq2Auras.Plugin
         private TimerProbe _probe;
         private OverlayHost _overlay;
         private OverlayEngine _engine;
+        private MeterEngine _meterEngine;
+        private EncounterProbe _encounterProbe;
         private Settings _settings;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
@@ -38,10 +41,16 @@ namespace Eq2Auras.Plugin
             _overlay = new OverlayHost(_settings);
             _overlay.Start();
             _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
+            _meterEngine = new MeterEngine();
+            _encounterProbe = new EncounterProbe(
+                () => _settings.Meter.Enabled,
+                (encounter, allies) => _overlay.UpdateMeterFrame(
+                    _meterEngine.Tick(encounter, allies, _settings.Meter.MetricKey, _settings.PaletteArgb)));
             _probe = new TimerProbe(_log,
                 () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(
-                    _engine.Tick(readings)));
+                    _engine.Tick(readings)),
+                onPollTick: () => _encounterProbe.OnTick());
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);
@@ -66,6 +75,8 @@ namespace Eq2Auras.Plugin
         {
             _probe?.Dispose();
             _probe = null;
+            _encounterProbe = null;   // no timers/subscriptions of its own — driven by the probe's tick
+            _meterEngine = null;
             _engine = null;
             _overlay?.Dispose();
             _overlay = null;
@@ -123,6 +134,18 @@ namespace Eq2Auras.Plugin
             debugBox.CheckedChanged += (s, e) =>
                 SettingsStore.Update(_settings, () => _settings.DebugLogging = debugBox.Checked);
 
+            var meterBox = new CheckBox
+            {
+                Text = "Parse Meter (interactive DPS window)",
+                Left = 10, Top = 730, Width = 280,
+                Checked = _settings.Meter.Enabled
+            };
+            meterBox.CheckedChanged += (s, e) =>
+            {
+                SettingsStore.Update(_settings, () => _settings.Meter.Enabled = meterBox.Checked);
+                _overlay.SetMeterEnabled(meterBox.Checked);
+            };
+
             tab.Controls.Add(updateButton);
             tab.Controls.Add(betaCheck);
             tab.Controls.Add(_updateNotice);
@@ -132,6 +155,7 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(_paletteRow);
             tab.Controls.Add(moveBox);
             tab.Controls.Add(debugBox);
+            tab.Controls.Add(meterBox);
         }
 
         /// One labeled control set per group (SPEC §Configuration — no group selector).

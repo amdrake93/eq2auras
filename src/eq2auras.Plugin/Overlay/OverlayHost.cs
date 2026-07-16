@@ -4,6 +4,7 @@ using System.Threading;
 using System.Windows;
 using System.Windows.Threading;
 using Eq2Auras.Core.Config;
+using Eq2Auras.Core.Meter;
 using Eq2Auras.Core.Timers;
 using Eq2Auras.Plugin.SelfUpdate;
 
@@ -20,6 +21,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly List<TimerListWindow> _listWindows = new List<TimerListWindow>();
         private readonly List<CenterZoneWindow> _centerWindows = new List<CenterZoneWindow>();
         private GridOverlayWindow _grid;
+        private MeterWindow _meterWindow;
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -39,6 +41,7 @@ namespace Eq2Auras.Plugin.Overlay
                     CreatePanelWindows(i, _settings.Panels[i]);
                 }
                 _grid = new GridOverlayWindow();   // hidden until move mode
+                if (_settings.Meter.Enabled) CreateMeterWindow();
                 ready.Set();
                 Dispatcher.Run();
             });
@@ -85,6 +88,47 @@ namespace Eq2Auras.Plugin.Overlay
                 Font = panel.FontFamily != null ? new System.Windows.Media.FontFamily(panel.FontFamily) : null,
                 BaseSize = panel.FontBaseSize ?? 13.0
             };
+        }
+
+        private void CreateMeterWindow()
+        {
+            var style = new VisualStyle();   // slice 1: baked defaults matching the timer look (SPEC Part III §Settings)
+            var meter = _settings.Meter;
+            _meterWindow = new MeterWindow(
+                meter.Left ?? SystemParameters.PrimaryScreenWidth - style.RowWidth - 60,
+                meter.Top ?? 320,
+                style,
+                meter.MetricKey,
+                meter.Locked,
+                (left, top) => SettingsStore.Update(_settings, () => { meter.Left = left; meter.Top = top; }),
+                key => SettingsStore.Update(_settings, () => meter.MetricKey = key),
+                locked => SettingsStore.Update(_settings, () => meter.Locked = locked));
+            _meterWindow.Show();
+        }
+
+        /// Tab toggle, applied live. The meter window is NOT part of move mode:
+        /// its interactivity makes a separate unlock unnecessary (SPEC Part III).
+        public void SetMeterEnabled(bool enabled)
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                if (enabled && _meterWindow == null) CreateMeterWindow();
+                else if (!enabled && _meterWindow != null)
+                {
+                    _meterWindow.Close();
+                    _meterWindow = null;
+                }
+            }));
+        }
+
+        /// Callable from any thread (the sample runs on ACT's UI thread).
+        public void UpdateMeterFrame(MeterFrame frame)
+        {
+            var dispatcher = _dispatcher;
+            if (dispatcher == null) return;
+            dispatcher.BeginInvoke((Action)(() => _meterWindow?.Render(frame)));
         }
 
         /// Tab knob changed: each window converts-and-persists via SetGrowDirection.
@@ -192,6 +236,8 @@ namespace Eq2Auras.Plugin.Overlay
                 _listWindows.Clear();
                 foreach (var window in _centerWindows) window.Close();
                 _centerWindows.Clear();
+                _meterWindow?.Close();
+                _meterWindow = null;
                 _grid?.Close();
                 _grid = null;
             });

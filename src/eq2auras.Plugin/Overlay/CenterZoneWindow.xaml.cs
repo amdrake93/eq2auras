@@ -9,7 +9,7 @@ using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Overlay
 {
-    public partial class CenterZoneWindow : Window
+    public partial class CenterZoneWindow : OverlayWindowBase
     {
         private const double BaseCenterWidth = 200;
 
@@ -25,60 +25,26 @@ namespace Eq2Auras.Plugin.Overlay
         // and pulses run continuously at display refresh.
         private readonly Dictionary<string, RetainedElement> _elements = new Dictionary<string, RetainedElement>();
         private readonly Grid _moveChrome;
-        private readonly Action<double, double> _persistPosition;
         private VisualStyle _style;
-        private GrowDirection _growDirection;
-        private bool _dragging;
 
         public CenterZoneWindow(string moveLabel, double left, double top, VisualStyle style,
             GrowDirection grow, Action<double, double> persistPosition)
+            : base(left, top, grow, persistPosition, clickThroughBaseline: true)
         {
             InitializeComponent();
-            _growDirection = grow;
-            // Initial Top = the stored ANCHOR for both directions: the first
-            // SizeChanged compensates the full initial height under Up, landing the
-            // bottom edge on the anchor (SPEC §Window growth).
-            Left = left;
-            Top = top;
             _style = style;
             Width = style.RadialSize * BaseCenterWidth / VisualStyle.DefaultRadialSize;
-            _persistPosition = persistPosition;
 
             _moveChrome = MoveChrome.Build(moveLabel);
             RootGrid.Children.Add(_moveChrome);
 
-            SourceInitialized += (s, e) => ClickThrough.Set(this, true);
             MouseLeftButtonDown += OnDragStart;
-            SizeChanged += OnSizeChanged;
-        }
-
-        /// The persisted vertical coordinate (SPEC §Window growth): the edge that
-        /// doesn't move — top when growing down, bottom when growing up.
-        public double AnchorY => _growDirection == GrowDirection.Up ? Top + ActualHeight : Top;
-
-        private void OnSizeChanged(object sender, SizeChangedEventArgs e)
-        {
-            // Growing up = bottom edge anchored: compensate Top by the height delta.
-            // Suppressed mid-drag (DragMove owns Top then); drag-end persists whatever
-            // the user chose, which IS the reconciliation.
-            if (_growDirection != GrowDirection.Up || _dragging) return;
-            Top -= e.NewSize.Height - e.PreviousSize.Height;
-        }
-
-        /// Knob flip: converts and persists the anchored edge from the window's actual
-        /// on-screen geometry — even from a null stored position. The knob changes how
-        /// the window GROWS, never where it IS (SPEC §Window growth).
-        public void SetGrowDirection(GrowDirection direction)
-        {
-            if (direction == _growDirection) return;
-            _growDirection = direction;
-            _persistPosition(Left, AnchorY);
         }
 
         public void SetMoveMode(bool moving)
         {
             _moveChrome.Visibility = moving ? Visibility.Visible : Visibility.Collapsed;
-            ClickThrough.Set(this, !moving);
+            SetClickThrough(!moving);
         }
 
         /// Knob change (font/dimensions): drop the retained visuals once; the next tick
@@ -94,10 +60,7 @@ namespace Eq2Auras.Plugin.Overlay
         private void OnDragStart(object sender, MouseButtonEventArgs e)
         {
             if (_moveChrome.Visibility != Visibility.Visible) return;
-            _dragging = true;
-            DragMove();
-            _dragging = false;
-            _persistPosition(Left, AnchorY);     // anchored edge, not raw Top
+            BeginDragAndPersist();
         }
 
         /// Called on the overlay's dispatcher thread with a fresh snapshot.
