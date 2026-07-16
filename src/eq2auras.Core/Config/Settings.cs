@@ -50,6 +50,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "panels")]
         public List<PanelSettings> Panels { get; set; } = DefaultPanels();
 
+        [DataMember(Name = "meter")]
+        public MeterSettings Meter { get; set; } = new MeterSettings();
+
         private static List<PanelSettings> DefaultPanels()
         {
             var panels = new List<PanelSettings>();
@@ -80,6 +83,8 @@ namespace Eq2Auras.Core.Config
 
             if (PaletteArgb == null || PaletteArgb.Count == 0) PaletteArgb = DefaultPalette();
             if (PaletteArgb.Count > MaxPaletteSize) PaletteArgb = PaletteArgb.Take(MaxPaletteSize).ToList();
+
+            if (Meter == null) Meter = new MeterSettings();   // DCJS skips initializers
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.
