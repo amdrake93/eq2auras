@@ -1,8 +1,8 @@
 # eq2auras — Design Spec
 
-**A personal ACT overlay suite for EverQuest 2.** This document is the source of truth for what eq2auras is and how it works. It is organized as: the suite vision and architecture (Part I), then the Phase 1 feature — the Timer Overlay — in full (Part II), then cross-cutting concerns, unknowns, and the roadmap (Part III).
+**A personal ACT overlay suite for EverQuest 2.** This document is the source of truth for what eq2auras is and how it works. It is organized as: the suite vision and architecture (Part I), then the Phase 1 feature — the Timer Overlay — in full (Part II), then the Phase 2 feature — the Parse Meter — (Part III), then cross-cutting concerns, unknowns, and the roadmap (Part IV).
 
-Status: **live and iterating.** The timer overlay is shipped and guild-verified through slice 3 (escalation, knob model, palette colors). Present-tense descriptions below describe the system as designed; anything not yet built is scoped to a phase or the roadmap.
+Status: **live and iterating.** The timer overlay is shipped and guild-verified through slice 3 (escalation, knob model, palette colors). The Parse Meter (Part III) is designed and in development. Present-tense descriptions below describe the system as designed; anything not yet built is scoped to a phase or the roadmap.
 
 ---
 
@@ -21,15 +21,15 @@ eq2auras is an **ACT plugin that reads ACT's live data and renders its own UI**.
 The suite is deliberately layered so that each new overlay idea is a module on common plumbing, not a new project:
 
 - **Core (reusable, feature-agnostic):**
-  - Overlay window framework — a transparent, top-most, click-through window.
+  - Overlay window framework — a transparent, top-most window whose interaction is **parameterized per module by three orthogonal axes** (defined in §The meter window, Part III): click-through baseline (timer windows: through; meter windows: interactive), locked (geometry frozen), and interactive content (clickable menus/rows). "Click-through" is a per-window-type property, not a framework constant.
   - The render loop.
-  - Rendering primitives — bars, text, radial/pie, free positioning — and the escalation/conditions engine that maps *state → appearance*.
+  - Rendering primitives — the **configurable row/bar primitive** (shared by timer rows and meter rows — §The shared rendering substrate, Part III), text, radial/pie, free positioning — and the escalation/conditions engine that maps *state → appearance*.
   - Configuration.
   - Diagnostic logging.
-- **ACT data adapters (feature-specific, thin):** small layers that pull from ACT and normalize into the core's model. The *timer adapter* (Phase 1) reads `FormSpellTimers.GetTimerFrames()`; a future *encounter adapter* reads combatant/DPS data.
+- **ACT data adapters (feature-specific, thin):** small layers that pull from ACT and normalize into the core's model. The *timer adapter* (Phase 1) reads `FormSpellTimers.GetTimerFrames()`; the *encounter adapter* (Phase 2) reads combatant/encounter data from ACT's live parse model.
 - **Feature modules:** built on the core.
   - **Timer Overlay** — Phase 1 (this spec, Part II).
-  - **Parse Meter** — future (replacement for ACT's "mini parse" names/DPS window). Different data source, same core plumbing — this module is the reason the core is kept feature-agnostic.
+  - **Parse Meter** — Phase 2 (this spec, Part III): replacement for ACT's "mini parse" names/DPS window. Different data source, same core plumbing — this module is the reason the core is kept feature-agnostic, and its construction is what drives the timer/meter rendering convergence (§The shared rendering substrate).
 
 ### Packaging
 
@@ -245,11 +245,135 @@ Each panel carries a font knob applying to both of its windows: `FontFamily` (an
 
 ### Explicitly out of scope for Phase 1
 
-The configuration editor; per-timer / per-category customization; import/export sharing strings; element types beyond bar + radial; game icons/art; reading the combat log directly; group add/remove UI and non-panel routing sources (two ACT-panel-fed groups ship — §Timer groups); the Parse Meter module. All are later phases on the same core.
+The configuration editor; per-timer / per-category customization; import/export sharing strings; element types beyond bar + radial; game icons/art; reading the combat log directly; group add/remove UI and non-panel routing sources (two ACT-panel-fed groups ship — §Timer groups); the Parse Meter module (now Phase 2 — Part III). All are later phases on the same core.
 
 ---
 
-## Part III — Cross-cutting
+## Part III — Phase 2: The Parse Meter
+
+### Goal
+
+Replace ACT's "mini parse" window with a **configurable, interactive damage/healing meter** — Details!-class display quality over ACT's parse data. The design inputs are two ground-truth docs, read before any of this was decided: `docs/act-parse-engine.md` (ACT's combat-data pipeline, decompiled) and `docs/details-addon-reference.md` (the display-architecture gold standard, read from source). Where this Part states an ACT engine fact without argument, that doc is the evidence.
+
+The meter is a **module in the same plugin** (one DLL, own tab toggle — §Packaging), on the same Core. It ships in slices like the timer overlay did; **slice 1 is a groundwork slice** — its success criterion is that the shapes below are correct to build on, not guild-facing polish.
+
+### The one data rule: ACT is the data layer, full stop
+
+The meter reads **ACT's computed combat model** (`CombatantData` / `EncounterData` properties) and never builds a parallel accumulator over raw swings. By the time a value lands in `CombatantData.Damage`, ACT's EQ2 parsing plugin has already applied every correction that makes the number right — ward-absorb recalculation, multi-type damage merging, pet self-hit dropping, rename/redirect fixes. Re-deriving any of that would re-litigate solved problems and take ages of field testing to get right; this is the parse-side expression of "ACT owns the data".
+
+Consequences the design accepts knowingly:
+
+- **The metric vocabulary is bounded by what EQ2 logs.** There is no overheal metric because EQ2 logs only *effective* healing — the data structurally does not exist. The first filter for any proposed metric is "is this in the game's logs at all?", then "does ACT compute it?".
+- **Windowed/rolling metrics need no swing access either**: rolling DPS is a ring buffer of *polled cumulative totals* (Details samples actor totals the same way), added when a slice wants it.
+- **Drill-down stays possible without our own store**: ACT retains every raw `MasterSwing` under `AttackType.Items`; a future custom display iterates ACT's own retained swings under the lock.
+- **Pets display as ACT reports them** (full pet names as separate combatants); owner-merged attribution is a later slice applying the parser's own `petSplit` convention, never a parallel data path.
+
+**Read discipline** (from `docs/act-parse-engine.md` §Thread safety, non-negotiable): all reads happen **briefly under `ActGlobals.oFormActMain.AfterCombatActionDataLock`** — even property getters mutate cache fields — snapshot into Core DTOs, release, render only from the snapshot. Never hold `EncounterData` references across fights (ACT culls at every combat end — resolve by handle per poll, degrade to empty when gone); never touch `EncId`/`GetHashCode()` on a live encounter (O(all swings)).
+
+### Segments mirror ACT's encounter list
+
+A meter window shows one **segment** — a slice of combat time. The segment model is deliberately **ACT's own encounter list, nothing more** — anyone who reads ACT's encounter dropdown already understands our meter:
+
+| Segment | ACT source | Slice |
+|---|---|---|
+| **Current** | `ActiveZone.ActiveEncounter` — live during combat, final totals after | slice 1 (the only segment) |
+| **History** | `ZoneData.Items` — each past encounter, as ACT retains them | later slice |
+| **Overall** | `Items[0]`, ACT's live-fed zone "All" merge — exists only when ACT's "Zone All listing" option (`PopulateAll`) is on; the picker surfaces "unavailable" when off | later slice |
+
+We consciously give up Details-style overall *policy* (boss-only folds, per-named resets): ACT's overall means "everything since you zoned in", which is coherent and explainable. Policy folds are a roadmap knob if anyone asks. Adding a segment later is "new data source, same row pipeline" — the display never changes shape.
+
+**Current-segment lifecycle (slice 1):** the window renders `ActiveEncounter` whenever it exists — live while the encounter is active, **frozen at final totals** once combat ends (ACT drain-waits its swing queue before `OnCombatEnd`, so end-of-fight totals are complete), and empty at session start / after a zone change until the first fight. Slice 1 is **poll-only** — no ACT event subscriptions; activity, reset, and finalization all derive from the per-poll read (`InCombat` / `encounter.Active`), matching the timer module's poll-first precedent.
+
+### Rates come from our wall clock
+
+Every ACT `…DPS`/`…HPS` property divides by **log-time** duration, which freezes during log silence — the same lurch class the timer overlay works around. So rate metrics never read ACT's rate properties: they read the raw **total** (cheap, monotonic) and divide by the encounter's **estimated-live duration** — `ActGlobals.oFormActMain.LastEstimatedTime − encounter.StartTime` while the encounter is active (ACT's own `{duration}` wall-clock logic), and the encounter's finalized log-time `Duration` once it ends. The wall clock owns the visuals; ACT's totals own the truth.
+
+### The metric registry
+
+One **flat registry** of metric definitions is the meter's entire vocabulary — for the picker menu, for row values, and later for user-defined metrics. A definition is:
+
+- `key` — stable id, borrowing **ACT's ExportVariables names** (`encdps`, `enchps`, `cures`, …) as the canonical vocabulary: EQ2-curated by the parser's author, familiar from the mini parse, and ready-made for a future `{var}` format-string feature.
+- `label`, `category` — picker display and menu grouping. Grouping is a display attribute, **never a dispatch axis** (Details' if-chain scar).
+- `select` — a function `CombatantReading → double` producing the raw number that drives sort, bar scale, and percent.
+- `format` — value → display string (K/M/B abbreviation family; counts format as plain integers).
+
+**Selectors read ACT properties directly — never ACT's `ExportVariables` formatter callbacks.** Two reasons, both from the decompile: the EQ2 parsing plugin `Clear()`s and repopulates those dictionaries at its own init (anything registered or depended on there can be wiped by plugin load order), and the formatters return pre-scaled display *strings* where the pipeline needs raw *numbers*. ACT's names, our plumbing.
+
+**Rows are two-tier.** The row model carries a **primary metric** — what the window's picker selects; it alone drives bar width and sort order — plus a **`secondaries` list**: additional metric values displayed as text on the row, selected independently of the primary (guild-requested: "show an arbitrary extra number on the row"). A count metric like cures needs no bar of its own to be useful — it can ride any row as a secondary. Slice 1 ships the DTO shape (primary + secondaries list) but renders **primary-only**; the secondary-selection UX and row text slots are the immediate follow-on slice.
+
+**Slice-1 metrics** — deliberately two rates + one count, so both formatter paths and the "count as primary" case are exercised from day one:
+
+| key | label | select | kind |
+|---|---|---|---|
+| `encdps` | DPS | `Damage` total ÷ wall-clock duration | rate |
+| `enchps` | HPS | `Healed` total ÷ wall-clock duration | rate (includes wards — the EQ2 parser folds absorbs into `Healed`, correctly) |
+| `cures` | Cures | `CureDispels` total | count (proportional bar, integer value text) |
+
+Adding a metric is appending a definition — zero pipeline edits. A future *user-defined* metric is just a definition whose selector is built from declarative choices (source/target/ability filters) or, later, a script — first-class from day one because `select` is already a function; deferred but architecturally unblocked.
+
+**Displayed combatants:** the encounter's **allies** (`EncounterData.GetAllies()` — ACT's own ally classification), sorted descending by the primary metric with a deterministic name tie-break (never Details' epsilon-seeding wart), truncated to a max-row-count baked constant (10). Percent = the combatant's share of **all** allies' total for the primary metric (truncation never changes anyone's percent); the header total is that same all-allies sum.
+
+### The meter window
+
+A meter window is a **fat, dumb viewport** (Details' proven shape): all data lives in the poll/registry pipeline, which doesn't know windows exist; the window owns only *which* segment/metric it shows plus its geometry — so N windows over the same data are nearly free (multi-window is the natural slice-2 step, not a re-architecture).
+
+**Interactive, not click-through.** This is the meter's deliberate divergence from both the timer windows and ACT's own mini parse: the data-selection menu *is* the product — a click-through meter is just the mini parse with nicer paint. The general model this forces (recorded in Part I's architecture) is **three orthogonal axes per window**:
+
+- **click-through baseline** — timer windows: through (game clicks pass); meter windows: interactive. (A per-window "make this meter click-through too" knob is a later behavior option.)
+- **locked** — geometry frozen: position and size cannot change by dragging. **Lock freezes geometry only** — menus and future row clicks keep working. Toggled per meter window from its own context menu (default unlocked), persisted. The timer module's global move-mode checkbox does not govern meter windows: their interactivity makes a separate unlock mode unnecessary (move mode's bundled unlock exists precisely because timer windows are click-through).
+- **interactive content** — the meter window's content surface accepts clicks (menu now; row drill-down later).
+
+**Header (the interaction surface).** A persistent header strip: **`(duration) title — metric` on the left, the metric's total on the right**, plus a small affordance glyph hinting the menu. The header is the **drag handle** (drag-end persists position, same crash-safe pattern as timer windows) and **right-click on it opens the menu**: the metric picker (slice 1: DPS / HPS / Cures) and the lock toggle. The title is the encounter's **strongest-enemy-so-far**, computed per poll (`GetStrongestEnemy()` — ACT only finalizes `Title` at combat end); it can flip mid-fight as damage shifts between mobs — **known, accepted behavior**, not a bug. Richer header stats are a later slice.
+
+**Rows.** The settled layout (mocked and picked, 2026-07-15): name on the left, value + percent on the right, both overlaid on a colored proportional fill — the house style, matching timer rows; **no rank number**. Row color comes from the same global name-keyed palette assigner the timer module uses (an ally keeps one color across fights and across both modules — color is identity, everywhere).
+
+**Row animation — the meter's target model.** Timer bars drain on the wall clock; meter bars **lerp toward a data-driven target width** re-computed each poll (rate-limited catch-up, a tunable constant). Rows are **slot-keyed**: a retained row pool where each visual row is a fixed rank slot and combatants **re-bind** to slots as sort order changes. **Row-reorder position animation is deliberately absent, not missing**: an overtake reads seamlessly because the two bars' widths converge before the rebind swaps them (the rising bar grows toward the falling one) — adding sliding rows later would fight this mechanism, so don't. Rows fade in/out on enter/exit. Retain elements, animate properties — per-tick rebinds re-target animations, never rebuild visuals.
+
+### The shared rendering substrate (the convergence)
+
+The meter is the **second concrete consumer** of the overlay machinery the timer built — and by decision (2026-07-15) it is the forcing function that starts the element/group convergence *now*, incrementally, instead of a someday big-bang framework. Two components are extracted from the timer implementation and consumed by **both** modules:
+
+1. **The overlay-window base** — geometry + position persistence, the three-axis interaction model (parameterized: timer = click-through/move-mode, meter = interactive/lock), child-element layout (grow direction, spacing, anchored edge), and the retained-element pool discipline. The placement machinery (drag, persistence, grid) generalizes with it.
+2. **The row/bar primitive** — one configurable component: horizontal bar with animatable proportional fill, fill color, leading label, trailing value text, and **optional features as row configuration** — the timer's spark is a customization of the row (`spark: on`), not a reason for a separate timer bar. Timer row = fill-drain + spark + countdown text; meter row = value-lerp + value/percent text. The pluggable part is the **animation target source** (wall-clock drain vs. data-driven lerp).
+
+**The convergence guardrail, both brackets** (decision, 2026-07-15):
+
+- *Ceiling — no speculative generality:* extract only the union of what the timer and meter concretely need. Two real consumers define the shape; imagined third consumers don't. Genuinely single-consumer forms (the radial pie, the LATE card) stay timer-only.
+- *Floor — no lazy divergence:* "the timer's version is a little different" is **not** grounds to skip sharing. If a common component is reachable, take it, do the work, accept the regression risk. **The burden of proof is on *not* sharing.**
+
+**Accepted consequence:** the timer module re-seats onto the extracted base and primitive, so the meter's first slice carries **timer-regression risk** — the field-tuned bar visuals (drain, spark, palette color, dimensions) and window behaviors (positions, growth, move mode) must be re-verified identical. Core TDD pins the extracted policy; the slice's merge-gate live script includes an explicit **timer-regression pass** alongside meter verification.
+
+Roadmap consequence: this merges the previously separate "element/group model" arc and "Parse Meter" roadmap items into one incremental trajectory — each extraction lands when a concrete second consumer forces its shape ("extract-don't-copy"), tracked in the backlog rather than a standalone framework plan.
+
+### Assembly split & polling
+
+Same split as Phase 1, same reasons (§Development & test cycle):
+
+- **Core (netstandard2.0, Mac-testable, TDD):** the metric registry and selectors, rate/percent/sort/rank math, the two-tier row DTOs, the per-poll `MeterEngine` (readings in → one renderable frame out — the meter-side sibling of `OverlayEngine`, standalone; any deeper engine-level sharing must earn its way in under the convergence guardrail), row-pool binding policy, lerp targeting, and `MeterSettings`.
+- **Plugin (net472/WPF):** the **encounter adapter** — the per-poll ACT read (lock → snapshot allies' totals + encounter identity/duration into Core DTOs → release) — and the meter window (header, menu, row visuals) on the shared base.
+
+**Poll cadence:** the meter samples on the plugin's existing 100 ms poll tick at a divider (baked constant, every Nth tick, effective ~2–4 Hz — Details' refresh-class cadence; the mini parse's default is every 5 *seconds*). The snapshot cost stays in the engine doc's safe zone by construction: per-combatant **total** properties (the incremental-cached kind) plus one ally-list read and one `GetStrongestEnemy()` call for the title — encounter-level aggregate calls are "fine at 1–10 Hz" per `docs/act-parse-engine.md` §Performance, and this design makes exactly one of them per poll. The expensive shapes (per-combatant multi-segment `Duration`, `EncId`/hashing) are never read.
+
+**Settings:** a `MeterSettings` section on the global `Settings` (DCJS rules apply: nullable position values — null, never zero, means "unset, use the default placement", per the timer windows' convention; enum/bool defaults at the 0-value). Slice-1 persisted state: module enabled (default **off** — opt-in while groundwork), window position, selected metric key (missing or unknown key → the DPS default — the registry lookup is the forward-compat guard), locked flag. Dimensions/font knobs arrive with later slices; slice 1 renders at baked defaults matching the timer's look.
+
+**Diagnostics:** slice 1 adds **no meter-specific log record kinds** — the JSONL stream stays timer-only. Meter diagnostics are a later-slice decision once field behavior shows what a capture needs (recorded so the omission reads as chosen, not forgotten).
+
+**Teardown:** the module obeys the same discipline as everything else — `DeInitPlugin()` closes meter windows and stops sampling; the tab toggle does the same live.
+
+### Slice map
+
+- **Slice 1 (this design):** one meter window · current segment · allies · metric picker over {DPS, HPS, Cures} · the `(duration) title — metric | total` header · overlaid rows · width-lerp animation · lock · the two shared-substrate extractions + timer re-seat.
+- **Deferred to later slices:** segment picker (history/overall); multiple windows; secondary-data-point selection UX (multi-value row text — guild-requested, next in line); richer header stats; actor-filter modes; owner-merged pets; per-window dimension/font knobs; click-through-opt-in knob; row drill-down; skins/chrome; user-defined metrics (declarative, then scripted); rolling DPS; boss-only overall policies.
+
+### Testing strategy (Parse Meter slice 1)
+
+- **Core TDD** (the fast Mac loop): registry selection/format, wall-clock rate math (including the freeze-at-final transition), sort/tie-break/percent/truncation, two-tier row DTO shape, slot re-binding, lerp target computation.
+- **Live verification on the box** (merge-gate script, concrete "do X, expect Y"): meter appears with tab toggle; solo combat against any target shows a live DPS row within a poll interval; metric switch via header right-click; drag + lock + position persistence across reload; combat end freezes totals; zone change empties; **timer-regression pass** — timer overlay looks and behaves identically to the shipped build (drain, spark, colors, dimensions, positions, move mode, grow directions).
+- The encounter adapter's ACT-facing claims (lock discipline, ally list shape, title flips) are exactly the `[decompiled]`→`[field]` promotion path `docs/act-parse-engine.md` §Sources defines — field notes land there as raid captures confirm them.
+
+---
+
+## Part IV — Cross-cutting
 
 ### Development & test cycle
 
@@ -336,7 +460,7 @@ Still open (non-blocking, gathered during normal play / next phase):
 4. **Richer elements** — more display types (icon w/ cooldown swipe, plain text, alternate bar styles), an intermediate "approaching" visual tier, animations.
 5. **Hold overdue until reset** — optionally override ACT's `RemoveValue` removal so an overdue timer is *held and escalated* until the ability actually fires (a reset), for abilities a player must not lose track of. Deferred from Phase 1 (which keeps ACT's removal) because it reintroduces the cross-removal state model and a "never resets" escape hatch.
 6. **Icons** — a name→icon mapping; possibly sourcing art from EQ2's own game files (never from live game memory).
-7. **Parse Meter module** — replace ACT's "mini parse" window (combatant/DPS), on the same core via an encounter adapter.
+7. **Parse Meter module** — *(started — designed in full as Phase 2, Part III)* replace ACT's "mini parse" window (combatant/DPS), on the same core via an encounter adapter. Its shared-substrate extractions (window base, row primitive — §The shared rendering substrate) begin the element/group convergence of item 2 incrementally — decided 2026-07-15: extractions land as concrete second consumers force their shape, never as an up-front framework.
 
 ### Open decisions
 

@@ -4,6 +4,9 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-15
 
+### IN FLIGHT — Parse Meter slice 1 (branch `parse-meter-slice1`; spec = SPEC Part III, brainstormed + designed 2026-07-15)
+The DPS meter arc, un-shelved. Design settled in brainstorm (Alex-approved): ACT is the data layer (poll computed model, no swing accumulator); segments mirror ACT's encounter list (slice 1: current only); flat metric registry (ACT's names, direct property selectors, wall-clock rates); two-tier rows (primary + secondaries; slice 1 renders primary-only); interactive window with H3 header (`(duration) title — metric` | total), right-click menu, per-window lock; overlaid rows, no rank, slot-keyed width-lerp animation (row-reorder position animation deliberately absent). **Convergence decision (Alex): extract the shared window base + row/bar primitive NOW** — Approach A, both-brackets guardrail (no speculative generality / no lazy divergence, burden of proof on *not* sharing); spark becomes row config; timer re-seats onto the shared substrate (regression risk accepted, merge-gate carries a timer-regression pass). **Slice-1 framing: groundwork** — success = shapes correct to build on; guild-facing MVP is the slice-2 conversation. Guild request already queued for slice 2: secondary data points on rows (arbitrary extra numbers as row text). Plan-watch items from the spec review land here.
+
 ### SHIPPED + FIELD-VERIFIED (v0.1.104, 2026-07-15) — BUG: "update available" fired always
 Field report 2026-07-15 (someone installed via the new guide — install itself field-validated): the update check *always* said a new version was available, forever.
 
@@ -113,7 +116,8 @@ Items 1–4 of the 07-05 queue in one slice (SPEC §Window growth, §Element dim
 ### Queue (remaining)
 5. **(bigger) ACT timer editor in our tab** — create/modify ACT's native timers from the eq2auras tab, slimmed and smarter. Stays inside "ACT owns the data" (config *front-end* to ACT's own timer store). **Held (Alex, 2026-07-05): after the full WeakAuras investigation and the truly-modular elements/custom-windows work — the editor needs all that custom machinery to be worth building.**
 
-### NEXT ARC — the element/group model (Alex's pre-brainstorm seed, 2026-07-02 session close)
+### NEXT ARC — the element/group model (Alex's pre-brainstorm seed, 2026-07-02 session close) — **REFRAMED 2026-07-15: converges incrementally through the Parse Meter**
+**Decision (Alex, 2026-07-15, Parse Meter brainstorm):** this arc is no longer a scheduled big-bang design phase — it's an **open direction** the modules converge toward as features are built. The Parse Meter is the forcing function: its slice 1 extracts the shared overlay-window base + configurable row/bar primitive (SPEC Part III §The shared rendering substrate), and each further extraction lands when a concrete second consumer forces its shape (extract-don't-copy; each "both windows want this" moment gets a backlog line). The original seed below stands as the direction's content.
 "I want to take this way further. I want to begin designing things as elements." Still 100% ACT timer data underneath. The seed, in his words:
 - **Timer elements as first-class:** what we call a row or radial display becomes a *Timer element* with its own configuration (form: radial/row; size — we have these knobs, but panel-based, not element-based).
 - **Groups = the windows/panels, user-created:** instead of driving placement from ACT's Panel A/B booleans, keep **our own assignment** of existing timers to custom panels — create N panels, assign timer elements to them.
