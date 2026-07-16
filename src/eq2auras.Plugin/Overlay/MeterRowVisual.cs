@@ -17,10 +17,9 @@ namespace Eq2Auras.Plugin.Overlay
         private const double FadeSeconds = 0.15;
 
         // Meter reads near-opaque, unlike the translucent timer (SPEC Part III §Meter
-        // display defaults). Vivid fill + an opaque backplate matching the header
-        // (ARGB 224,18,20,26). Tunable slice-1 constants.
+        // display defaults). Vivid fill; the backplate is OverlayTheme.MeterBackplate,
+        // shared with the header so they can't drift. Tunable slice-1 constant.
         private const byte FillAlpha = 200;
-        private static readonly Color Backplate = Color.FromArgb(224, 18, 20, 26);
 
         private readonly BarRowVisual _bar;
         private readonly TextBlock _percent;
@@ -30,7 +29,7 @@ namespace Eq2Auras.Plugin.Overlay
         public MeterRowVisual(VisualStyle style)
         {
             _bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha);
-            _bar.RootBorder.Background = new SolidColorBrush(Backplate);
+            _bar.RootBorder.Background = new SolidColorBrush(OverlayTheme.MeterBackplate);
             _bar.RootBorder.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
 
             _percent = new TextBlock

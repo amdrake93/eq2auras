@@ -106,8 +106,9 @@ namespace Eq2Auras.Plugin.Overlay
                 Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 // A real background — a transparent surface would be mouse-invisible,
-                // and the header IS the drag/menu hit target.
-                Background = new SolidColorBrush(Color.FromArgb(224, 18, 20, 26)),
+                // and the header IS the drag/menu hit target. Shared with the row
+                // backplate so they can't drift (SPEC Part III §Meter display defaults).
+                Background = new SolidColorBrush(OverlayTheme.MeterBackplate),
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder),
                 Child = headerGrid

@@ -9,6 +9,9 @@ namespace Eq2Auras.Plugin.Overlay
     {
         public static readonly Color CalmBackground = Color.FromArgb(150, 18, 24, 34);
         public static readonly Color CalmBorder = Color.FromArgb(200, 51, 64, 79);
+        // Meter reads near-opaque (SPEC Part III §Meter display defaults). Shared by the
+        // meter header AND its row backplate — they must match, so one source of truth.
+        public static readonly Color MeterBackplate = Color.FromArgb(224, 18, 20, 26);
         public static readonly Color ImminentAccent = Colors.Gold;
         public static readonly Color OverdueAccent = Colors.Crimson;
         public static readonly Color Text = Colors.WhiteSmoke;
