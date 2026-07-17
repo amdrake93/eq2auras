@@ -5,13 +5,22 @@ public class MetricRegistryTests
 {
     [Theory]
     [InlineData(0, "0")]
+    [InlineData(7.5, "8")]              // sub-1K is integer-rounded, NOT 3-sig-figs "7.50"
     [InlineData(950, "950")]
-    [InlineData(1_000, "1K")]
-    [InlineData(1_460, "1.5K")]        // one decimal, rounded (1_450 avoided: float midpoint formats differ across runtimes)
+    [InlineData(999, "999")]
+    [InlineData(1_000, "1K")]           // 1.00 -> trailing zeros dropped
+    [InlineData(1_240, "1.24K")]        // <10 mantissa -> 2 decimals (3 sig figs)
+    [InlineData(1_460, "1.46K")]        // was "1.5K" under the old one-decimal format
+    [InlineData(12_400, "12.4K")]       // 10..100 mantissa -> 1 decimal
+    [InlineData(124_000, "124K")]       // >=100 mantissa -> 0 decimals
     [InlineData(890_000, "890K")]
-    [InlineData(1_400_000, "1.4M")]
+    [InlineData(1_240_000, "1.24M")]
+    [InlineData(9_990_000, "9.99M")]    // the 5-char worst case
+    [InlineData(12_400_000, "12.4M")]
+    [InlineData(124_000_000, "124M")]
+    [InlineData(1_400_000, "1.4M")]     // 1.40 -> trailing zero dropped
     [InlineData(4_200_000_000, "4.2B")]
-    public void Abbreviates_with_kmb_family(double value, string expected)
+    public void Abbreviates_with_three_sig_figs(double value, string expected)
         => Assert.Equal(expected, NumberFormat.Abbreviate(value));
 
     [Theory]
