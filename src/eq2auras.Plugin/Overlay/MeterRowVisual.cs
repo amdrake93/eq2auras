@@ -64,6 +64,13 @@ namespace Eq2Auras.Plugin.Overlay
             _backplate.Opacity = opacity;
         }
 
+        /// Live row-height (SPEC Part III §Configuration): resize the retained row in place
+        /// via the shared primitive's border — no recreation, no fade, animations intact.
+        public void SetRowHeight(double rowHeight)
+        {
+            _bar.RootBorder.Height = rowHeight;
+        }
+
         public void FadeIn()
         {
             _bar.Root.Opacity = 0;

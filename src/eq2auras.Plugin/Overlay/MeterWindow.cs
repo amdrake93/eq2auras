@@ -24,7 +24,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly List<MeterRowVisual> _slots = new List<MeterRowVisual>();
         private MeterFrame _lastFrame;
         private int _scrollOffset;           // transient view state — never persisted, clamps to the data
-        private readonly VisualStyle _style;
+        private VisualStyle _style;
         private readonly Action<string> _onMetricPicked;
         private readonly Action<bool> _onLockChanged;
         private readonly Action _onNewWindow;
@@ -32,6 +32,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Func<bool> _canClose;
         private MenuItem _lockItem;
         private readonly Action<double> _onOpacityChanged;
+        private readonly Action<double> _onRowHeightChanged;
         private double _opacity;
         private SolidColorBrush _headerBackplate;
         private MeterSettingsWindow _settings;
@@ -46,7 +47,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity,
             Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged,
-            Action<double> onOpacityChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
+            Action<double> onOpacityChanged, Action<double> onRowHeightChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
             : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
         {
             _style = style;
@@ -56,6 +57,7 @@ namespace Eq2Auras.Plugin.Overlay
             _onMetricPicked = onMetricPicked;
             _onLockChanged = onLockChanged;
             _onOpacityChanged = onOpacityChanged;
+            _onRowHeightChanged = onRowHeightChanged;
             _onNewWindow = onNewWindow;
             _onCloseWindow = onCloseWindow;
             _canClose = canClose;
@@ -69,7 +71,7 @@ namespace Eq2Auras.Plugin.Overlay
             SizeToContent = SizeToContent.Height;
             Width = style.RowWidth + WindowSlack;
 
-            double hr = style.HeightRatio;
+            double hr = 1.0;   // header stays default-proportioned; the row-height knob thickens data rows only (SPEC Part III §Configuration)
             _durationText = HeaderBlock(style, dim: true);
             _titleText = HeaderBlock(style, dim: false);
             _titleText.FontWeight = FontWeights.SemiBold;
@@ -123,7 +125,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             var header = new Border
             {
-                Height = style.RowHeight,
+                Height = VisualStyle.DefaultRowHeight,
                 Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 // A real background — a transparent surface would be mouse-invisible,
@@ -306,6 +308,23 @@ namespace Eq2Auras.Plugin.Overlay
             _headerBackplate.Opacity = opacity;
             foreach (var slot in _slots) slot.SetOpacity(opacity);
             _onOpacityChanged(opacity);
+        }
+
+        /// Live row-height: resize every retained row in place and re-point _style so
+        /// future slots build at the new height; the window's SizeToContent re-fits. Persisted.
+        public void SetRowHeight(double rowHeight)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = _style.RowWidth,
+                RowHeight = rowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = _style.Font,
+                BaseSize = _style.BaseSize,
+            };
+            foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
+            _onRowHeightChanged(rowHeight);
         }
 
         protected override void OnClosed(EventArgs e)
