@@ -76,6 +76,8 @@ namespace Eq2Auras.Core.Config
             {
                 if (window.Opacity.HasValue && (window.Opacity.Value < MinOpacity || window.Opacity.Value > MaxOpacity))
                     window.Opacity = Math.Min(MaxOpacity, Math.Max(MinOpacity, window.Opacity.Value));
+                if (window.RowHeight.HasValue && (window.RowHeight.Value < Settings.MinRowHeight || window.RowHeight.Value > Settings.MaxRowHeight))
+                    window.RowHeight = Math.Min(Settings.MaxRowHeight, Math.Max(Settings.MinRowHeight, window.RowHeight.Value));
             }
         }
     }

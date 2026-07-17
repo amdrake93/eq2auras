@@ -119,4 +119,32 @@ public class MeterSettingsTests
 
         Assert.Null(parsed.Meter.Windows[0].Opacity);   // null -> host resolves to 1.0 (today's look)
     }
+
+    [Theory]
+    [InlineData(4, 16)]      // below Settings.MinRowHeight -> clamped up
+    [InlineData(500, 100)]   // above Settings.MaxRowHeight -> clamped down
+    [InlineData(40, 40)]     // in range -> unchanged
+    public void Window_row_height_clamps_to_range(double stored, double expected)
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig>
+        {
+            new MeterWindowConfig { RowHeight = stored },
+        };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(expected, parsed.Meter.Windows[0].RowHeight);
+    }
+
+    [Fact]
+    public void Null_row_height_stays_null_meaning_default()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Null(parsed.Meter.Windows[0].RowHeight);   // null -> host resolves to VisualStyle.DefaultRowHeight (26)
+    }
 }
