@@ -422,7 +422,13 @@ namespace Eq2Auras.Plugin.Overlay
                 _resizing = true;
                 _resizeStart = e.GetPosition(this);
                 _startWidth = _style.RowWidth;
-                _startVisibleRows = _visibleRows;
+                // Anchor the bottom-drag to the rows actually SHOWN, not the raw cap: the
+                // window sizes to min(visible-row count, ally count), so a default cap of 10
+                // with 2 allies shows 2 — dragging up must start from 2 to hide a row on the
+                // first row-height of travel (else you'd drag ~8 rows before anything moves).
+                _startVisibleRows = _lastFrame != null
+                    ? Math.Min(_visibleRows, _lastFrame.Rows.Count)
+                    : _visibleRows;
                 grip.CaptureMouse();
                 e.Handled = true;
             };
