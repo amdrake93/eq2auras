@@ -33,6 +33,7 @@ namespace Eq2Auras.Plugin.Overlay
         private TextBlock _affordance;
         private MeterSettingsWindow _settings;
         private readonly StackPanel _rowsPanel;
+        private StackPanel _root;
         private readonly TextBlock _durationText;
         private readonly TextBlock _titleText;
         private readonly TextBlock _metricText;
@@ -136,10 +137,10 @@ namespace Eq2Auras.Plugin.Overlay
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
-            var root = new StackPanel { Width = style.RowWidth };
-            root.Children.Add(header);
-            root.Children.Add(_rowsPanel);
-            Content = root;
+            _root = new StackPanel { Width = style.RowWidth };
+            _root.Children.Add(header);
+            _root.Children.Add(_rowsPanel);
+            Content = _root;
         }
 
         private TextBlock HeaderBlock(VisualStyle style, bool dim)
@@ -344,6 +345,32 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_metricText, _style.RowText);
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
+        }
+
+        /// Live width (right-edge drag): re-point _style, resize the root + window + every
+        /// retained row in place. NOT persisted here — resize persists once at drag-end.
+        private void SetRowWidth(double width)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = width,
+                RowHeight = _style.RowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = _style.Font,
+                BaseSize = _style.BaseSize,
+            };
+            _root.Width = width;
+            Width = width + WindowSlack;
+            foreach (var slot in _slots) slot.SetRowWidth(width);
+        }
+
+        /// Live visible-row count (bottom-edge drag): re-render at the new slot count; the
+        /// window height re-fits via SizeToContent. NOT persisted here — see drag-end.
+        private void SetVisibleRows(int visibleRows)
+        {
+            _visibleRows = visibleRows;
+            if (_lastFrame != null) RenderSlots();
         }
 
         protected override void OnClosed(EventArgs e)

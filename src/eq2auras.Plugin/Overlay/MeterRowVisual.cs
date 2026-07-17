@@ -81,6 +81,11 @@ namespace Eq2Auras.Plugin.Overlay
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
         }
 
+        public void SetRowWidth(double rowWidth)
+        {
+            _bar.SetRowWidth(rowWidth);
+        }
+
         public void FadeIn()
         {
             _bar.Root.Opacity = 0;
