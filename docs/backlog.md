@@ -2,6 +2,11 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-17
+
+### Indicate on a timer row when its duration is being modded
+Feedback idea (not yet spec'd). ACT timers can be **modable** (there's a setting to allow it, and the engine pre-applies `Modable` mods so the shown duration already reflects the mod — see `docs/act-timer-engine.md`). Want a **visual cue on the row that the currently-shown timer is actually modded** (a non-zero mod is in effect), distinct from an unmodded timer. **Design thought (Alex):** parenthesize the remaining time, e.g. `(13s)`. **Open question / investigation first:** can we actually *detect* that a given displayed instance's duration was modified (a flag on the ACT `TimerData`/instance, or a modded-vs-base delta we can read), or does ACT only expose the already-modded value with no "was modded" signal? If there's no clean signal, this needs the decompile-verify treatment before design. Timer module (not the meter).
+
 ## From Alex — 2026-07-15
 
 ### IN FLIGHT — Parse Meter slice 1 (branch `parse-meter-slice1`; spec = SPEC Part III, brainstormed + designed 2026-07-15)
