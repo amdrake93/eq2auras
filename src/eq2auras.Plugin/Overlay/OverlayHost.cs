@@ -107,15 +107,20 @@ namespace Eq2Auras.Plugin.Overlay
                 config.MetricKey,
                 config.Locked,
                 config.Opacity ?? MeterSettings.DefaultOpacity,
-                (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
-                key => SettingsStore.Update(_settings, () => config.MetricKey = key),
-                locked => SettingsStore.Update(_settings, () => config.Locked = locked),
-                opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
-                rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
-                (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
-                () => AddClonedWindow(config),
-                () => CloseMeterWindow(config),
-                () => _meterWindows.Count > 1);
+                config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
+                new MeterWindowCallbacks
+                {
+                    PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
+                    MetricPicked = key => SettingsStore.Update(_settings, () => config.MetricKey = key),
+                    LockChanged = locked => SettingsStore.Update(_settings, () => config.Locked = locked),
+                    OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
+                    RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
+                    FontChanged = (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
+                    GeometryChanged = (width, rows) => SettingsStore.Update(_settings, () => { config.Width = width; config.VisibleRows = rows; }),
+                    NewWindow = () => AddClonedWindow(config),
+                    CloseWindow = () => CloseMeterWindow(config),
+                    CanClose = () => _meterWindows.Count > 1,
+                });
             _meterWindows[config] = window;
             window.Show();
         }
@@ -135,6 +140,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowHeight = source.RowHeight,
                 FontFamily = source.FontFamily,
                 FontBaseSize = source.FontBaseSize,
+                Width = source.Width,
+                VisibleRows = source.VisibleRows,
                 Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
                 Top = ClampMeterY(baseTop + MeterCascadeOffset),
             };
@@ -155,12 +162,13 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         // Per-window style resolved from the config: zero row spacing (meter rows touch —
-        // SPEC Part III §Meter display defaults) plus the configurable row height and font;
-        // width stays default until the edge-resize increment.
+        // SPEC Part III §Meter display defaults) plus the configurable width, row height,
+        // and font.
         private static VisualStyle MeterStyle(MeterWindowConfig config)
             => new VisualStyle
             {
                 RowSpacing = 0,
+                RowWidth = config.Width ?? VisualStyle.DefaultRowWidth,
                 RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight,
                 Font = config.FontFamily != null ? new System.Windows.Media.FontFamily(config.FontFamily) : null,
                 BaseSize = config.FontBaseSize ?? 13.0,

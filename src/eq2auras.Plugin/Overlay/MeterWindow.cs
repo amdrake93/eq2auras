@@ -34,6 +34,12 @@ namespace Eq2Auras.Plugin.Overlay
         private MeterSettingsWindow _settings;
         private readonly StackPanel _rowsPanel;
         private StackPanel _root;
+        private System.Windows.Shapes.Rectangle _rightGrip;
+        private System.Windows.Shapes.Rectangle _bottomGrip;
+        private bool _resizing;
+        private Point _resizeStart;
+        private double _startWidth;
+        private int _startVisibleRows;
         private readonly TextBlock _durationText;
         private readonly TextBlock _titleText;
         private readonly TextBlock _metricText;
@@ -140,7 +146,36 @@ namespace Eq2Auras.Plugin.Overlay
             _root = new StackPanel { Width = style.RowWidth };
             _root.Children.Add(header);
             _root.Children.Add(_rowsPanel);
-            Content = _root;
+
+            // Transparent edge grips (right = width, bottom = visible rows). Top-left is
+            // anchored — the window never moves during resize, so GetPosition(this) is a
+            // stable DIP reference (SPEC Part III §The meter window). Reposition via header.
+            _rightGrip = new System.Windows.Shapes.Rectangle
+            {
+                Width = 6,
+                Fill = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Cursor = Cursors.SizeWE,
+            };
+            _bottomGrip = new System.Windows.Shapes.Rectangle
+            {
+                Height = 6,
+                Fill = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Cursor = Cursors.SizeNS,
+            };
+            WireResize(_rightGrip, horizontal: true);
+            WireResize(_bottomGrip, horizontal: false);
+
+            var contentGrid = new Grid();
+            contentGrid.Children.Add(_root);
+            contentGrid.Children.Add(_rightGrip);
+            contentGrid.Children.Add(_bottomGrip);
+            Content = contentGrid;
+
+            UpdateGrips();   // gate on the initial lock state
         }
 
         private TextBlock HeaderBlock(VisualStyle style, bool dim)
@@ -176,6 +211,7 @@ namespace Eq2Auras.Plugin.Overlay
             _lockItem.Click += (s, e) =>
             {
                 _locked = _lockItem.IsChecked;
+                UpdateGrips();
                 _cb.LockChanged(_locked);
             };
             menu.Items.Add(_lockItem);
@@ -371,6 +407,58 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _visibleRows = visibleRows;
             if (_lastFrame != null) RenderSlots();
+        }
+
+        /// Right grip = width; bottom grip = visible-row count (snap to whole rows). Both
+        /// anchor the top-left, so the window origin is fixed and GetPosition(this) is a
+        /// stable reference. Live during drag; geometry persists once on release.
+        private void WireResize(System.Windows.Shapes.Rectangle grip, bool horizontal)
+        {
+            grip.MouseLeftButtonDown += (s, e) =>
+            {
+                if (_locked) return;
+                _resizing = true;
+                _resizeStart = e.GetPosition(this);
+                _startWidth = _style.RowWidth;
+                _startVisibleRows = _visibleRows;
+                grip.CaptureMouse();
+                e.Handled = true;
+            };
+            grip.MouseMove += (s, e) =>
+            {
+                if (!_resizing) return;
+                var p = e.GetPosition(this);
+                if (horizontal)
+                {
+                    SetRowWidth(ClampWidth(_startWidth + (p.X - _resizeStart.X)));
+                }
+                else
+                {
+                    int rows = ClampVisibleRows(_startVisibleRows + (int)Math.Round((p.Y - _resizeStart.Y) / _style.RowHeight));
+                    if (rows != _visibleRows) SetVisibleRows(rows);
+                }
+            };
+            grip.MouseLeftButtonUp += (s, e) =>
+            {
+                if (!_resizing) return;
+                _resizing = false;
+                grip.ReleaseMouseCapture();
+                _cb.GeometryChanged(_style.RowWidth, _visibleRows);   // persist both at drag-end
+            };
+        }
+
+        private static double ClampWidth(double w)
+            => Math.Max(Settings.MinRowWidth, Math.Min(Settings.MaxRowWidth, w));
+
+        private static int ClampVisibleRows(int n)
+            => Math.Max(MeterSettings.MinVisibleRows, Math.Min(MeterSettings.MaxVisibleRows, n));
+
+        /// Lock freezes geometry: grips only take the mouse when unlocked (SPEC Part III —
+        /// lock freezes position + size; menu/scroll/settings still work).
+        private void UpdateGrips()
+        {
+            _rightGrip.IsHitTestVisible = !_locked;
+            _bottomGrip.IsHitTestVisible = !_locked;
         }
 
         protected override void OnClosed(EventArgs e)
