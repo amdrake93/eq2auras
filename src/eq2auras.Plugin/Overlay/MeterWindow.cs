@@ -324,7 +324,7 @@ namespace Eq2Auras.Plugin.Overlay
                 return;
             }
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
-                _style.Font?.Source, _style.BaseSize, SetFont)
+                _style.Font?.Source, _style.BaseSize, SetFont, _secondaryKey, SetSecondary)
             {
                 Left = Left + 20,
                 Top = Top + 20,
@@ -376,6 +376,15 @@ namespace Eq2Auras.Plugin.Overlay
             ApplyHeaderFont();
             foreach (var slot in _slots) slot.SetFont(_style);
             _cb.FontChanged(fontFamily, baseSize);
+        }
+
+        /// Live secondary selection (SPEC Part III §Configuration): persist the per-window
+        /// key; the next poll's Tick reads config.SecondaryKey and the column appears/clears
+        /// from the frame data (same apply-on-next-poll path as the metric picker).
+        public void SetSecondary(string key)
+        {
+            _secondaryKey = key;
+            _cb.SecondaryPicked(key);
         }
 
         private void ApplyHeaderFont()
