@@ -99,7 +99,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void AddMeterWindow(MeterWindowConfig config)
         {
-            var style = MeterStyle();
+            var style = MeterStyle(config);
             var window = new MeterWindow(
                 config.Left ?? DefaultMeterLeft(style),
                 config.Top ?? DefaultMeterTop,
@@ -111,6 +111,7 @@ namespace Eq2Auras.Plugin.Overlay
                 key => SettingsStore.Update(_settings, () => config.MetricKey = key),
                 locked => SettingsStore.Update(_settings, () => config.Locked = locked),
                 opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
+                rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
                 () => AddClonedWindow(config),
                 () => CloseMeterWindow(config),
                 () => _meterWindows.Count > 1);
@@ -122,7 +123,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// (SPEC Part III §Multiple windows). Re-pointed at another metric from its own menu.
         private void AddClonedWindow(MeterWindowConfig source)
         {
-            var style = MeterStyle();
+            var style = MeterStyle(source);
             double baseLeft = source.Left ?? DefaultMeterLeft(style);
             double baseTop = source.Top ?? DefaultMeterTop;
             var clone = new MeterWindowConfig
@@ -130,6 +131,7 @@ namespace Eq2Auras.Plugin.Overlay
                 MetricKey = source.MetricKey,
                 Locked = source.Locked,
                 Opacity = source.Opacity,
+                RowHeight = source.RowHeight,
                 Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
                 Top = ClampMeterY(baseTop + MeterCascadeOffset),
             };
@@ -151,7 +153,8 @@ namespace Eq2Auras.Plugin.Overlay
 
         // Meter rows touch (SPEC Part III §Meter display defaults); per-window size/font/
         // opacity knobs arrive in later increments, so increment 1 uses baked defaults.
-        private static VisualStyle MeterStyle() => new VisualStyle { RowSpacing = 0 };
+        private static VisualStyle MeterStyle(MeterWindowConfig config)
+            => new VisualStyle { RowSpacing = 0, RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight };
 
         private const double MeterCascadeOffset = 30;
         private const double MeterWindowSlack = 10;   // matches MeterWindow's window slack

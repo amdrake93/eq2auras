@@ -291,7 +291,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _settings.Activate();
                 return;
             }
-            _settings = new MeterSettingsWindow(_opacity, SetOpacity)
+            _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity)
             {
                 Left = Left + 20,
                 Top = Top + 20,

@@ -15,10 +15,14 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Action<double> _onOpacityChanged;
         private readonly Slider _opacity;
         private readonly TextBlock _opacityValue;
+        private readonly Action<double> _onRowHeightChanged;
+        private readonly Slider _rowHeight;
+        private readonly TextBlock _rowHeightValue;
 
-        public MeterSettingsWindow(double opacity, Action<double> onOpacityChanged)
+        public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged)
         {
             _onOpacityChanged = onOpacityChanged;
+            _onRowHeightChanged = onRowHeightChanged;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -51,6 +55,42 @@ namespace Eq2Auras.Plugin.Overlay
             titleBar.Children.Add(close);
             titleBar.Children.Add(title);
             titleBar.MouseLeftButtonDown += (s, e) => { if (e.ButtonState == MouseButtonState.Pressed) DragMove(); };
+
+            var rowHeightLabel = new TextBlock
+            {
+                Text = "Row height",
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 0xC4, 0xCA, 0xD6)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 60
+            };
+            _rowHeight = new Slider
+            {
+                Minimum = Settings.MinRowHeight,
+                Maximum = Settings.MaxRowHeight,
+                Value = rowHeight,
+                Width = 150,
+                IsSnapToTickEnabled = true,
+                TickFrequency = 1,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            _rowHeightValue = new TextBlock
+            {
+                Text = Px(rowHeight),
+                Foreground = new SolidColorBrush(OverlayTheme.Text),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 42,
+                TextAlignment = TextAlignment.Right,
+                Margin = new Thickness(8, 0, 0, 0)
+            };
+            _rowHeight.ValueChanged += (s, e) =>
+            {
+                _rowHeightValue.Text = Px(_rowHeight.Value);
+                _onRowHeightChanged(_rowHeight.Value);
+            };
+            var rowHeightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+            rowHeightRow.Children.Add(rowHeightLabel);
+            rowHeightRow.Children.Add(_rowHeight);
+            rowHeightRow.Children.Add(_rowHeightValue);
 
             var opacityLabel = new TextBlock
             {
@@ -95,6 +135,7 @@ namespace Eq2Auras.Plugin.Overlay
             reset.MouseLeftButtonDown += (s, e) => _opacity.Value = MeterSettings.DefaultOpacity;   // fires ValueChanged -> applies + persists
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
+            body.Children.Add(rowHeightRow);
             body.Children.Add(opacityRow);
             body.Children.Add(reset);
 
@@ -114,5 +155,7 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         private static string Percent(double opacity) => Math.Round(opacity * 100) + "%";
+
+        private static string Px(double rowHeight) => Math.Round(rowHeight) + " px";
     }
 }
