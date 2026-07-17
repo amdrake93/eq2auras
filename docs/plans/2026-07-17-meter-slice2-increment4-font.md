@@ -14,7 +14,7 @@ _(same as Increments 1–3 — carried verbatim)_
 
 - **Single-assembly packaging**; new files auto-globbed. **No `async` in the plugin**; no non-GAC field types. **Never** reference `System.Web.Extensions`. JSON = DCJS.
 - **DCJS skips field initializers** → nullable = "unset, use default"; a string family `null` = system default.
-- **FontDialog stores DIPs:** convert points→DIPs as `SizeInPoints * 96.0 / 72.0` and DIPs→points as `* 72.0 / 96.0` (verbatim from `Eq2AurasPlugin.cs:199,205`).
+- **FontDialog stores DIPs:** convert points→DIPs as `SizeInPoints * 96.0 / 72.0` and DIPs→points as `* 72.0 / 96.0` (verbatim from the timer tab's font button in `Eq2AurasPlugin.cs`).
 - **Core `netstandard2.0`, Mac-testable**; **never build the Plugin on the Mac**.
 - **Branch `meter-slice2` integration branch** — build on it; **do not merge**. Checkpoint = verify-only CI green.
 - **Clone completeness** (inc-2 lesson): both new `MeterWindowConfig` fields must be copied in `OverlayHost.AddClonedWindow`.
@@ -341,6 +341,20 @@ Add the label formatter next to `Px`:
             => (family ?? "default") + " · " + Math.Round(dip * 72.0 / 96.0) + " pt";
 ```
 
+Also update the now-inaccurate class-doc (row height and font have both landed). Replace:
+
+```csharp
+    /// dark and custom-chromed, modeless and live-applying. Increment 2 carries one knob
+    /// (opacity); row height (inc 3) and font (inc 4) land here next.
+```
+
+with:
+
+```csharp
+    /// dark and custom-chromed, modeless and live-applying: row height, font, and opacity,
+    /// per window.
+```
+
 - [ ] **Step 2: Pass font when opening settings**
 
 In `MeterWindow.cs`, in `OpenSettings`, change:
@@ -360,9 +374,11 @@ _(`FontFamily.Source` is the family name string; null when unset — the setting
 
 - [ ] **Step 3: Host — style from config, clone, callback**
 
-In `OverlayHost.cs`, change `MeterStyle` to carry font. Replace:
+In `OverlayHost.cs`, change `MeterStyle` to carry font. Replace the method **and its now-stale comment** (the "increment 1 uses baked defaults" line went stale in inc-3 when RowHeight became config-driven):
 
 ```csharp
+        // Meter rows touch (SPEC Part III §Meter display defaults); per-window size/font/
+        // opacity knobs arrive in later increments, so increment 1 uses baked defaults.
         private static VisualStyle MeterStyle(MeterWindowConfig config)
             => new VisualStyle { RowSpacing = 0, RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight };
 ```
@@ -370,6 +386,9 @@ In `OverlayHost.cs`, change `MeterStyle` to carry font. Replace:
 with:
 
 ```csharp
+        // Per-window style resolved from the config: zero row spacing (meter rows touch —
+        // SPEC Part III §Meter display defaults) plus the configurable row height and font;
+        // width stays default until the edge-resize increment.
         private static VisualStyle MeterStyle(MeterWindowConfig config)
             => new VisualStyle
             {
