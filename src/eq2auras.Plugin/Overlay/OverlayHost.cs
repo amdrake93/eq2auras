@@ -105,6 +105,7 @@ namespace Eq2Auras.Plugin.Overlay
                 config.Top ?? DefaultMeterTop,
                 style,
                 config.MetricKey,
+                config.SecondaryKey,
                 config.Locked,
                 config.Opacity ?? MeterSettings.DefaultOpacity,
                 config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
@@ -112,6 +113,7 @@ namespace Eq2Auras.Plugin.Overlay
                 {
                     PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
                     MetricPicked = key => SettingsStore.Update(_settings, () => config.MetricKey = key),
+                    SecondaryPicked = key => SettingsStore.Update(_settings, () => config.SecondaryKey = key),
                     LockChanged = locked => SettingsStore.Update(_settings, () => config.Locked = locked),
                     OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
                     RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
@@ -138,6 +140,8 @@ namespace Eq2Auras.Plugin.Overlay
                 FontFamily = source.FontFamily,
                 FontBaseSize = source.FontBaseSize,
                 Opacity = source.Opacity,
+                // SecondaryKey intentionally omitted -> null = None: the secondary is a data
+                // choice, not inherited (SPEC Part III §Multiple windows — new window -> None).
             };
             var style = MeterStyle(created);
             double baseLeft = source.Left ?? DefaultMeterLeft(style);
@@ -217,7 +221,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 foreach (var pair in _meterWindows)
                 {
-                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, paletteArgb);
+                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, paletteArgb, pair.Key.SecondaryKey);
                     pair.Value.Render(frame);
                 }
             }));

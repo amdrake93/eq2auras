@@ -45,15 +45,17 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _totalText;
         private readonly ContextMenu _menu;
         private string _metricKey;
+        private string _secondaryKey;   // null = None; the settings dropdown's current value
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity, int visibleRows,
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, int visibleRows,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
             _cb = callbacks;
             _style = style;
             _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
+            _secondaryKey = secondaryKey;                         // null/unknown -> None (no Resolve; off, not DPS)
             _locked = locked;
             _opacity = opacity;
             _visibleRows = visibleRows;

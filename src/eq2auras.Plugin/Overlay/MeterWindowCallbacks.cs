@@ -9,6 +9,7 @@ namespace Eq2Auras.Plugin.Overlay
     {
         public Action<double, double> PersistPosition;
         public Action<string> MetricPicked;
+        public Action<string> SecondaryPicked;   // null = None
         public Action<bool> LockChanged;
         public Action<double> OpacityChanged;
         public Action<double> RowHeightChanged;
