@@ -31,6 +31,10 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Action _onCloseWindow;
         private readonly Func<bool> _canClose;
         private MenuItem _lockItem;
+        private readonly Action<double> _onOpacityChanged;
+        private double _opacity;
+        private SolidColorBrush _headerBackplate;
+        private MeterSettingsWindow _settings;
         private readonly StackPanel _rowsPanel;
         private readonly TextBlock _durationText;
         private readonly TextBlock _titleText;
@@ -40,16 +44,18 @@ namespace Eq2Auras.Plugin.Overlay
         private string _metricKey;
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked,
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity,
             Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged,
-            Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
+            Action<double> onOpacityChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
             : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
         {
             _style = style;
             _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
             _locked = locked;
+            _opacity = opacity;
             _onMetricPicked = onMetricPicked;
             _onLockChanged = onLockChanged;
+            _onOpacityChanged = onOpacityChanged;
             _onNewWindow = onNewWindow;
             _onCloseWindow = onCloseWindow;
             _canClose = canClose;
@@ -87,7 +93,13 @@ namespace Eq2Auras.Plugin.Overlay
             leftGrid.Children.Add(_metricText);
 
             var affordance = HeaderBlock(style, dim: true);
-            affordance.Text = " ⋯";   // ⋯ — hints the right-click menu (SPEC Part III §Header)
+            affordance.Text = " ⚙";   // ⚙ — opens the settings window (SPEC Part III §Header)
+            affordance.Cursor = System.Windows.Input.Cursors.Hand;
+            affordance.MouseLeftButtonDown += (s, e) =>
+            {
+                e.Handled = true;   // don't let the header drag fire under the cog
+                OpenSettings();
+            };
             var rightPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -117,7 +129,7 @@ namespace Eq2Auras.Plugin.Overlay
                 // A real background — a transparent surface would be mouse-invisible,
                 // and the header IS the drag/menu hit target. Shared with the row
                 // backplate so they can't drift (SPEC Part III §Meter display defaults).
-                Background = new SolidColorBrush(OverlayTheme.MeterBackplate),
+                Background = _headerBackplate = new SolidColorBrush(OverlayTheme.MeterBackplate),
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder),
                 Child = headerGrid
@@ -128,6 +140,7 @@ namespace Eq2Auras.Plugin.Overlay
             _menu = BuildMenu();
             SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
             header.ContextMenu = _menu;   // WPF opens it on right-click
+            _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
             var root = new StackPanel { Width = style.RowWidth };
@@ -251,7 +264,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             while (_slots.Count < visible)
             {
-                var slot = new MeterRowVisual(_style);
+                var slot = new MeterRowVisual(_style, _opacity);
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
@@ -267,6 +280,38 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 _slots[i].Update(rows[_scrollOffset + i]);
             }
+        }
+
+        private void OpenSettings()
+        {
+            if (_settings != null)
+            {
+                _settings.Activate();
+                return;
+            }
+            _settings = new MeterSettingsWindow(_opacity, SetOpacity)
+            {
+                Left = Left + 20,
+                Top = Top + 20,
+            };
+            _settings.Closed += (s, e) => _settings = null;
+            _settings.Show();
+        }
+
+        /// Live opacity (SPEC Part III §Meter display defaults): applied to the header and
+        /// every retained row, and persisted. Text stays at full opacity — always readable.
+        public void SetOpacity(double opacity)
+        {
+            _opacity = opacity;
+            _headerBackplate.Opacity = opacity;
+            foreach (var slot in _slots) slot.SetOpacity(opacity);
+            _onOpacityChanged(opacity);
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _settings?.Close();
+            base.OnClosed(e);
         }
     }
 }

@@ -106,9 +106,11 @@ namespace Eq2Auras.Plugin.Overlay
                 style,
                 config.MetricKey,
                 config.Locked,
+                config.Opacity ?? 1.0,
                 (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
                 key => SettingsStore.Update(_settings, () => config.MetricKey = key),
                 locked => SettingsStore.Update(_settings, () => config.Locked = locked),
+                opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
                 () => AddClonedWindow(config),
                 () => CloseMeterWindow(config),
                 () => _meterWindows.Count > 1);
