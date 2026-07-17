@@ -147,4 +147,31 @@ public class MeterSettingsTests
 
         Assert.Null(parsed.Meter.Windows[0].RowHeight);   // null -> host resolves to VisualStyle.DefaultRowHeight (26)
     }
+
+    [Fact]
+    public void Window_font_roundtrips()
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig>
+        {
+            new MeterWindowConfig { FontFamily = "Consolas", FontBaseSize = 18.0 },
+        };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal("Consolas", parsed.Meter.Windows[0].FontFamily);
+        Assert.Equal(18.0, parsed.Meter.Windows[0].FontBaseSize);
+    }
+
+    [Fact]
+    public void Null_font_stays_null_meaning_default()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Null(parsed.Meter.Windows[0].FontFamily);     // null -> system default
+        Assert.Null(parsed.Meter.Windows[0].FontBaseSize);   // null -> 13 DIPs
+    }
 }

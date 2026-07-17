@@ -28,5 +28,11 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "rowHeight")]
         public double? RowHeight { get; set; }   // null = VisualStyle.DefaultRowHeight (26); clamped to Settings row-height bounds
+
+        [DataMember(Name = "fontFamily")]
+        public string FontFamily { get; set; }        // null = system default
+
+        [DataMember(Name = "fontBaseSize")]
+        public double? FontBaseSize { get; set; }      // WPF DIPs; null = 13
     }
 }
