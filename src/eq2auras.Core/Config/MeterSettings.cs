@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.Serialization;
@@ -35,6 +36,7 @@ namespace Eq2Auras.Core.Config
 
         public const double MinOpacity = 0.3;
         public const double MaxOpacity = 1.0;
+        public const double DefaultOpacity = 1.0;   // null Opacity resolves here — today's baked look
 
         /// DCJS skips initializers, so Windows may be null. Migrates a legacy single-window
         /// file into one config, drops null entries, and seeds one default window when the
@@ -73,7 +75,7 @@ namespace Eq2Auras.Core.Config
             foreach (var window in Windows)
             {
                 if (window.Opacity.HasValue && (window.Opacity.Value < MinOpacity || window.Opacity.Value > MaxOpacity))
-                    window.Opacity = System.Math.Min(MaxOpacity, System.Math.Max(MinOpacity, window.Opacity.Value));
+                    window.Opacity = Math.Min(MaxOpacity, Math.Max(MinOpacity, window.Opacity.Value));
             }
         }
     }

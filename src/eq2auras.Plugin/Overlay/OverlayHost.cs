@@ -106,7 +106,7 @@ namespace Eq2Auras.Plugin.Overlay
                 style,
                 config.MetricKey,
                 config.Locked,
-                config.Opacity ?? 1.0,
+                config.Opacity ?? MeterSettings.DefaultOpacity,
                 (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
                 key => SettingsStore.Update(_settings, () => config.MetricKey = key),
                 locked => SettingsStore.Update(_settings, () => config.Locked = locked),
@@ -129,6 +129,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 MetricKey = source.MetricKey,
                 Locked = source.Locked,
+                Opacity = source.Opacity,
                 Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
                 Top = ClampMeterY(baseTop + MeterCascadeOffset),
             };

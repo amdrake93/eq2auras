@@ -30,7 +30,7 @@ _(same as Increment 1 — carried verbatim)_
 | `src/eq2auras.Plugin/Overlay/MeterRowVisual.cs` | Modify | Ctor takes opacity; own the backplate brush; `SetOpacity`. |
 | `src/eq2auras.Plugin/Overlay/MeterSettingsWindow.cs` | **Create** | Dark modeless custom-chrome settings window; opacity slider + reset. |
 | `src/eq2auras.Plugin/Overlay/MeterWindow.cs` | Modify | ⚙ cog opens settings; `_opacity` + header backplate brush; `SetOpacity`; ctor +2 args. |
-| `src/eq2auras.Plugin/Overlay/OverlayHost.cs` | Modify | `AddMeterWindow` passes opacity + persist callback. |
+| `src/eq2auras.Plugin/Overlay/OverlayHost.cs` | Modify | `AddMeterWindow` passes opacity + persist callback; `AddClonedWindow` copies `Opacity`. |
 
 ---
 
@@ -99,7 +99,10 @@ In `src/eq2auras.Core/Config/MeterSettings.cs`, add the constants inside the cla
 ```csharp
         public const double MinOpacity = 0.3;
         public const double MaxOpacity = 1.0;
+        public const double DefaultOpacity = 1.0;   // null Opacity resolves here — today's baked look
 ```
+
+_(The clone path in `OverlayHost.AddClonedWindow` — inc-1 code — must also carry the new `Opacity`; see Task 3 Step 7.)_
 
 Then, in `Normalize()`, replace the final line:
 
@@ -531,6 +534,21 @@ with:
                 () => _meterWindows.Count > 1);
 ```
 
+- [ ] **Step 7b: Carry opacity through the clone path**
+
+`AddClonedWindow` (inc-1 code) predates `Opacity`, so it must be extended to copy it — else "New meter window" resets a dimmed window to default, contradicting SPEC:330. In `OverlayHost.cs`, in the `AddClonedWindow` clone initializer, add `Opacity = source.Opacity,`:
+
+```csharp
+            var clone = new MeterWindowConfig
+            {
+                MetricKey = source.MetricKey,
+                Locked = source.Locked,
+                Opacity = source.Opacity,
+                Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
+                Top = ClampMeterY(baseTop + MeterCascadeOffset),
+            };
+```
+
 - [ ] **Step 8: Commit**
 
 ```bash
@@ -569,6 +587,7 @@ Expected: **success** — Core tests (150) pass, WPF plugin compiles (first comp
 - ⚙ cog opens a per-window dark settings window → Task 3 (cog + `MeterSettingsWindow`). ✓
 - Single opacity knob scaling fill + backplate together, live-apply → Task 2 (`SetOpacity`/`FillOpacity`) + Task 3 (slider). ✓
 - Opacity persists per window → Task 3 Step 7 (persist callback). ✓
+- New-window clone carries the source's opacity (SPEC:330 "clones the config") → Task 3 Step 7 (`AddClonedWindow` copies `Opacity`). ✓
 - Text stays readable (opacity never touches text) → Task 2 (element/brush opacity on fill + backplate only). ✓
 - **Deferred to later increments:** row height (inc 3), font (inc 4), edge-resize (inc 5) — the settings window is scaffolded to grow. ✓
 

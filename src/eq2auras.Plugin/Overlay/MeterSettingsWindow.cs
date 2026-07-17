@@ -12,8 +12,6 @@ namespace Eq2Auras.Plugin.Overlay
     /// (opacity); row height (inc 3) and font (inc 4) land here next.
     internal sealed class MeterSettingsWindow : Window
     {
-        private const double DefaultOpacity = 1.0;
-
         private readonly Action<double> _onOpacityChanged;
         private readonly Slider _opacity;
         private readonly TextBlock _opacityValue;
@@ -94,7 +92,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Foreground = new SolidColorBrush(Color.FromArgb(255, 0x8B, 0x93, 0xA3)),
                 Cursor = Cursors.Hand
             };
-            reset.MouseLeftButtonDown += (s, e) => _opacity.Value = DefaultOpacity;   // fires ValueChanged -> applies + persists
+            reset.MouseLeftButtonDown += (s, e) => _opacity.Value = MeterSettings.DefaultOpacity;   // fires ValueChanged -> applies + persists
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             body.Children.Add(opacityRow);
