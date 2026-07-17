@@ -62,9 +62,19 @@ with:
 **Unlocked**, a window is **moved by dragging its header** and **resized by dragging its right and bottom edges** — the right edge sets the width, the bottom edge sets how many rows are visible (snap to whole rows, §Configuration); repositioning is the header's job, so the top-left stays anchored while resizing.
 ```
 
-- [ ] **Step 2: Backlog — record the deferred left/top-edge resize**
+- [ ] **Step 2: Backlog — reword increment 5 to right/bottom + record the deferral**
 
-In `docs/backlog.md`, in the slice-2 in-flight entry's increment list, append to increment 5's line: `Left/top-edge resize deferred (v1 anchors top-left; reposition via the header) — a later refinement (needs window-move + device→DIP delta handling).`
+In `docs/backlog.md`, the increment-5 line currently claims left/right + top/bottom resize; revise it so it doesn't contradict the reworded spec. Replace:
+
+```
+5. **Edge-resize** — unlocked windows resize at the edges (left/right = width; top/bottom = visible-row count, snapped to whole rows); lock freezes move + resize; geometry persists. Row *width* retires as a knob (resize owns it).
+```
+
+with:
+
+```
+5. **Edge-resize** — unlocked windows resize at the **right/bottom** edges (right = width; bottom = visible-row count, snapped to whole rows); lock freezes move + resize; geometry persists. Row *width* retires as a knob (resize owns it). **Left/top-edge resize deferred** (v1 anchors top-left; reposition via the header) — a later refinement (needs window-move + device→DIP delta handling).
+```
 
 - [ ] **Step 3: Add the clamp/roundtrip tests**
 
@@ -278,7 +288,7 @@ to:
 
 - [ ] **Step 4: Repoint the callback call sites to the bundle**
 
-In `MeterWindow.cs`, make these five replacements (each is unique):
+In `MeterWindow.cs`, make these eight replacements (each is unique):
 
 `_onMetricPicked(key);` → `_cb.MetricPicked(key);`
 `_onLockChanged(_locked);` → `_cb.LockChanged(_locked);`
@@ -362,7 +372,35 @@ In `MeterRowVisual.cs`, add after `SetFont`:
         }
 ```
 
-- [ ] **Step 3: Live width + visible-rows on the window**
+- [ ] **Step 3: Promote the outer panel to a field**
+
+`SetRowWidth` (next step) resizes the outer panel, so it must be a field. In `MeterWindow.cs`, add the field after `private readonly StackPanel _rowsPanel;`:
+
+```csharp
+        private StackPanel _root;
+```
+
+And convert the ctor-local to it — replace:
+
+```csharp
+            _rowsPanel = new StackPanel();
+            var root = new StackPanel { Width = style.RowWidth };
+            root.Children.Add(header);
+            root.Children.Add(_rowsPanel);
+            Content = root;
+```
+
+with:
+
+```csharp
+            _rowsPanel = new StackPanel();
+            _root = new StackPanel { Width = style.RowWidth };
+            _root.Children.Add(header);
+            _root.Children.Add(_rowsPanel);
+            Content = _root;
+```
+
+- [ ] **Step 4: Live width + visible-rows on the window**
 
 In `MeterWindow.cs`, add after `SetFont`:
 
@@ -394,7 +432,7 @@ In `MeterWindow.cs`, add after `SetFont`:
         }
 ```
 
-- [ ] **Step 4: Commit**
+- [ ] **Step 5: Commit**
 
 ```bash
 git add src/eq2auras.Plugin/Overlay/BarRowVisual.cs src/eq2auras.Plugin/Overlay/MeterRowVisual.cs src/eq2auras.Plugin/Overlay/MeterWindow.cs
@@ -414,10 +452,9 @@ git commit -m "Meter slice2 inc5: live width apply via BarRowVisual.SetRowWidth 
 
 - [ ] **Step 1: Add the grip fields + drag state**
 
-In `MeterWindow.cs`, add fields after `private StackPanel _rowsPanel;` — first add the `_root` field there too (it becomes an instance field):
+In `MeterWindow.cs`, add these fields after `private StackPanel _root;` (added in Task 3 Step 3):
 
 ```csharp
-        private StackPanel _root;
         private System.Windows.Shapes.Rectangle _rightGrip;
         private System.Windows.Shapes.Rectangle _bottomGrip;
         private bool _resizing;
@@ -426,26 +463,17 @@ In `MeterWindow.cs`, add fields after `private StackPanel _rowsPanel;` — first
         private int _startVisibleRows;
 ```
 
-- [ ] **Step 2: Build the grips and wrap the content**
+- [ ] **Step 2: Wrap the content in the grip grid**
 
-In `MeterWindow.cs`, replace the content-assembly tail:
+Task 3 Step 3 made `_root` a field and set `Content = _root;`. Now wrap it with the edge grips — replace:
 
 ```csharp
-            _rowsPanel = new StackPanel();
-            var root = new StackPanel { Width = style.RowWidth };
-            root.Children.Add(header);
-            root.Children.Add(_rowsPanel);
-            Content = root;
+            Content = _root;
 ```
 
 with:
 
 ```csharp
-            _rowsPanel = new StackPanel();
-            _root = new StackPanel { Width = style.RowWidth };
-            _root.Children.Add(header);
-            _root.Children.Add(_rowsPanel);
-
             // Transparent edge grips (right = width, bottom = visible rows). Top-left is
             // anchored — the window never moves during resize, so GetPosition(this) is a
             // stable DIP reference (SPEC Part III §The meter window). Reposition via header.
@@ -558,9 +586,15 @@ to:
 
 - [ ] **Step 4: Host — width in the style, clone the geometry, build the bundle**
 
-In `OverlayHost.cs`, add width to `MeterStyle`. Change the `RowSpacing = 0,` line's block — replace:
+In `OverlayHost.cs`, add width to `MeterStyle` **and fix its now-stale "width stays default" comment**. Replace:
 
 ```csharp
+        // Per-window style resolved from the config: zero row spacing (meter rows touch —
+        // SPEC Part III §Meter display defaults) plus the configurable row height and font;
+        // width stays default until the edge-resize increment.
+        private static VisualStyle MeterStyle(MeterWindowConfig config)
+            => new VisualStyle
+            {
                 RowSpacing = 0,
                 RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight,
 ```
@@ -568,6 +602,12 @@ In `OverlayHost.cs`, add width to `MeterStyle`. Change the `RowSpacing = 0,` lin
 with:
 
 ```csharp
+        // Per-window style resolved from the config: zero row spacing (meter rows touch —
+        // SPEC Part III §Meter display defaults) plus the configurable width, row height,
+        // and font.
+        private static VisualStyle MeterStyle(MeterWindowConfig config)
+            => new VisualStyle
+            {
                 RowSpacing = 0,
                 RowWidth = config.Width ?? VisualStyle.DefaultRowWidth,
                 RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight,
