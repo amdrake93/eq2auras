@@ -20,7 +20,6 @@ namespace Eq2Auras.Plugin.Overlay
     {
         public const int DefaultVisibleRows = 10;   // null config -> this
         private int _visibleRows;                    // per-window slot count; the frame always carries every ally
-        private const double WindowSlack = 10;
 
         private readonly List<MeterRowVisual> _slots = new List<MeterRowVisual>();
         private MeterFrame _lastFrame;
@@ -66,7 +65,7 @@ namespace Eq2Auras.Plugin.Overlay
             ShowInTaskbar = false;
             ResizeMode = ResizeMode.NoResize;
             SizeToContent = SizeToContent.Height;
-            Width = style.RowWidth + WindowSlack;
+            Width = style.RowWidth;   // no horizontal slack: the right edge = the visible edge, so the resize grip sits on it (matches the bottom)
 
             double hr = 1.0;   // header stays default-proportioned; the row-height knob thickens data rows only (SPEC Part III §Configuration)
             _durationText = HeaderBlock(style, dim: true);
@@ -152,7 +151,7 @@ namespace Eq2Auras.Plugin.Overlay
             // stable DIP reference (SPEC Part III §The meter window). Reposition via header.
             _rightGrip = new System.Windows.Shapes.Rectangle
             {
-                Width = 6,
+                Width = 10,
                 Fill = Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Right,
                 VerticalAlignment = VerticalAlignment.Stretch,
@@ -160,7 +159,7 @@ namespace Eq2Auras.Plugin.Overlay
             };
             _bottomGrip = new System.Windows.Shapes.Rectangle
             {
-                Height = 6,
+                Height = 10,
                 Fill = Brushes.Transparent,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 VerticalAlignment = VerticalAlignment.Bottom,
@@ -400,7 +399,7 @@ namespace Eq2Auras.Plugin.Overlay
                 BaseSize = _style.BaseSize,
             };
             _root.Width = width;
-            Width = width + WindowSlack;
+            Width = width;
             foreach (var slot in _slots) slot.SetRowWidth(width);
         }
 
