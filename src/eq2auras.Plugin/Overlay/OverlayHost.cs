@@ -21,7 +21,9 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly List<TimerListWindow> _listWindows = new List<TimerListWindow>();
         private readonly List<CenterZoneWindow> _centerWindows = new List<CenterZoneWindow>();
         private GridOverlayWindow _grid;
-        private MeterWindow _meterWindow;
+        private readonly MeterEngine _meterEngine = new MeterEngine();
+        private readonly Dictionary<MeterWindowConfig, MeterWindow> _meterWindows =
+            new Dictionary<MeterWindowConfig, MeterWindow>();
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -41,7 +43,7 @@ namespace Eq2Auras.Plugin.Overlay
                     CreatePanelWindows(i, _settings.Panels[i]);
                 }
                 _grid = new GridOverlayWindow();   // hidden until move mode
-                if (_settings.Meter.Enabled) CreateMeterWindow();
+                if (_settings.Meter.Enabled) CreateMeterWindows();
                 ready.Set();
                 Dispatcher.Run();
             });
@@ -90,21 +92,76 @@ namespace Eq2Auras.Plugin.Overlay
             };
         }
 
-        private void CreateMeterWindow()
+        private void CreateMeterWindows()
         {
-            var style = new VisualStyle { RowSpacing = 0 };   // meter rows touch (SPEC Part III §Meter display defaults); other dims are slice-1 baked defaults
-            var meter = _settings.Meter;
-            _meterWindow = new MeterWindow(
-                meter.Left ?? SystemParameters.PrimaryScreenWidth - style.RowWidth - 60,
-                meter.Top ?? 320,
-                style,
-                meter.MetricKey,
-                meter.Locked,
-                (left, top) => SettingsStore.Update(_settings, () => { meter.Left = left; meter.Top = top; }),
-                key => SettingsStore.Update(_settings, () => meter.MetricKey = key),
-                locked => SettingsStore.Update(_settings, () => meter.Locked = locked));
-            _meterWindow.Show();
+            foreach (var config in _settings.Meter.Windows) AddMeterWindow(config);
         }
+
+        private void AddMeterWindow(MeterWindowConfig config)
+        {
+            var style = MeterStyle();
+            var window = new MeterWindow(
+                config.Left ?? DefaultMeterLeft(style),
+                config.Top ?? DefaultMeterTop,
+                style,
+                config.MetricKey,
+                config.Locked,
+                (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
+                key => SettingsStore.Update(_settings, () => config.MetricKey = key),
+                locked => SettingsStore.Update(_settings, () => config.Locked = locked),
+                () => AddClonedWindow(config),
+                () => CloseMeterWindow(config),
+                () => _meterWindows.Count > 1);
+            _meterWindows[config] = window;
+            window.Show();
+        }
+
+        /// New meter window: clone the invoked window's config, offset + clamped on-screen
+        /// (SPEC Part III §Multiple windows). Re-pointed at another metric from its own menu.
+        private void AddClonedWindow(MeterWindowConfig source)
+        {
+            var style = MeterStyle();
+            double baseLeft = source.Left ?? DefaultMeterLeft(style);
+            double baseTop = source.Top ?? DefaultMeterTop;
+            var clone = new MeterWindowConfig
+            {
+                MetricKey = source.MetricKey,
+                Locked = source.Locked,
+                Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
+                Top = ClampMeterY(baseTop + MeterCascadeOffset),
+            };
+            SettingsStore.Update(_settings, () => _settings.Meter.Windows.Add(clone));
+            AddMeterWindow(clone);
+        }
+
+        /// The last window can't close — the tab toggle is the master off-switch (SPEC Part III).
+        private void CloseMeterWindow(MeterWindowConfig config)
+        {
+            if (_meterWindows.Count <= 1) return;
+            if (_meterWindows.TryGetValue(config, out var window))
+            {
+                window.Close();
+                _meterWindows.Remove(config);
+            }
+            SettingsStore.Update(_settings, () => _settings.Meter.Windows.Remove(config));
+        }
+
+        // Meter rows touch (SPEC Part III §Meter display defaults); per-window size/font/
+        // opacity knobs arrive in later increments, so increment 1 uses baked defaults.
+        private static VisualStyle MeterStyle() => new VisualStyle { RowSpacing = 0 };
+
+        private const double MeterCascadeOffset = 30;
+        private const double MeterWindowSlack = 10;   // matches MeterWindow's window slack
+        private const double DefaultMeterTop = 320;
+
+        private static double DefaultMeterLeft(VisualStyle style)
+            => SystemParameters.PrimaryScreenWidth - style.RowWidth - 60;
+
+        private static double ClampMeterX(double x, VisualStyle style)
+            => Math.Max(0, Math.Min(x, SystemParameters.PrimaryScreenWidth - (style.RowWidth + MeterWindowSlack)));
+
+        private static double ClampMeterY(double y)
+            => Math.Max(0, Math.Min(y, SystemParameters.PrimaryScreenHeight - 100));
 
         /// Tab toggle, applied live. The meter window is NOT part of move mode:
         /// its interactivity makes a separate unlock unnecessary (SPEC Part III).
@@ -114,21 +171,33 @@ namespace Eq2Auras.Plugin.Overlay
             if (dispatcher == null) return;
             dispatcher.BeginInvoke((Action)(() =>
             {
-                if (enabled && _meterWindow == null) CreateMeterWindow();
-                else if (!enabled && _meterWindow != null)
+                // The tab's SettingsStore.Update(enabled = true) has already run Normalize,
+                // which seeds one default window into Meter.Windows if the list was empty.
+                if (enabled && _meterWindows.Count == 0) CreateMeterWindows();
+                else if (!enabled && _meterWindows.Count > 0)
                 {
-                    _meterWindow.Close();
-                    _meterWindow = null;
+                    foreach (var window in _meterWindows.Values) window.Close();
+                    _meterWindows.Clear();   // configs persist in Meter.Windows for the next enable
                 }
             }));
         }
 
-        /// Callable from any thread (the sample runs on ACT's UI thread).
-        public void UpdateMeterFrame(MeterFrame frame)
+        /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one
+        /// shared snapshot to each window's metric through the one shared engine/palette —
+        /// an ally reads the same color in every window (SPEC Part III §Multiple windows).
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants,
+            IReadOnlyList<int> paletteArgb)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
-            dispatcher.BeginInvoke((Action)(() => _meterWindow?.Render(frame)));
+            dispatcher.BeginInvoke((Action)(() =>
+            {
+                foreach (var pair in _meterWindows)
+                {
+                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, paletteArgb);
+                    pair.Value.Render(frame);
+                }
+            }));
         }
 
         /// Tab knob changed: each window converts-and-persists via SetGrowDirection.
@@ -236,8 +305,8 @@ namespace Eq2Auras.Plugin.Overlay
                 _listWindows.Clear();
                 foreach (var window in _centerWindows) window.Close();
                 _centerWindows.Clear();
-                _meterWindow?.Close();
-                _meterWindow = null;
+                foreach (var window in _meterWindows.Values) window.Close();
+                _meterWindows.Clear();
                 _grid?.Close();
                 _grid = null;
             });

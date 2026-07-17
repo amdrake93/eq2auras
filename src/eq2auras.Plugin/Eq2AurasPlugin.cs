@@ -4,7 +4,6 @@ using System.Reflection;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
 using Eq2Auras.Core.Config;
-using Eq2Auras.Core.Meter;
 using Eq2Auras.Core.Timers;
 using Eq2Auras.Plugin.Act;
 using Eq2Auras.Plugin.Diagnostics;
@@ -23,7 +22,6 @@ namespace Eq2Auras.Plugin
         private TimerProbe _probe;
         private OverlayHost _overlay;
         private OverlayEngine _engine;
-        private MeterEngine _meterEngine;
         private EncounterProbe _encounterProbe;
         private Settings _settings;
 
@@ -41,11 +39,9 @@ namespace Eq2Auras.Plugin
             _overlay = new OverlayHost(_settings);
             _overlay.Start();
             _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
-            _meterEngine = new MeterEngine();
             _encounterProbe = new EncounterProbe(
                 () => _settings.Meter.Enabled,
-                (encounter, combatants) => _overlay.UpdateMeterFrame(
-                    _meterEngine.Tick(encounter, combatants, _settings.Meter.MetricKey, _settings.PaletteArgb)));
+                (encounter, combatants) => _overlay.UpdateMeterSample(encounter, combatants, _settings.PaletteArgb));
             _probe = new TimerProbe(_log,
                 () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(
@@ -76,7 +72,6 @@ namespace Eq2Auras.Plugin
             _probe?.Dispose();
             _probe = null;
             _encounterProbe = null;   // no timers/subscriptions of its own — driven by the probe's tick
-            _meterEngine = null;
             _engine = null;
             _overlay?.Dispose();
             _overlay = null;
