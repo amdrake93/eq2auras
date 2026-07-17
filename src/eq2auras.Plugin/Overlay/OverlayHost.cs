@@ -112,6 +112,7 @@ namespace Eq2Auras.Plugin.Overlay
                 locked => SettingsStore.Update(_settings, () => config.Locked = locked),
                 opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
                 rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
+                (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
                 () => AddClonedWindow(config),
                 () => CloseMeterWindow(config),
                 () => _meterWindows.Count > 1);
@@ -132,6 +133,8 @@ namespace Eq2Auras.Plugin.Overlay
                 Locked = source.Locked,
                 Opacity = source.Opacity,
                 RowHeight = source.RowHeight,
+                FontFamily = source.FontFamily,
+                FontBaseSize = source.FontBaseSize,
                 Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
                 Top = ClampMeterY(baseTop + MeterCascadeOffset),
             };
@@ -151,10 +154,17 @@ namespace Eq2Auras.Plugin.Overlay
             SettingsStore.Update(_settings, () => _settings.Meter.Windows.Remove(config));
         }
 
-        // Meter rows touch (SPEC Part III §Meter display defaults); per-window size/font/
-        // opacity knobs arrive in later increments, so increment 1 uses baked defaults.
+        // Per-window style resolved from the config: zero row spacing (meter rows touch —
+        // SPEC Part III §Meter display defaults) plus the configurable row height and font;
+        // width stays default until the edge-resize increment.
         private static VisualStyle MeterStyle(MeterWindowConfig config)
-            => new VisualStyle { RowSpacing = 0, RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight };
+            => new VisualStyle
+            {
+                RowSpacing = 0,
+                RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight,
+                Font = config.FontFamily != null ? new System.Windows.Media.FontFamily(config.FontFamily) : null,
+                BaseSize = config.FontBaseSize ?? 13.0,
+            };
 
         private const double MeterCascadeOffset = 30;
         private const double MeterWindowSlack = 10;   // matches MeterWindow's window slack

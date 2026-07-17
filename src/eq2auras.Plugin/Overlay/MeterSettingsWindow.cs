@@ -8,8 +8,8 @@ using Eq2Auras.Core.Config;
 namespace Eq2Auras.Plugin.Overlay
 {
     /// Per-window meter settings (SPEC Part III §Configuration) — Details' options window,
-    /// dark and custom-chromed, modeless and live-applying. Increment 2 carries one knob
-    /// (opacity); row height (inc 3) and font (inc 4) land here next.
+    /// dark and custom-chromed, modeless and live-applying: row height, font, and opacity,
+    /// per window.
     internal sealed class MeterSettingsWindow : Window
     {
         private readonly Action<double> _onOpacityChanged;
@@ -18,11 +18,18 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Action<double> _onRowHeightChanged;
         private readonly Slider _rowHeight;
         private readonly TextBlock _rowHeightValue;
+        private readonly Action<string, double> _onFontChanged;
+        private string _fontFamily;
+        private double _fontBaseSize;
 
-        public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged)
+        public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged,
+            string fontFamily, double fontBaseSize, Action<string, double> onFontChanged)
         {
             _onOpacityChanged = onOpacityChanged;
             _onRowHeightChanged = onRowHeightChanged;
+            _onFontChanged = onFontChanged;
+            _fontFamily = fontFamily;
+            _fontBaseSize = fontBaseSize;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -92,6 +99,44 @@ namespace Eq2Auras.Plugin.Overlay
             rowHeightRow.Children.Add(_rowHeight);
             rowHeightRow.Children.Add(_rowHeightValue);
 
+            var fontLabel = new TextBlock
+            {
+                Text = "Font",
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 0xC4, 0xCA, 0xD6)),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 60
+            };
+            var fontValue = new TextBlock
+            {
+                Text = FontLabel(fontFamily, fontBaseSize),
+                Foreground = new SolidColorBrush(OverlayTheme.Text),
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            var choose = new TextBlock
+            {
+                Text = "  Choose…",
+                Foreground = new SolidColorBrush(Color.FromArgb(255, 0x8B, 0x93, 0xA3)),
+                Cursor = Cursors.Hand,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            choose.MouseLeftButtonDown += (s, e) =>
+            {
+                using (var dialog = new System.Windows.Forms.FontDialog())
+                {
+                    var currentFamily = _fontFamily ?? System.Drawing.SystemFonts.MessageBoxFont.Name;
+                    dialog.Font = new System.Drawing.Font(currentFamily, (float)(_fontBaseSize * 72.0 / 96.0));
+                    if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
+                    _fontFamily = dialog.Font.Name;
+                    _fontBaseSize = dialog.Font.SizeInPoints * 96.0 / 72.0;   // points -> DIPs
+                    fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
+                    _onFontChanged(_fontFamily, _fontBaseSize);
+                }
+            };
+            var fontRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 10) };
+            fontRow.Children.Add(fontLabel);
+            fontRow.Children.Add(fontValue);
+            fontRow.Children.Add(choose);
+
             var opacityLabel = new TextBlock
             {
                 Text = "Opacity",
@@ -136,6 +181,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             body.Children.Add(rowHeightRow);
+            body.Children.Add(fontRow);
             body.Children.Add(opacityRow);
             body.Children.Add(reset);
 
@@ -157,5 +203,8 @@ namespace Eq2Auras.Plugin.Overlay
         private static string Percent(double opacity) => Math.Round(opacity * 100) + "%";
 
         private static string Px(double rowHeight) => Math.Round(rowHeight) + " px";
+
+        private static string FontLabel(string family, double dip)
+            => (family ?? "default") + " · " + Math.Round(dip * 72.0 / 96.0) + " pt";
     }
 }
