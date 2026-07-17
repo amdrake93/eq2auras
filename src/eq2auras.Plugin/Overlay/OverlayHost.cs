@@ -125,17 +125,23 @@ namespace Eq2Auras.Plugin.Overlay
             window.Show();
         }
 
-        /// New meter window: a default window (DPS, unlocked, default appearance) at a
-        /// cascade offset from the invoked window. Deliberately does NOT inherit the
-        /// source's config — a cloned *locked* window opened on top of its source and
-        /// couldn't be dragged clear (field UX, SPEC Part III §Multiple windows). `near`
-        /// only anchors the offset.
-        private void AddNewWindow(MeterWindowConfig near)
+        /// New meter window: inherits the source's **appearance** (row height, font, opacity
+        /// — the settings-window knobs, a personal preference held constant across windows;
+        /// field call 2026-07-17), but NOT its metric, lock, size (width/visible-rows), or
+        /// position — those are per-window and start fresh at a cascade offset, so a new
+        /// window is never a locked clone landing on its source (SPEC Part III §Multiple windows).
+        private void AddNewWindow(MeterWindowConfig source)
         {
-            var created = new MeterWindowConfig();
-            var style = MeterStyle(created);   // default-width style for the offset clamp
-            double baseLeft = near.Left ?? DefaultMeterLeft(style);
-            double baseTop = near.Top ?? DefaultMeterTop;
+            var created = new MeterWindowConfig
+            {
+                RowHeight = source.RowHeight,
+                FontFamily = source.FontFamily,
+                FontBaseSize = source.FontBaseSize,
+                Opacity = source.Opacity,
+            };
+            var style = MeterStyle(created);
+            double baseLeft = source.Left ?? DefaultMeterLeft(style);
+            double baseTop = source.Top ?? DefaultMeterTop;
             created.Left = ClampMeterX(baseLeft + MeterCascadeOffset, style);
             created.Top = ClampMeterY(baseTop + MeterCascadeOffset);
             SettingsStore.Update(_settings, () => _settings.Meter.Windows.Add(created));

@@ -150,6 +150,13 @@ namespace Eq2Auras.Plugin.Overlay
                 Maximum = MeterSettings.MaxOpacity,
                 Value = opacity,
                 Width = 150,
+                // Small steps on a 0.3–1.0 range: a track-click moves LargeChange (5%), the
+                // arrows SmallChange (1%), snapped to 1% for clean values. Default LargeChange
+                // is 1.0, which on this narrow range slammed a click straight to min/max.
+                SmallChange = 0.01,
+                LargeChange = 0.05,
+                IsSnapToTickEnabled = true,
+                TickFrequency = 0.01,
                 VerticalAlignment = VerticalAlignment.Center
             };
             _opacityValue = new TextBlock
