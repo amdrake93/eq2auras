@@ -34,3 +34,6 @@ packages/
 
 # Brainstorm / visual-companion artifacts (transient)
 .superpowers/
+
+# Agent worktrees / local Claude scratch
+.claude/
