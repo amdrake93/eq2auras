@@ -26,7 +26,7 @@ _(from `docs/SPEC.md` Parts I/III, IV §Development & test cycle, and CLAUDE.md 
 |---|---|---|
 | `src/eq2auras.Core/Config/MeterWindowConfig.cs` | **Create** | One meter window's persisted config (metric/position/lock; DCJS-nullable positions). |
 | `src/eq2auras.Core/Config/MeterSettings.cs` | Modify | `{ Enabled; Windows[] }` + `Normalize()` (legacy migration + drop-nulls + seed-one-when-enabled). Legacy flat fields retained only to migrate, then cleared. |
-| `src/eq2auras.Core/Config/Settings.cs` | Modify (`Normalize`, ~87) | Call `Meter.Normalize()`. |
+| `src/eq2auras.Core/Config/Settings.cs` | Modify (`Normalize()` at :70; edit at :87) | Call `Meter.Normalize()`. |
 | `tests/eq2auras.Core.Tests/MeterSettingsTests.cs` | Modify (rewrite) | Migration, seed, drop-nulls, multi-window roundtrip. |
 | `src/eq2auras.Plugin/Overlay/MeterWindow.cs` | Modify | New/Close menu items (+ `canClose` on open), lock-item refactor, quick dark menu styling. |
 | `src/eq2auras.Plugin/Overlay/OverlayHost.cs` | Modify | `List`→map of windows; own `MeterEngine`; create-from-configs / clone / close / enable-disable; per-poll fan-out. |
@@ -39,7 +39,7 @@ _(from `docs/SPEC.md` Parts I/III, IV §Development & test cycle, and CLAUDE.md 
 **Files:**
 - Create: `src/eq2auras.Core/Config/MeterWindowConfig.cs`
 - Modify: `src/eq2auras.Core/Config/MeterSettings.cs`
-- Modify: `src/eq2auras.Core/Config/Settings.cs` (`Normalize`, ~line 87)
+- Modify: `src/eq2auras.Core/Config/Settings.cs` (`Normalize()` declared at :70; the edit is at :87)
 - Test: `tests/eq2auras.Core.Tests/MeterSettingsTests.cs`
 
 **Interfaces:**
@@ -659,7 +659,7 @@ Expected: **success** — Core tests pass and the WPF plugin compiles + produces
 ```
 1. Tab → tick "Parse Meter" → ONE window appears (DPS, screen-right).
 2. Solo or group combat → live DPS rows within a poll interval.
-3. Right-click the window → "New meter window" → a SECOND window appears, offset from the first.
+3. Right-click the window → "New meter window" → a SECOND window appears, offset from the first. (New windows clone the source's lock state; the default window is unlocked, so the clone is freely draggable.)
 4. Right-click the second → metric → HPS → it shows HPS live; the first still shows DPS. (DPS + HPS side by side.)
 5. A given ally shows the SAME bar color in both windows.
 6. Drag each window somewhere; reload the plugin (untick/retick ACT's plugin checkbox) → both windows return at their dragged positions, with their metrics and lock states.
