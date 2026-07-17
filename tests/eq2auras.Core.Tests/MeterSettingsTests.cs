@@ -91,4 +91,32 @@ public class MeterSettingsTests
         Assert.Equal(640.5, parsed.Meter.Windows[1].Left);
         Assert.True(parsed.Meter.Windows[1].Locked);
     }
+
+    [Theory]
+    [InlineData(0.1, 0.3)]    // below floor -> clamped up to MinOpacity
+    [InlineData(2.0, 1.0)]    // above ceiling -> clamped down to MaxOpacity
+    [InlineData(0.6, 0.6)]    // in range -> unchanged
+    public void Window_opacity_clamps_to_range(double stored, double expected)
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig>
+        {
+            new MeterWindowConfig { Opacity = stored },
+        };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(expected, parsed.Meter.Windows[0].Opacity);
+    }
+
+    [Fact]
+    public void Null_opacity_stays_null_meaning_default()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Null(parsed.Meter.Windows[0].Opacity);   // null -> host resolves to 1.0 (today's look)
+    }
 }

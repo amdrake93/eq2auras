@@ -22,5 +22,8 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "locked")]
         public bool Locked { get; set; }
+
+        [DataMember(Name = "opacity")]
+        public double? Opacity { get; set; }   // 0.3..1.0 multiplier over the baked alphas; null = 1.0 (today's look)
     }
 }

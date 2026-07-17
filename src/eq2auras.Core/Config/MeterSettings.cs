@@ -33,6 +33,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "windows")]
         public List<MeterWindowConfig> Windows { get; set; } = new List<MeterWindowConfig>();
 
+        public const double MinOpacity = 0.3;
+        public const double MaxOpacity = 1.0;
+
         /// DCJS skips initializers, so Windows may be null. Migrates a legacy single-window
         /// file into one config, drops null entries, and seeds one default window when the
         /// meter is enabled but has none (SPEC Part III §Multiple windows — an enabled meter
@@ -63,6 +66,15 @@ namespace Eq2Auras.Core.Config
             Windows = Windows.Where(w => w != null).ToList();
 
             if (Enabled && Windows.Count == 0) Windows.Add(new MeterWindowConfig());
+
+            // Clamp only when set (null = "use the default"); a valid value is never
+            // rewritten — the overlay thread reads it live. Mirrors Settings.Normalize's
+            // per-panel dimension clamps.
+            foreach (var window in Windows)
+            {
+                if (window.Opacity.HasValue && (window.Opacity.Value < MinOpacity || window.Opacity.Value > MaxOpacity))
+                    window.Opacity = System.Math.Min(MaxOpacity, System.Math.Max(MinOpacity, window.Opacity.Value));
+            }
         }
     }
 }
