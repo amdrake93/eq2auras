@@ -533,7 +533,7 @@ git commit -m "Plugin: fixed font-measured row columns + muted secondary column"
 - Consumes: `MeterColumns.NumberWidth` (Task 4).
 - Produces: header laid out as `[⚙ cog | (dur) title — metric | total]`; the total is a fixed-width right-aligned column equal to the row's `NumberWidth`, so it caps the value column; the cog leads the header.
 
-- [ ] **Step 1: Restructure the header assembly.** In the ctor, the cog affordance is created at lines 93-101 and the `rightPanel` (lines 102-110) currently holds `[_totalText, affordance]`. Replace the `rightPanel` block (lines 102-110) and the outer `headerGrid` block (lines 115-121) with a three-column layout — cog (auto, left), `leftGrid` (star), total (auto, right):
+- [ ] **Step 1: Restructure the header assembly.** In the ctor, the cog affordance is created at lines 93-101 and stays unchanged (it now lands in column 0). Replace the **contiguous block lines 102-121 as one edit** — the old `rightPanel` `StackPanel` (102-110, holding `[_totalText, affordance]`), the intervening blank line + the `// Outer: left cluster … | right cluster (total + affordance …)` comment (111-114) that describes the retired **two-column** layout, and the two-column `headerGrid` block (115-121) — with the three-column layout below. This single replacement subsumes the stale comment (its replacement is the new `// Outer header:` comment):
 
 ```csharp
             // Total is a fixed-width right-aligned column matching the row's value column,
@@ -542,6 +542,9 @@ git commit -m "Plugin: fixed font-measured row columns + muted secondary column"
             _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
             _totalText.TextAlignment = TextAlignment.Right;
 
+            // Outer header: [cog (auto)] [ (dur) title — metric (star, ellipsis-trims) ] [total (auto)].
+            // The cog leads so the right edge belongs to the total↔value-column alignment; leftGrid
+            // (the duration/title/metric cluster at lines 82-91) survives unchanged, re-columned to index 1.
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title — metric
@@ -554,8 +557,6 @@ git commit -m "Plugin: fixed font-measured row columns + muted secondary column"
             headerGrid.Children.Add(leftGrid);
             headerGrid.Children.Add(_totalText);
 ```
-
-(Delete the old `rightPanel` `StackPanel` entirely — the cog and total are now direct children of `headerGrid`. Keep the `affordance` creation at lines 93-101 unchanged; it now lands in column 0.)
 
 - [ ] **Step 2: Re-measure the total on font change.** In `ApplyHeaderFont` (lines 379-386), after the existing `ApplyFont` calls, re-pin the total's width so it tracks the font:
 
