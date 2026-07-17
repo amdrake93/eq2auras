@@ -117,7 +117,7 @@ namespace Eq2Auras.Plugin.Overlay
                     RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
                     FontChanged = (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
                     GeometryChanged = (width, rows) => SettingsStore.Update(_settings, () => { config.Width = width; config.VisibleRows = rows; }),
-                    NewWindow = () => AddClonedWindow(config),
+                    NewWindow = () => AddNewWindow(config),
                     CloseWindow = () => CloseMeterWindow(config),
                     CanClose = () => _meterWindows.Count > 1,
                 });
@@ -125,28 +125,21 @@ namespace Eq2Auras.Plugin.Overlay
             window.Show();
         }
 
-        /// New meter window: clone the invoked window's config, offset + clamped on-screen
-        /// (SPEC Part III §Multiple windows). Re-pointed at another metric from its own menu.
-        private void AddClonedWindow(MeterWindowConfig source)
+        /// New meter window: a default window (DPS, unlocked, default appearance) at a
+        /// cascade offset from the invoked window. Deliberately does NOT inherit the
+        /// source's config — a cloned *locked* window opened on top of its source and
+        /// couldn't be dragged clear (field UX, SPEC Part III §Multiple windows). `near`
+        /// only anchors the offset.
+        private void AddNewWindow(MeterWindowConfig near)
         {
-            var style = MeterStyle(source);
-            double baseLeft = source.Left ?? DefaultMeterLeft(style);
-            double baseTop = source.Top ?? DefaultMeterTop;
-            var clone = new MeterWindowConfig
-            {
-                MetricKey = source.MetricKey,
-                Locked = source.Locked,
-                Opacity = source.Opacity,
-                RowHeight = source.RowHeight,
-                FontFamily = source.FontFamily,
-                FontBaseSize = source.FontBaseSize,
-                Width = source.Width,
-                VisibleRows = source.VisibleRows,
-                Left = ClampMeterX(baseLeft + MeterCascadeOffset, style),
-                Top = ClampMeterY(baseTop + MeterCascadeOffset),
-            };
-            SettingsStore.Update(_settings, () => _settings.Meter.Windows.Add(clone));
-            AddMeterWindow(clone);
+            var created = new MeterWindowConfig();
+            var style = MeterStyle(created);   // default-width style for the offset clamp
+            double baseLeft = near.Left ?? DefaultMeterLeft(style);
+            double baseTop = near.Top ?? DefaultMeterTop;
+            created.Left = ClampMeterX(baseLeft + MeterCascadeOffset, style);
+            created.Top = ClampMeterY(baseTop + MeterCascadeOffset);
+            SettingsStore.Update(_settings, () => _settings.Meter.Windows.Add(created));
+            AddMeterWindow(created);
         }
 
         /// The last window can't close — the tab toggle is the master off-switch (SPEC Part III).
