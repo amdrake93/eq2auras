@@ -177,7 +177,17 @@ namespace Eq2Auras.Plugin.Overlay
                 Foreground = new SolidColorBrush(Color.FromArgb(255, 0x8B, 0x93, 0xA3)),
                 Cursor = Cursors.Hand
             };
-            reset.MouseLeftButtonDown += (s, e) => _opacity.Value = MeterSettings.DefaultOpacity;   // fires ValueChanged -> applies + persists
+            reset.MouseLeftButtonDown += (s, e) =>
+            {
+                // Reset every knob to its default. Each slider's ValueChanged applies + persists;
+                // font is reset explicitly (no slider) via its own callback.
+                _rowHeight.Value = VisualStyle.DefaultRowHeight;
+                _opacity.Value = MeterSettings.DefaultOpacity;
+                _fontFamily = null;
+                _fontBaseSize = 13.0;
+                fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
+                _onFontChanged(_fontFamily, _fontBaseSize);
+            };
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             body.Children.Add(rowHeightRow);

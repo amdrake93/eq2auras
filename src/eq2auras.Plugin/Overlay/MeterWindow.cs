@@ -241,10 +241,13 @@ namespace Eq2Auras.Plugin.Overlay
             menu.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
             menu.Foreground = new SolidColorBrush(OverlayTheme.Text);
 
-            var itemStyle = new Style(typeof(MenuItem));
-            itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(OverlayTheme.Text)));
-            itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
-            menu.ItemContainerStyle = itemStyle;
+            // Per-item, NOT an ItemContainerStyle: a MenuItem-targeted style gets applied to
+            // the Separators too and throws at render time ("style intended for MenuItem
+            // cannot be applied to Separator"). Style the MenuItems directly; leave separators.
+            foreach (var entry in menu.Items)
+            {
+                if (entry is MenuItem item) item.Foreground = new SolidColorBrush(OverlayTheme.Text);
+            }
         }
 
         private void SyncMenuChecks()
