@@ -85,6 +85,7 @@ namespace Eq2Auras.Core.Config
             if (PaletteArgb.Count > MaxPaletteSize) PaletteArgb = PaletteArgb.Take(MaxPaletteSize).ToList();
 
             if (Meter == null) Meter = new MeterSettings();   // DCJS skips initializers
+            Meter.Normalize();
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.

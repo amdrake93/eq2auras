@@ -23,13 +23,15 @@ namespace Eq2Auras.Plugin.Overlay
 
         private readonly BarRowVisual _bar;
         private readonly TextBlock _percent;
+        private readonly SolidColorBrush _backplate;
 
         public UIElement Root => _bar.Root;
 
-        public MeterRowVisual(VisualStyle style)
+        public MeterRowVisual(VisualStyle style, double opacity)
         {
             _bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha);
-            _bar.RootBorder.Background = new SolidColorBrush(OverlayTheme.MeterBackplate);
+            _backplate = new SolidColorBrush(OverlayTheme.MeterBackplate);
+            _bar.RootBorder.Background = _backplate;
             _bar.RootBorder.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
 
             _percent = new TextBlock
@@ -40,6 +42,8 @@ namespace Eq2Auras.Plugin.Overlay
             };
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);   // dimmer, slightly smaller
             _bar.TrailingPanel.Children.Add(_percent);
+
+            SetOpacity(opacity);
         }
 
         public void Update(MeterRow row)
@@ -49,6 +53,37 @@ namespace Eq2Auras.Plugin.Overlay
             _percent.Text = row.FormattedPercent;
             _bar.SetFillColor(row.FillArgb);
             _bar.AnimateToFraction(row.BarFraction);
+        }
+
+        /// One knob scales the fill and the backplate together (SPEC Part III
+        /// §Meter display defaults). Element/brush opacity multiplies the baked alphas,
+        /// so 1.0 = today's look; text is left at full opacity, always readable.
+        public void SetOpacity(double opacity)
+        {
+            _bar.FillOpacity = opacity;
+            _backplate.Opacity = opacity;
+        }
+
+        /// Live row-height (SPEC Part III §Configuration): resize the retained row in place
+        /// via the shared primitive's border — no recreation, no fade, animations intact.
+        public void SetRowHeight(double rowHeight)
+        {
+            _bar.RootBorder.Height = rowHeight;
+        }
+
+        /// Live font (SPEC Part III §Configuration): re-stamp the retained row's text via
+        /// ApplyFont — the shared primitive exposes NameText/TrailingText; percent stays the
+        /// dimmer, slightly-smaller role. No recreation.
+        public void SetFont(VisualStyle style)
+        {
+            style.ApplyFont(_bar.NameText, style.RowText);
+            style.ApplyFont(_bar.TrailingText, style.RowText);
+            style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
+        }
+
+        public void SetRowWidth(double rowWidth)
+        {
+            _bar.SetRowWidth(rowWidth);
         }
 
         public void FadeIn()

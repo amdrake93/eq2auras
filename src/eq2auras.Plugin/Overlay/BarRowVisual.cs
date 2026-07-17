@@ -16,7 +16,7 @@ namespace Eq2Auras.Plugin.Overlay
     {
         public const double LerpSeconds = 0.35;   // meter catch-up rate (tunable constant)
 
-        private readonly double _rowWidth;
+        private double _rowWidth;
         private readonly bool _spark;
         private readonly byte _fillAlpha;
         private readonly Border _root;
@@ -32,6 +32,21 @@ namespace Eq2Auras.Plugin.Overlay
         public StackPanel TrailingPanel => _trailingPanel;
         public double UsableWidth => _rowWidth - 2;
         public double CurrentFillWidth => _fill.Width;   // reflects the animated value
+
+        // Meter-only, floor-bracket of the convergence guardrail: the fill lives here, so
+        // a consumer that needs to dim it does so through the primitive. Element opacity
+        // (not the brush) so it survives SetFillColor's per-poll brush rebuild and never
+        // touches the text. The timer never sets it (stays 1.0).
+        public double FillOpacity { get => _fill.Opacity; set => _fill.Opacity = value; }
+
+        // Meter-only, same floor-bracket as FillOpacity: the width lives here, so a
+        // consumer that resizes it does so through the primitive. UsableWidth reads
+        // _rowWidth, so the next AnimateToFraction lerps to the new width. Timer never calls it.
+        public void SetRowWidth(double rowWidth)
+        {
+            _rowWidth = rowWidth;
+            _root.Width = rowWidth;
+        }
 
         // fillAlpha defaults to the timer's translucent value (90); the meter passes a
         // higher, vivid value for at-a-glance readability (SPEC Part III §Meter display

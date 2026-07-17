@@ -18,16 +18,28 @@ namespace Eq2Auras.Plugin.Overlay
     /// move mode does not govern this window.
     public sealed class MeterWindow : OverlayWindowBase
     {
-        public const int VisibleRows = 10;   // view constant: slot count; the frame always carries every ally
+        public const int DefaultVisibleRows = 10;   // null config -> this
+        private int _visibleRows;                    // per-window slot count; the frame always carries every ally
         private const double WindowSlack = 10;
 
         private readonly List<MeterRowVisual> _slots = new List<MeterRowVisual>();
         private MeterFrame _lastFrame;
         private int _scrollOffset;           // transient view state — never persisted, clamps to the data
-        private readonly VisualStyle _style;
-        private readonly Action<string> _onMetricPicked;
-        private readonly Action<bool> _onLockChanged;
+        private VisualStyle _style;
+        private readonly MeterWindowCallbacks _cb;
+        private MenuItem _lockItem;
+        private double _opacity;
+        private SolidColorBrush _headerBackplate;
+        private TextBlock _affordance;
+        private MeterSettingsWindow _settings;
         private readonly StackPanel _rowsPanel;
+        private StackPanel _root;
+        private System.Windows.Shapes.Rectangle _rightGrip;
+        private System.Windows.Shapes.Rectangle _bottomGrip;
+        private bool _resizing;
+        private Point _resizeStart;
+        private double _startWidth;
+        private int _startVisibleRows;
         private readonly TextBlock _durationText;
         private readonly TextBlock _titleText;
         private readonly TextBlock _metricText;
@@ -36,15 +48,16 @@ namespace Eq2Auras.Plugin.Overlay
         private string _metricKey;
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked,
-            Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)
-            : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity, int visibleRows,
+            MeterWindowCallbacks callbacks)
+            : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
+            _cb = callbacks;
             _style = style;
             _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
             _locked = locked;
-            _onMetricPicked = onMetricPicked;
-            _onLockChanged = onLockChanged;
+            _opacity = opacity;
+            _visibleRows = visibleRows;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -55,7 +68,7 @@ namespace Eq2Auras.Plugin.Overlay
             SizeToContent = SizeToContent.Height;
             Width = style.RowWidth + WindowSlack;
 
-            double hr = style.HeightRatio;
+            double hr = 1.0;   // header stays default-proportioned; the row-height knob thickens data rows only (SPEC Part III §Configuration)
             _durationText = HeaderBlock(style, dim: true);
             _titleText = HeaderBlock(style, dim: false);
             _titleText.FontWeight = FontWeights.SemiBold;
@@ -78,8 +91,15 @@ namespace Eq2Auras.Plugin.Overlay
             leftGrid.Children.Add(_titleText);
             leftGrid.Children.Add(_metricText);
 
-            var affordance = HeaderBlock(style, dim: true);
-            affordance.Text = " ⋯";   // ⋯ — hints the right-click menu (SPEC Part III §Header)
+            _affordance = HeaderBlock(style, dim: true);
+            var affordance = _affordance;
+            affordance.Text = " ⚙";   // ⚙ — opens the settings window (SPEC Part III §Header)
+            affordance.Cursor = System.Windows.Input.Cursors.Hand;
+            affordance.MouseLeftButtonDown += (s, e) =>
+            {
+                e.Handled = true;   // don't let the header drag fire under the cog
+                OpenSettings();
+            };
             var rightPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
@@ -103,13 +123,13 @@ namespace Eq2Auras.Plugin.Overlay
 
             var header = new Border
             {
-                Height = style.RowHeight,
+                Height = VisualStyle.DefaultRowHeight,
                 Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 // A real background — a transparent surface would be mouse-invisible,
                 // and the header IS the drag/menu hit target. Shared with the row
                 // backplate so they can't drift (SPEC Part III §Meter display defaults).
-                Background = new SolidColorBrush(OverlayTheme.MeterBackplate),
+                Background = _headerBackplate = new SolidColorBrush(OverlayTheme.MeterBackplate),
                 BorderThickness = new Thickness(1),
                 BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder),
                 Child = headerGrid
@@ -120,12 +140,42 @@ namespace Eq2Auras.Plugin.Overlay
             _menu = BuildMenu();
             SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
             header.ContextMenu = _menu;   // WPF opens it on right-click
+            _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
-            var root = new StackPanel { Width = style.RowWidth };
-            root.Children.Add(header);
-            root.Children.Add(_rowsPanel);
-            Content = root;
+            _root = new StackPanel { Width = style.RowWidth };
+            _root.Children.Add(header);
+            _root.Children.Add(_rowsPanel);
+
+            // Transparent edge grips (right = width, bottom = visible rows). Top-left is
+            // anchored — the window never moves during resize, so GetPosition(this) is a
+            // stable DIP reference (SPEC Part III §The meter window). Reposition via header.
+            _rightGrip = new System.Windows.Shapes.Rectangle
+            {
+                Width = 6,
+                Fill = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Right,
+                VerticalAlignment = VerticalAlignment.Stretch,
+                Cursor = Cursors.SizeWE,
+            };
+            _bottomGrip = new System.Windows.Shapes.Rectangle
+            {
+                Height = 6,
+                Fill = Brushes.Transparent,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Bottom,
+                Cursor = Cursors.SizeNS,
+            };
+            WireResize(_rightGrip, horizontal: true);
+            WireResize(_bottomGrip, horizontal: false);
+
+            var contentGrid = new Grid();
+            contentGrid.Children.Add(_root);
+            contentGrid.Children.Add(_rightGrip);
+            contentGrid.Children.Add(_bottomGrip);
+            Content = contentGrid;
+
+            UpdateGrips();   // gate on the initial lock state
         }
 
         private TextBlock HeaderBlock(VisualStyle style, bool dim)
@@ -152,19 +202,49 @@ namespace Eq2Auras.Plugin.Overlay
                     var key = (string)((MenuItem)s).Tag;
                     _metricKey = key;
                     SyncMenuChecks();
-                    _onMetricPicked(key);
+                    _cb.MetricPicked(key);
                 };
                 menu.Items.Add(item);
             }
             menu.Items.Add(new Separator());
-            var lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
-            lockItem.Click += (s, e) =>
+            _lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
+            _lockItem.Click += (s, e) =>
             {
-                _locked = ((MenuItem)s).IsChecked;
-                _onLockChanged(_locked);
+                _locked = _lockItem.IsChecked;
+                UpdateGrips();
+                _cb.LockChanged(_locked);
             };
-            menu.Items.Add(lockItem);
+            menu.Items.Add(_lockItem);
+
+            menu.Items.Add(new Separator());
+            var newItem = new MenuItem { Header = "New meter window" };
+            newItem.Click += (s, e) => _cb.NewWindow();
+            menu.Items.Add(newItem);
+            var closeItem = new MenuItem { Header = "Close this window" };
+            closeItem.Click += (s, e) => _cb.CloseWindow();
+            menu.Items.Add(closeItem);
+
+            // The last window can't close (SPEC Part III §Multiple windows) — the tab
+            // toggle is the master off-switch. Evaluated on open so it tracks the live count.
+            menu.Opened += (s, e) => closeItem.IsEnabled = _cb.CanClose();
+
+            StyleMenu(menu);
             return menu;   // no sync here — _menu is still null until the ctor assigns it
+        }
+
+        /// Quick, iterate-able dark pass over the raw WPF ContextMenu (SPEC Part III
+        /// §Configuration — "no raw ACT chrome"). Fuller MenuItem re-templating (hover
+        /// highlight) is the deferred styling item in the backlog.
+        private static void StyleMenu(ContextMenu menu)
+        {
+            menu.Background = new SolidColorBrush(Color.FromArgb(250, 24, 27, 34));
+            menu.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
+            menu.Foreground = new SolidColorBrush(OverlayTheme.Text);
+
+            var itemStyle = new Style(typeof(MenuItem));
+            itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(OverlayTheme.Text)));
+            itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            menu.ItemContainerStyle = itemStyle;
         }
 
         private void SyncMenuChecks()
@@ -172,8 +252,8 @@ namespace Eq2Auras.Plugin.Overlay
             foreach (var entry in _menu.Items)
             {
                 if (entry is MenuItem item && item.Tag is string key) item.IsChecked = key == _metricKey;
-                else if (entry is MenuItem lockItem && lockItem.Tag == null) lockItem.IsChecked = _locked;
             }
+            _lockItem.IsChecked = _locked;
         }
 
         private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
@@ -209,12 +289,12 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var rows = _lastFrame.Rows;
             int total = rows.Count;
-            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - VisibleRows));   // <= 10 allies -> always 0
-            int visible = Math.Min(VisibleRows, total);
+            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - _visibleRows));   // <= _visibleRows allies -> always 0
+            int visible = Math.Min(_visibleRows, total);
 
             while (_slots.Count < visible)
             {
-                var slot = new MeterRowVisual(_style);
+                var slot = new MeterRowVisual(_style, _opacity);
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
@@ -230,6 +310,161 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 _slots[i].Update(rows[_scrollOffset + i]);
             }
+        }
+
+        private void OpenSettings()
+        {
+            if (_settings != null)
+            {
+                _settings.Activate();
+                return;
+            }
+            _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
+                _style.Font?.Source, _style.BaseSize, SetFont)
+            {
+                Left = Left + 20,
+                Top = Top + 20,
+            };
+            _settings.Closed += (s, e) => _settings = null;
+            _settings.Show();
+        }
+
+        /// Live opacity (SPEC Part III §Meter display defaults): applied to the header and
+        /// every retained row, and persisted. Text stays at full opacity — always readable.
+        public void SetOpacity(double opacity)
+        {
+            _opacity = opacity;
+            _headerBackplate.Opacity = opacity;
+            foreach (var slot in _slots) slot.SetOpacity(opacity);
+            _cb.OpacityChanged(opacity);
+        }
+
+        /// Live row-height: resize every retained row in place and re-point _style so
+        /// future slots build at the new height; the window's SizeToContent re-fits. Persisted.
+        public void SetRowHeight(double rowHeight)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = _style.RowWidth,
+                RowHeight = rowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = _style.Font,
+                BaseSize = _style.BaseSize,
+            };
+            foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
+            _cb.RowHeightChanged(rowHeight);
+        }
+
+        /// Live font: re-point _style (family + base size), re-stamp the header text and
+        /// every retained row in place; new slots read the live _style. Persisted.
+        public void SetFont(string fontFamily, double baseSize)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = _style.RowWidth,
+                RowHeight = _style.RowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = fontFamily != null ? new FontFamily(fontFamily) : null,
+                BaseSize = baseSize,
+            };
+            ApplyHeaderFont();
+            foreach (var slot in _slots) slot.SetFont(_style);
+            _cb.FontChanged(fontFamily, baseSize);
+        }
+
+        private void ApplyHeaderFont()
+        {
+            _style.ApplyFont(_durationText, _style.RowText);
+            _style.ApplyFont(_titleText, _style.RowText);
+            _style.ApplyFont(_metricText, _style.RowText);
+            _style.ApplyFont(_totalText, _style.RowText);
+            _style.ApplyFont(_affordance, _style.RowText);
+        }
+
+        /// Live width (right-edge drag): re-point _style, resize the root + window + every
+        /// retained row in place. NOT persisted here — resize persists once at drag-end.
+        private void SetRowWidth(double width)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = width,
+                RowHeight = _style.RowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = _style.Font,
+                BaseSize = _style.BaseSize,
+            };
+            _root.Width = width;
+            Width = width + WindowSlack;
+            foreach (var slot in _slots) slot.SetRowWidth(width);
+        }
+
+        /// Live visible-row count (bottom-edge drag): re-render at the new slot count; the
+        /// window height re-fits via SizeToContent. NOT persisted here — see drag-end.
+        private void SetVisibleRows(int visibleRows)
+        {
+            _visibleRows = visibleRows;
+            if (_lastFrame != null) RenderSlots();
+        }
+
+        /// Right grip = width; bottom grip = visible-row count (snap to whole rows). Both
+        /// anchor the top-left, so the window origin is fixed and GetPosition(this) is a
+        /// stable reference. Live during drag; geometry persists once on release.
+        private void WireResize(System.Windows.Shapes.Rectangle grip, bool horizontal)
+        {
+            grip.MouseLeftButtonDown += (s, e) =>
+            {
+                if (_locked) return;
+                _resizing = true;
+                _resizeStart = e.GetPosition(this);
+                _startWidth = _style.RowWidth;
+                _startVisibleRows = _visibleRows;
+                grip.CaptureMouse();
+                e.Handled = true;
+            };
+            grip.MouseMove += (s, e) =>
+            {
+                if (!_resizing) return;
+                var p = e.GetPosition(this);
+                if (horizontal)
+                {
+                    SetRowWidth(ClampWidth(_startWidth + (p.X - _resizeStart.X)));
+                }
+                else
+                {
+                    int rows = ClampVisibleRows(_startVisibleRows + (int)Math.Round((p.Y - _resizeStart.Y) / _style.RowHeight));
+                    if (rows != _visibleRows) SetVisibleRows(rows);
+                }
+            };
+            grip.MouseLeftButtonUp += (s, e) =>
+            {
+                if (!_resizing) return;
+                _resizing = false;
+                grip.ReleaseMouseCapture();
+                _cb.GeometryChanged(_style.RowWidth, _visibleRows);   // persist both at drag-end
+            };
+        }
+
+        private static double ClampWidth(double w)
+            => Math.Max(Settings.MinRowWidth, Math.Min(Settings.MaxRowWidth, w));
+
+        private static int ClampVisibleRows(int n)
+            => Math.Max(MeterSettings.MinVisibleRows, Math.Min(MeterSettings.MaxVisibleRows, n));
+
+        /// Lock freezes geometry: grips only take the mouse when unlocked (SPEC Part III —
+        /// lock freezes position + size; menu/scroll/settings still work).
+        private void UpdateGrips()
+        {
+            _rightGrip.IsHitTestVisible = !_locked;
+            _bottomGrip.IsHitTestVisible = !_locked;
+        }
+
+        protected override void OnClosed(EventArgs e)
+        {
+            _settings?.Close();
+            base.OnClosed(e);
         }
     }
 }
