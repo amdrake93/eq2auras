@@ -165,6 +165,23 @@ public class MeterSettingsTests
     }
 
     [Fact]
+    public void Window_secondary_key_roundtrips_and_defaults_null()
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig>
+        {
+            new MeterWindowConfig { MetricKey = "encdps", SecondaryKey = "enchps" },
+            new MeterWindowConfig { MetricKey = "encdps" },   // no secondary
+        };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal("enchps", parsed.Meter.Windows[0].SecondaryKey);
+        Assert.Null(parsed.Meter.Windows[1].SecondaryKey);    // missing -> null -> off
+    }
+
+    [Fact]
     public void Null_font_stays_null_meaning_default()
     {
         var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";

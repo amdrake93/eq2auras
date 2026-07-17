@@ -14,6 +14,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "metricKey")]
         public string MetricKey { get; set; }   // null/unknown -> registry default at resolve time
 
+        [DataMember(Name = "secondaryKey")]
+        public string SecondaryKey { get; set; }   // null/unknown -> no secondary (off), resolved at the engine via MetricRegistry.Find
+
         [DataMember(Name = "left")]
         public double? Left { get; set; }
 
