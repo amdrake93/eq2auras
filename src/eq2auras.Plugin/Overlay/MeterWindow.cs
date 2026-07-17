@@ -18,22 +18,16 @@ namespace Eq2Auras.Plugin.Overlay
     /// move mode does not govern this window.
     public sealed class MeterWindow : OverlayWindowBase
     {
-        public const int VisibleRows = 10;   // view constant: slot count; the frame always carries every ally
+        public const int DefaultVisibleRows = 10;   // null config -> this
+        private int _visibleRows;                    // per-window slot count; the frame always carries every ally
         private const double WindowSlack = 10;
 
         private readonly List<MeterRowVisual> _slots = new List<MeterRowVisual>();
         private MeterFrame _lastFrame;
         private int _scrollOffset;           // transient view state — never persisted, clamps to the data
         private VisualStyle _style;
-        private readonly Action<string> _onMetricPicked;
-        private readonly Action<bool> _onLockChanged;
-        private readonly Action _onNewWindow;
-        private readonly Action _onCloseWindow;
-        private readonly Func<bool> _canClose;
+        private readonly MeterWindowCallbacks _cb;
         private MenuItem _lockItem;
-        private readonly Action<double> _onOpacityChanged;
-        private readonly Action<double> _onRowHeightChanged;
-        private readonly Action<string, double> _onFontChanged;
         private double _opacity;
         private SolidColorBrush _headerBackplate;
         private TextBlock _affordance;
@@ -47,23 +41,16 @@ namespace Eq2Auras.Plugin.Overlay
         private string _metricKey;
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity,
-            Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged,
-            Action<double> onOpacityChanged, Action<double> onRowHeightChanged, Action<string, double> onFontChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
-            : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity, int visibleRows,
+            MeterWindowCallbacks callbacks)
+            : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
+            _cb = callbacks;
             _style = style;
             _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
             _locked = locked;
             _opacity = opacity;
-            _onMetricPicked = onMetricPicked;
-            _onLockChanged = onLockChanged;
-            _onOpacityChanged = onOpacityChanged;
-            _onRowHeightChanged = onRowHeightChanged;
-            _onFontChanged = onFontChanged;
-            _onNewWindow = onNewWindow;
-            _onCloseWindow = onCloseWindow;
-            _canClose = canClose;
+            _visibleRows = visibleRows;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -179,7 +166,7 @@ namespace Eq2Auras.Plugin.Overlay
                     var key = (string)((MenuItem)s).Tag;
                     _metricKey = key;
                     SyncMenuChecks();
-                    _onMetricPicked(key);
+                    _cb.MetricPicked(key);
                 };
                 menu.Items.Add(item);
             }
@@ -188,21 +175,21 @@ namespace Eq2Auras.Plugin.Overlay
             _lockItem.Click += (s, e) =>
             {
                 _locked = _lockItem.IsChecked;
-                _onLockChanged(_locked);
+                _cb.LockChanged(_locked);
             };
             menu.Items.Add(_lockItem);
 
             menu.Items.Add(new Separator());
             var newItem = new MenuItem { Header = "New meter window" };
-            newItem.Click += (s, e) => _onNewWindow();
+            newItem.Click += (s, e) => _cb.NewWindow();
             menu.Items.Add(newItem);
             var closeItem = new MenuItem { Header = "Close this window" };
-            closeItem.Click += (s, e) => _onCloseWindow();
+            closeItem.Click += (s, e) => _cb.CloseWindow();
             menu.Items.Add(closeItem);
 
             // The last window can't close (SPEC Part III §Multiple windows) — the tab
             // toggle is the master off-switch. Evaluated on open so it tracks the live count.
-            menu.Opened += (s, e) => closeItem.IsEnabled = _canClose();
+            menu.Opened += (s, e) => closeItem.IsEnabled = _cb.CanClose();
 
             StyleMenu(menu);
             return menu;   // no sync here — _menu is still null until the ctor assigns it
@@ -265,8 +252,8 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var rows = _lastFrame.Rows;
             int total = rows.Count;
-            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - VisibleRows));   // <= 10 allies -> always 0
-            int visible = Math.Min(VisibleRows, total);
+            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - _visibleRows));   // <= _visibleRows allies -> always 0
+            int visible = Math.Min(_visibleRows, total);
 
             while (_slots.Count < visible)
             {
@@ -312,7 +299,7 @@ namespace Eq2Auras.Plugin.Overlay
             _opacity = opacity;
             _headerBackplate.Opacity = opacity;
             foreach (var slot in _slots) slot.SetOpacity(opacity);
-            _onOpacityChanged(opacity);
+            _cb.OpacityChanged(opacity);
         }
 
         /// Live row-height: resize every retained row in place and re-point _style so
@@ -329,7 +316,7 @@ namespace Eq2Auras.Plugin.Overlay
                 BaseSize = _style.BaseSize,
             };
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
-            _onRowHeightChanged(rowHeight);
+            _cb.RowHeightChanged(rowHeight);
         }
 
         /// Live font: re-point _style (family + base size), re-stamp the header text and
@@ -347,7 +334,7 @@ namespace Eq2Auras.Plugin.Overlay
             };
             ApplyHeaderFont();
             foreach (var slot in _slots) slot.SetFont(_style);
-            _onFontChanged(fontFamily, baseSize);
+            _cb.FontChanged(fontFamily, baseSize);
         }
 
         private void ApplyHeaderFont()
