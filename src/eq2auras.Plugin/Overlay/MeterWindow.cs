@@ -99,26 +99,26 @@ namespace Eq2Auras.Plugin.Overlay
                 e.Handled = true;   // don't let the header drag fire under the cog
                 OpenSettings();
             };
-            var rightPanel = new StackPanel
-            {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Right,
-                VerticalAlignment = VerticalAlignment.Center,
-                Margin = new Thickness(10 * hr, 0, 0, 0)   // breathing room between the metric label and the total
-            };
-            rightPanel.Children.Add(_totalText);
-            rightPanel.Children.Add(affordance);
+            // Total is a fixed-width right-aligned column matching the row's value column,
+            // so it caps the column it sums (SPEC Part III §Header). The cog leads the
+            // header to free the right edge for that alignment.
+            _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
+            _totalText.TextAlignment = TextAlignment.Right;
 
-            // Outer: left cluster (star, bounds the title) | right cluster (auto,
-            // total + affordance always visible). This is what stops "— DPS" and the
-            // total from overlapping when the title is long.
+            // Outer header: [cog (auto)] [ (dur) title — metric (star, ellipsis-trims) ] [total (auto)].
+            // The cog leads so the right edge belongs to the total↔value-column alignment; leftGrid
+            // (the duration/title/metric cluster) survives unchanged, re-columned to index 1.
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(leftGrid, 0);
-            Grid.SetColumn(rightPanel, 1);
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title — metric
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total
+            Grid.SetColumn(affordance, 0);
+            Grid.SetColumn(leftGrid, 1);
+            Grid.SetColumn(_totalText, 2);
+            affordance.Margin = new Thickness(0, 0, 6 * hr, 0);   // gap between cog and the duration
+            headerGrid.Children.Add(affordance);
             headerGrid.Children.Add(leftGrid);
-            headerGrid.Children.Add(rightPanel);
+            headerGrid.Children.Add(_totalText);
 
             var header = new Border
             {
@@ -383,6 +383,7 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_metricText, _style.RowText);
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
+            _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
         }
 
         /// Live width (right-edge drag): re-point _style, resize the root + window + every
