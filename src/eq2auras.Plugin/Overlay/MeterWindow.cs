@@ -27,6 +27,10 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly VisualStyle _style;
         private readonly Action<string> _onMetricPicked;
         private readonly Action<bool> _onLockChanged;
+        private readonly Action _onNewWindow;
+        private readonly Action _onCloseWindow;
+        private readonly Func<bool> _canClose;
+        private MenuItem _lockItem;
         private readonly StackPanel _rowsPanel;
         private readonly TextBlock _durationText;
         private readonly TextBlock _titleText;
@@ -37,7 +41,8 @@ namespace Eq2Auras.Plugin.Overlay
         private bool _locked;
 
         public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked,
-            Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged)
+            Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged,
+            Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
             : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
         {
             _style = style;
@@ -45,6 +50,9 @@ namespace Eq2Auras.Plugin.Overlay
             _locked = locked;
             _onMetricPicked = onMetricPicked;
             _onLockChanged = onLockChanged;
+            _onNewWindow = onNewWindow;
+            _onCloseWindow = onCloseWindow;
+            _canClose = canClose;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -157,14 +165,43 @@ namespace Eq2Auras.Plugin.Overlay
                 menu.Items.Add(item);
             }
             menu.Items.Add(new Separator());
-            var lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
-            lockItem.Click += (s, e) =>
+            _lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
+            _lockItem.Click += (s, e) =>
             {
-                _locked = ((MenuItem)s).IsChecked;
+                _locked = _lockItem.IsChecked;
                 _onLockChanged(_locked);
             };
-            menu.Items.Add(lockItem);
+            menu.Items.Add(_lockItem);
+
+            menu.Items.Add(new Separator());
+            var newItem = new MenuItem { Header = "New meter window" };
+            newItem.Click += (s, e) => _onNewWindow();
+            menu.Items.Add(newItem);
+            var closeItem = new MenuItem { Header = "Close this window" };
+            closeItem.Click += (s, e) => _onCloseWindow();
+            menu.Items.Add(closeItem);
+
+            // The last window can't close (SPEC Part III §Multiple windows) — the tab
+            // toggle is the master off-switch. Evaluated on open so it tracks the live count.
+            menu.Opened += (s, e) => closeItem.IsEnabled = _canClose();
+
+            StyleMenu(menu);
             return menu;   // no sync here — _menu is still null until the ctor assigns it
+        }
+
+        /// Quick, iterate-able dark pass over the raw WPF ContextMenu (SPEC Part III
+        /// §Configuration — "no raw ACT chrome"). Fuller MenuItem re-templating (hover
+        /// highlight) is the deferred styling item in the backlog.
+        private static void StyleMenu(ContextMenu menu)
+        {
+            menu.Background = new SolidColorBrush(Color.FromArgb(250, 24, 27, 34));
+            menu.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
+            menu.Foreground = new SolidColorBrush(OverlayTheme.Text);
+
+            var itemStyle = new Style(typeof(MenuItem));
+            itemStyle.Setters.Add(new Setter(Control.ForegroundProperty, new SolidColorBrush(OverlayTheme.Text)));
+            itemStyle.Setters.Add(new Setter(Control.BackgroundProperty, Brushes.Transparent));
+            menu.ItemContainerStyle = itemStyle;
         }
 
         private void SyncMenuChecks()
@@ -172,8 +209,8 @@ namespace Eq2Auras.Plugin.Overlay
             foreach (var entry in _menu.Items)
             {
                 if (entry is MenuItem item && item.Tag is string key) item.IsChecked = key == _metricKey;
-                else if (entry is MenuItem lockItem && lockItem.Tag == null) lockItem.IsChecked = _locked;
             }
+            _lockItem.IsChecked = _locked;
         }
 
         private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
