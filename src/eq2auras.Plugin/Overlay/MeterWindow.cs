@@ -33,8 +33,10 @@ namespace Eq2Auras.Plugin.Overlay
         private MenuItem _lockItem;
         private readonly Action<double> _onOpacityChanged;
         private readonly Action<double> _onRowHeightChanged;
+        private readonly Action<string, double> _onFontChanged;
         private double _opacity;
         private SolidColorBrush _headerBackplate;
+        private TextBlock _affordance;
         private MeterSettingsWindow _settings;
         private readonly StackPanel _rowsPanel;
         private readonly TextBlock _durationText;
@@ -47,7 +49,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public MeterWindow(double left, double top, VisualStyle style, string metricKey, bool locked, double opacity,
             Action<double, double> persistPosition, Action<string> onMetricPicked, Action<bool> onLockChanged,
-            Action<double> onOpacityChanged, Action<double> onRowHeightChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
+            Action<double> onOpacityChanged, Action<double> onRowHeightChanged, Action<string, double> onFontChanged, Action onNewWindow, Action onCloseWindow, Func<bool> canClose)
             : base(left, top, GrowDirection.Down, persistPosition, clickThroughBaseline: false)
         {
             _style = style;
@@ -58,6 +60,7 @@ namespace Eq2Auras.Plugin.Overlay
             _onLockChanged = onLockChanged;
             _onOpacityChanged = onOpacityChanged;
             _onRowHeightChanged = onRowHeightChanged;
+            _onFontChanged = onFontChanged;
             _onNewWindow = onNewWindow;
             _onCloseWindow = onCloseWindow;
             _canClose = canClose;
@@ -94,7 +97,8 @@ namespace Eq2Auras.Plugin.Overlay
             leftGrid.Children.Add(_titleText);
             leftGrid.Children.Add(_metricText);
 
-            var affordance = HeaderBlock(style, dim: true);
+            _affordance = HeaderBlock(style, dim: true);
+            var affordance = _affordance;
             affordance.Text = " ⚙";   // ⚙ — opens the settings window (SPEC Part III §Header)
             affordance.Cursor = System.Windows.Input.Cursors.Hand;
             affordance.MouseLeftButtonDown += (s, e) =>
@@ -325,6 +329,33 @@ namespace Eq2Auras.Plugin.Overlay
             };
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
             _onRowHeightChanged(rowHeight);
+        }
+
+        /// Live font: re-point _style (family + base size), re-stamp the header text and
+        /// every retained row in place; new slots read the live _style. Persisted.
+        public void SetFont(string fontFamily, double baseSize)
+        {
+            _style = new VisualStyle
+            {
+                RowWidth = _style.RowWidth,
+                RowHeight = _style.RowHeight,
+                RadialSize = _style.RadialSize,
+                RowSpacing = _style.RowSpacing,
+                Font = fontFamily != null ? new FontFamily(fontFamily) : null,
+                BaseSize = baseSize,
+            };
+            ApplyHeaderFont();
+            foreach (var slot in _slots) slot.SetFont(_style);
+            _onFontChanged(fontFamily, baseSize);
+        }
+
+        private void ApplyHeaderFont()
+        {
+            _style.ApplyFont(_durationText, _style.RowText);
+            _style.ApplyFont(_titleText, _style.RowText);
+            _style.ApplyFont(_metricText, _style.RowText);
+            _style.ApplyFont(_totalText, _style.RowText);
+            _style.ApplyFont(_affordance, _style.RowText);
         }
 
         protected override void OnClosed(EventArgs e)

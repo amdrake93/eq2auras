@@ -71,6 +71,16 @@ namespace Eq2Auras.Plugin.Overlay
             _bar.RootBorder.Height = rowHeight;
         }
 
+        /// Live font (SPEC Part III §Configuration): re-stamp the retained row's text via
+        /// ApplyFont — the shared primitive exposes NameText/TrailingText; percent stays the
+        /// dimmer, slightly-smaller role. No recreation.
+        public void SetFont(VisualStyle style)
+        {
+            style.ApplyFont(_bar.NameText, style.RowText);
+            style.ApplyFont(_bar.TrailingText, style.RowText);
+            style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
+        }
+
         public void FadeIn()
         {
             _bar.Root.Opacity = 0;
