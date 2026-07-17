@@ -174,4 +174,45 @@ public class MeterSettingsTests
         Assert.Null(parsed.Meter.Windows[0].FontFamily);     // null -> system default
         Assert.Null(parsed.Meter.Windows[0].FontBaseSize);   // null -> 13 DIPs
     }
+
+    [Theory]
+    [InlineData(50, 100)]     // below Settings.MinRowWidth -> clamped up
+    [InlineData(2000, 800)]   // above Settings.MaxRowWidth -> clamped down
+    [InlineData(300, 300)]    // in range -> unchanged
+    public void Window_width_clamps_to_range(double stored, double expected)
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig> { new MeterWindowConfig { Width = stored } };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(expected, parsed.Meter.Windows[0].Width);
+    }
+
+    [Theory]
+    [InlineData(0, 1)]        // below MinVisibleRows -> clamped up
+    [InlineData(999, 40)]     // above MaxVisibleRows -> clamped down
+    [InlineData(12, 12)]      // in range -> unchanged
+    public void Window_visible_rows_clamps_to_range(int stored, int expected)
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig> { new MeterWindowConfig { VisibleRows = stored } };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(expected, parsed.Meter.Windows[0].VisibleRows);
+    }
+
+    [Fact]
+    public void Null_geometry_stays_null_meaning_default()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Null(parsed.Meter.Windows[0].Width);        // null -> VisualStyle.DefaultRowWidth (250)
+        Assert.Null(parsed.Meter.Windows[0].VisibleRows);  // null -> MeterWindow.DefaultVisibleRows (10)
+    }
 }

@@ -34,5 +34,11 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "fontBaseSize")]
         public double? FontBaseSize { get; set; }      // WPF DIPs; null = 13
+
+        [DataMember(Name = "width")]
+        public double? Width { get; set; }             // null = VisualStyle.DefaultRowWidth (250); clamped to Settings row-width bounds
+
+        [DataMember(Name = "visibleRows")]
+        public int? VisibleRows { get; set; }          // null = MeterWindow.DefaultVisibleRows (10); clamped to [Min,Max]VisibleRows
     }
 }

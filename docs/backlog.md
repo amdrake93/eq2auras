@@ -21,7 +21,7 @@ Shipped as small, independently-mergeable increments — **each its own plan →
 2. **Settings window + opacity** — the ⚙ cog opens a per-window dark settings window; single opacity knob (scales fill + backplate together), live-apply.
 3. **Row height knob** (into the settings window).
 4. **Font knob** — native picker, DIPs, per-window (into the settings window).
-5. **Edge-resize** — unlocked windows resize at the edges (left/right = width; top/bottom = visible-row count, snapped to whole rows); lock freezes move + resize; geometry persists. Row *width* retires as a knob (resize owns it).
+5. **Edge-resize** — unlocked windows resize at the **right/bottom** edges (right = width; bottom = visible-row count, snapped to whole rows); lock freezes move + resize; geometry persists. Row *width* retires as a knob (resize owns it). **Left/top-edge resize deferred** (v1 anchors top-left; reposition via the header) — a later refinement (needs window-move + device→DIP delta handling).
 
 Key decisions (Alex, 2026-07-16): all knobs are per-window (multi-window assumed); **Meter enabled** = show/hide over the persisted window list (disable keeps configs, enable restores them, first-ever enable seeds one default DPS window); **New** clones the invoked window's config + a cascade offset; **one** opacity knob, not two; edge-resize is **meter-only** (convergence ceiling bracket — not pushed into the shared base); row spacing stays zero (not a knob). Slice 2 re-extracts nothing from the shared substrate, so timer-regression risk is low — a light sanity check, not the full slice-1 pass.
 

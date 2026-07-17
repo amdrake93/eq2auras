@@ -37,6 +37,8 @@ namespace Eq2Auras.Core.Config
         public const double MinOpacity = 0.3;
         public const double MaxOpacity = 1.0;
         public const double DefaultOpacity = 1.0;   // null Opacity resolves here — today's baked look
+        public const int MinVisibleRows = 1;
+        public const int MaxVisibleRows = 40;
 
         /// DCJS skips initializers, so Windows may be null. Migrates a legacy single-window
         /// file into one config, drops null entries, and seeds one default window when the
@@ -78,6 +80,10 @@ namespace Eq2Auras.Core.Config
                     window.Opacity = Math.Min(MaxOpacity, Math.Max(MinOpacity, window.Opacity.Value));
                 if (window.RowHeight.HasValue && (window.RowHeight.Value < Settings.MinRowHeight || window.RowHeight.Value > Settings.MaxRowHeight))
                     window.RowHeight = Math.Min(Settings.MaxRowHeight, Math.Max(Settings.MinRowHeight, window.RowHeight.Value));
+                if (window.Width.HasValue && (window.Width.Value < Settings.MinRowWidth || window.Width.Value > Settings.MaxRowWidth))
+                    window.Width = Math.Min(Settings.MaxRowWidth, Math.Max(Settings.MinRowWidth, window.Width.Value));
+                if (window.VisibleRows.HasValue && (window.VisibleRows.Value < MinVisibleRows || window.VisibleRows.Value > MaxVisibleRows))
+                    window.VisibleRows = Math.Min(MaxVisibleRows, Math.Max(MinVisibleRows, window.VisibleRows.Value));
             }
         }
     }
