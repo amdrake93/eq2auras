@@ -4,6 +4,15 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-17
 
+### NEXT UP — Slice 2b: secondary data points (guild request)
+The next Parse Meter slice; **opens with its own brainstorm** (Alex's phase call). Put **arbitrary extra metric values as text on each row**, selected independently of the primary metric — e.g. a DPS row that also shows HPS and cure count. Guild ask: "show an arbitrary extra number on the row."
+
+**What already exists (the groundwork):** the two-tier row DTO ships — `MeterRow.Secondaries` is a `List<SecondaryValue{ Key, FormattedValue }>` (`src/eq2auras.Core/Meter/MeterFrame.cs:17,20`), but `MeterEngine.Tick` currently sets it to an **empty list** (`MeterEngine.cs:71`) and `MeterRowVisual` renders **primary-only**. SPEC Part III §The metric registry already describes the two-tier model and calls the secondary-selection UX "a later slice." The flat `MetricRegistry` (encdps/enchps/cures) is the vocabulary to pick from.
+
+**Slice 2b scope (to settle in the brainstorm):** (a) **selection UX** — pick which metrics ride as secondaries (likely a multi-select in the ⚙ **settings window**, a **per-window** set applied to all rows, consistent with the config-surface split); (b) **engine** — `MeterEngine.Tick` populates each row's `Secondaries` by computing each selected secondary metric per combatant (same rate÷duration / count logic as the primary, formatted via each `MetricDef.Format`); (c) **render** — the extra values as row text (open layout Q: right-aligned columns after the primary value/percent? how many before the row is too busy? per-window row width via resize helps).
+
+**Open design questions for the brainstorm:** where selection lives (settings window multi-select vs. menu); row layout for N extra numbers; whether a secondary may equal the primary (redundant — exclude or allow); column headers/labels or bare numbers; interaction with narrow windows. Each row still sorts by the **primary** only; secondaries are display-only text.
+
 ### Indicate on a timer row when its duration is being modded
 Feedback idea (not yet spec'd). ACT timers can be **modable** (there's a setting to allow it, and the engine pre-applies `Modable` mods so the shown duration already reflects the mod — see `docs/act-timer-engine.md`). Want a **visual cue on the row that the currently-shown timer is actually modded** (a non-zero mod is in effect), distinct from an unmodded timer. **Design thought (Alex):** parenthesize the remaining time, e.g. `(13s)`. **Open question / investigation first:** can we actually *detect* that a given displayed instance's duration was modified (a flag on the ACT `TimerData`/instance, or a modded-vs-base delta we can read), or does ACT only expose the already-modded value with no "was modded" signal? If there's no clean signal, this needs the decompile-verify treatment before design. Timer module (not the meter).
 
