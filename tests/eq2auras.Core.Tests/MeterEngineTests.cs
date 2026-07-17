@@ -142,13 +142,72 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void Rows_carry_the_secondaries_shape_empty_in_slice_1()
+    public void No_secondary_key_leaves_the_secondaries_list_empty()
     {
         var frame = new MeterEngine().Tick(Live(10),
-            new List<CombatantReading> { Ally("A", damage: 100) }, "encdps", Palette);
+            new List<CombatantReading> { Ally("A", damage: 100) }, "encdps", Palette);   // no secondaryKey arg
 
         Assert.NotNull(frame.Rows[0].Secondaries);
         Assert.Empty(frame.Rows[0].Secondaries);
+    }
+
+    [Fact]
+    public void A_selected_secondary_rides_each_row_computed_like_the_primary()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000, healed: 30_000) },
+            "encdps", Palette, "enchps");
+
+        var secondary = Assert.Single(frame.Rows[0].Secondaries);
+        Assert.Equal("enchps", secondary.Key);
+        Assert.Equal("300", secondary.FormattedValue);   // 30_000 / 100s, HPS is a rate
+    }
+
+    [Fact]
+    public void A_count_secondary_is_not_divided_and_formats_as_an_integer()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000, cures: 7) },
+            "encdps", Palette, "cures");
+
+        Assert.Equal("7", Assert.Single(frame.Rows[0].Secondaries).FormattedValue);   // NOT 0.07
+    }
+
+    [Fact]
+    public void The_secondary_may_equal_the_primary_and_simply_renders_twice()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000) },
+            "encdps", Palette, "encdps");
+
+        Assert.Equal(frame.Rows[0].FormattedValue,
+            Assert.Single(frame.Rows[0].Secondaries).FormattedValue);   // same DPS, twice — by design
+    }
+
+    [Fact]
+    public void An_unknown_secondary_key_leaves_the_list_empty()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000) },
+            "encdps", Palette, "no-such-metric");
+
+        Assert.Empty(frame.Rows[0].Secondaries);   // Find -> null -> off
+    }
+
+    [Fact]
+    public void A_secondary_does_not_change_the_primary_sort_order()
+    {
+        // B has less DPS but more HPS; sort must stay by DPS (primary) regardless of the secondary.
+        var allies = new List<CombatantReading>
+        {
+            Ally("A", damage: 900, healed: 100),
+            Ally("B", damage: 100, healed: 900),
+        };
+
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette, "enchps");
+
+        Assert.Equal("A", frame.Rows[0].Name);   // DPS leader first, not the HPS leader
+        Assert.Equal("B", frame.Rows[1].Name);
     }
 
     [Fact]

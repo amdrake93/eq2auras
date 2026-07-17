@@ -56,4 +56,12 @@ public class MetricRegistryTests
         Assert.Equal("7", MetricRegistry.Resolve("cures").Format(7));          // counts: plain integer
         Assert.Equal("1.4M", MetricRegistry.Resolve("encdps").Format(1_400_000));
     }
+
+    [Fact]
+    public void Find_returns_the_metric_or_null_without_a_default()
+    {
+        Assert.Equal("enchps", MetricRegistry.Find("enchps").Key);
+        Assert.Null(MetricRegistry.Find(null));            // no secondary
+        Assert.Null(MetricRegistry.Find("no-such-metric")); // unknown -> off, NOT DPS
+    }
 }
