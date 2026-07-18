@@ -78,49 +78,51 @@ namespace Eq2Auras.Plugin.Overlay
             _totalText = HeaderBlock(style, dim: false);
             _totalText.FontWeight = FontWeights.SemiBold;
 
-            // Left cluster: duration | title | metric — the TITLE column is the only
-            // flexible one (star), so a long EQ2 mob name trims to an ellipsis while
-            // duration and metric stay fixed and visible (SPEC Part III §Header).
-            var leftGrid = new Grid { VerticalAlignment = VerticalAlignment.Center };
-            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
-            leftGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
-            Grid.SetColumn(_durationText, 0);
-            Grid.SetColumn(_titleText, 1);
-            Grid.SetColumn(_metricText, 2);
-            leftGrid.Children.Add(_durationText);
-            leftGrid.Children.Add(_titleText);
-            leftGrid.Children.Add(_metricText);
+            // Left cluster: duration · title · metric, packed LEFT so the metric hugs the
+            // title (no orphaned "— DPS" gap when the title is short). The title carries the
+            // whole trim budget via a live MaxWidth (UpdateTitleMaxWidth), so a long EQ2 mob
+            // name ellipsis-trims while duration, metric, and the total stay visible (SPEC §Header).
+            var leftCluster = new StackPanel
+            {
+                Orientation = Orientation.Horizontal,
+                HorizontalAlignment = HorizontalAlignment.Left,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            leftCluster.Children.Add(_durationText);
+            leftCluster.Children.Add(_titleText);
+            leftCluster.Children.Add(_metricText);
 
             _affordance = HeaderBlock(style, dim: true);
             var affordance = _affordance;
-            affordance.Text = " ⚙";   // ⚙ — opens the settings window (SPEC Part III §Header)
+            affordance.Text = "⚙";   // ⚙ — opens the settings window (SPEC Part III §Header). No leading space: it pushed the cog off-center in its cell.
             affordance.Cursor = System.Windows.Input.Cursors.Hand;
             affordance.MouseLeftButtonDown += (s, e) =>
             {
                 e.Handled = true;   // don't let the header drag fire under the cog
                 OpenSettings();
             };
-            // Total is a fixed-width right-aligned column matching the row's value column,
-            // so it caps the column it sums (SPEC Part III §Header). The cog leads the
-            // header to free the right edge for that alignment.
+            // Total is a fixed-width right-aligned column matching the row's value column.
+            // The value column sits one column in from the edge (percent is rightmost, SPEC
+            // §Rows), so the total is inset from the right by the percent-column width + gap —
+            // capping the value column it sums.
             _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
             _totalText.TextAlignment = TextAlignment.Right;
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
 
-            // Outer header: [cog (auto)] [ (dur) title — metric (star, ellipsis-trims) ] [total (auto)].
-            // The cog leads so the right edge belongs to the total↔value-column alignment; leftGrid
-            // (the duration/title/metric cluster) survives unchanged, re-columned to index 1.
+            // Outer header: [cog (auto)] [ (dur) title — metric (star; left-packed cluster) ] [total (auto)].
+            // The cog leads on the left; the star column holds the left cluster.
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title — metric
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total
             Grid.SetColumn(affordance, 0);
-            Grid.SetColumn(leftGrid, 1);
+            Grid.SetColumn(leftCluster, 1);
             Grid.SetColumn(_totalText, 2);
             affordance.Margin = new Thickness(0, 0, 6 * hr, 0);   // gap between cog and the duration
             headerGrid.Children.Add(affordance);
-            headerGrid.Children.Add(leftGrid);
+            headerGrid.Children.Add(leftCluster);
             headerGrid.Children.Add(_totalText);
+            UpdateTitleMaxWidth();   // now that cog/total widths exist, cap the title's trim budget
 
             var header = new Border
             {
@@ -395,6 +397,18 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
+            UpdateTitleMaxWidth();
+        }
+
+        /// The title carries the header's whole ellipsis-trim budget: cap it at the space left
+        /// after the cog, duration, metric, and total, so a long name trims instead of shoving
+        /// them off (SPEC §Header). Conservative worst-case reserve; recomputed on width/font.
+        private void UpdateTitleMaxWidth()
+        {
+            double reserve = MeterColumns.TextWidth(_style, "⚙ (00:00)  — Cures ", _style.RowText)
+                + _totalText.Width + _totalText.Margin.Right + 16;
+            _titleText.MaxWidth = Math.Max(30, _style.RowWidth - reserve);
         }
 
         /// Live width (right-edge drag): re-point _style, resize the root + window + every
@@ -413,6 +427,7 @@ namespace Eq2Auras.Plugin.Overlay
             _root.Width = width;
             Width = width;
             foreach (var slot in _slots) slot.SetRowWidth(width);
+            UpdateTitleMaxWidth();
         }
 
         /// Live visible-row count (bottom-edge drag): re-render at the new slot count; the
