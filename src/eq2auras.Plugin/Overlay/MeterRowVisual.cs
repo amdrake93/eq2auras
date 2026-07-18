@@ -24,6 +24,8 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly BarRowVisual _bar;
         private readonly TextBlock _percent;
         private readonly SolidColorBrush _backplate;
+        private readonly TextBlock _secondary;
+        private static readonly Color MutedText = Color.FromArgb(255, 0x9A, 0xA0, 0xAD);   // subordinate to the value
 
         public UIElement Root => _bar.Root;
 
@@ -34,14 +36,37 @@ namespace Eq2Auras.Plugin.Overlay
             _bar.RootBorder.Background = _backplate;
             _bar.RootBorder.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
 
+            double numberWidth = MeterColumns.NumberWidth(style, style.RowText);
+            double percentWidth = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
+
+            // The value is the shared trailing text: pin it as the right-edge column.
+            _bar.TrailingText.Width = numberWidth;
+            _bar.TrailingText.TextAlignment = TextAlignment.Right;
+
             _percent = new TextBlock
             {
                 Foreground = new SolidColorBrush(Color.FromArgb(255, 0xC4, 0xCA, 0xD6)),
                 VerticalAlignment = VerticalAlignment.Center,
+                Width = percentWidth,
+                TextAlignment = TextAlignment.Right,
                 Margin = new Thickness(6, 0, 0, 0)
             };
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);   // dimmer, slightly smaller
-            _bar.TrailingPanel.Children.Add(_percent);
+
+            _secondary = new TextBlock
+            {
+                Foreground = new SolidColorBrush(MutedText),
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = numberWidth,
+                TextAlignment = TextAlignment.Right,
+                Margin = new Thickness(6, 0, 0, 0),
+                Visibility = Visibility.Collapsed   // shown only when a secondary is selected
+            };
+            style.ApplyFont(_secondary, style.RowText);
+
+            // Panel currently holds [value]; insert so the order becomes [secondary][percent][value].
+            _bar.TrailingPanel.Children.Insert(0, _percent);
+            _bar.TrailingPanel.Children.Insert(0, _secondary);
 
             SetOpacity(opacity);
         }
@@ -51,6 +76,17 @@ namespace Eq2Auras.Plugin.Overlay
             _bar.NameText.Text = row.Name;
             _bar.TrailingText.Text = row.FormattedValue;
             _percent.Text = row.FormattedPercent;
+
+            if (row.Secondaries != null && row.Secondaries.Count > 0)
+            {
+                _secondary.Text = row.Secondaries[0].FormattedValue;
+                _secondary.Visibility = Visibility.Visible;
+            }
+            else
+            {
+                _secondary.Visibility = Visibility.Collapsed;
+            }
+
             _bar.SetFillColor(row.FillArgb);
             _bar.AnimateToFraction(row.BarFraction);
         }
@@ -79,6 +115,12 @@ namespace Eq2Auras.Plugin.Overlay
             style.ApplyFont(_bar.NameText, style.RowText);
             style.ApplyFont(_bar.TrailingText, style.RowText);
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
+            style.ApplyFont(_secondary, style.RowText);
+
+            double numberWidth = MeterColumns.NumberWidth(style, style.RowText);
+            _bar.TrailingText.Width = numberWidth;
+            _secondary.Width = numberWidth;
+            _percent.Width = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
         }
 
         public void SetRowWidth(double rowWidth)

@@ -15,9 +15,10 @@ namespace Eq2Auras.Core.Meter
         private readonly PaletteAssigner _palette = new PaletteAssigner();
 
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
-            string metricKey, IReadOnlyList<int> paletteArgb)
+            string metricKey, IReadOnlyList<int> paletteArgb, string secondaryKey = null)
         {
             var metric = MetricRegistry.Resolve(metricKey);
+            var secondary = MetricRegistry.Find(secondaryKey);   // null -> no secondary
 
             // Live wall clock while active, finalized log time once ended (SPEC Part III
             // §Rates come from our wall clock). Clamp defends the degenerate
@@ -29,6 +30,14 @@ namespace Eq2Auras.Core.Meter
                 duration = Math.Max(0, encounter.Active
                     ? encounter.LiveDurationSeconds
                     : encounter.FinalDurationSeconds);
+            }
+
+            // One duration-policy site for the primary and the secondary alike (SPEC Part
+            // III §The metric registry — rate ÷ wall-clock duration, or raw count).
+            double Compute(MetricDef def, CombatantReading c)
+            {
+                double raw = def.Select(c);
+                return def.IsRate ? (duration > 0 ? raw / duration : 0) : raw;
             }
 
             // Mirror ACT's mini parse combatant selection (SPEC Part III §Displayed
@@ -46,12 +55,16 @@ namespace Eq2Auras.Core.Meter
                 if (combatant.Name == "Unknown") continue;
                 if (anyAlly && !combatant.IsAlly) continue;
 
-                double raw = metric.Select(combatant);
-                double value = metric.IsRate
-                    ? (duration > 0 ? raw / duration : 0)
-                    : raw;
+                double value = Compute(metric, combatant);
                 total += value;
-                rows.Add(new MeterRow { Name = combatant.Name ?? "", Value = value });
+                rows.Add(new MeterRow
+                {
+                    Name = combatant.Name ?? "",
+                    Value = value,
+                    Secondaries = secondary != null
+                        ? new List<SecondaryValue> { new SecondaryValue { Key = secondary.Key, FormattedValue = secondary.Format(Compute(secondary, combatant)) } }
+                        : new List<SecondaryValue>(),
+                });
             }
 
             rows.Sort((a, b) => a.Value != b.Value
@@ -68,7 +81,6 @@ namespace Eq2Auras.Core.Meter
                 row.BarFraction = top > 0 ? row.Value / top : 0;     // rank 1 = full bar
                 row.FormattedValue = metric.Format(row.Value);
                 row.FillArgb = paletteArgb[_palette.IndexFor(row.Name) % paletteArgb.Count];
-                row.Secondaries = new List<SecondaryValue>();        // shape ships in slice 1; selection UX is slice 2
             }
 
             return new MeterFrame

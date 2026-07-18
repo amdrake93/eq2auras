@@ -20,5 +20,11 @@ namespace Eq2Auras.Core.Meter
         /// for settings files written by newer versions (SPEC Part III §Settings).
         public static MetricDef Resolve(string key)
             => All.FirstOrDefault(m => m.Key == key) ?? All.First(m => m.Key == DefaultKey);
+
+        /// The secondary's resolver: the matching def, or null for null/unknown — no
+        /// DPS fallback, because an unresolved secondary means "off", not "show DPS"
+        /// (SPEC Part III §Settings — the secondary key's forward-compat guard).
+        public static MetricDef Find(string key)
+            => All.FirstOrDefault(m => m.Key == key);
     }
 }
