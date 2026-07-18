@@ -39,9 +39,11 @@ namespace Eq2Auras.Plugin.Overlay
             double numberWidth = MeterColumns.NumberWidth(style, style.RowText);
             double percentWidth = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
 
-            // The value is the shared trailing text: pin it as the right-edge column.
+            // The value is the shared trailing text: the MIDDLE number column (secondary to
+            // its left, percent to its right — SPEC §Rows), right-aligned in its fixed cell.
             _bar.TrailingText.Width = numberWidth;
             _bar.TrailingText.TextAlignment = TextAlignment.Right;
+            _bar.TrailingText.Margin = new Thickness(MeterColumns.ColumnGap, 0, 0, 0);
 
             _percent = new TextBlock
             {
@@ -49,7 +51,7 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 Width = percentWidth,
                 TextAlignment = TextAlignment.Right,
-                Margin = new Thickness(6, 0, 0, 0)
+                Margin = new Thickness(MeterColumns.ColumnGap, 0, 0, 0)
             };
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);   // dimmer, slightly smaller
 
@@ -59,13 +61,14 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 Width = numberWidth,
                 TextAlignment = TextAlignment.Right,
-                Margin = new Thickness(6, 0, 0, 0),
+                Margin = new Thickness(MeterColumns.ColumnGap, 0, 0, 0),
                 Visibility = Visibility.Collapsed   // shown only when a secondary is selected
             };
             style.ApplyFont(_secondary, style.RowText);
 
-            // Panel currently holds [value]; insert so the order becomes [secondary][percent][value].
-            _bar.TrailingPanel.Children.Insert(0, _percent);
+            // Panel holds [value]; append percent and prepend secondary -> [secondary][value][percent]
+            // (value in the middle, percent rightmost — SPEC §Rows).
+            _bar.TrailingPanel.Children.Add(_percent);
             _bar.TrailingPanel.Children.Insert(0, _secondary);
 
             SetOpacity(opacity);

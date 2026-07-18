@@ -15,6 +15,14 @@ namespace Eq2Auras.Plugin.Overlay
         private const string CountCap = "99999";   // five-digit count worst case
         private const string PercentCap = "100%";
 
+        /// Left margin between trailing columns (rows). The header total's inset from the
+        /// right edge is one percent-column-width plus this, so the total caps the value column.
+        public const double ColumnGap = 6;
+
+        /// Font-measured width of an arbitrary string — the header's title trim-budget math.
+        public static double TextWidth(VisualStyle style, string text, double fontSize)
+            => Measure(style, text, fontSize);
+
         public static double NumberWidth(VisualStyle style, double fontSize)
             => Math.Max(Measure(style, RateCap, fontSize), Measure(style, CountCap, fontSize));
 
