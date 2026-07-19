@@ -4,6 +4,9 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-19
 
+### IDEA (deferred, 2026-07-19) — grey out "Check for updates" when no update is detected
+When the startup/background channel check finds the installed build already matches the selected channel's release (no update available), **disable/grey the "Check for updates" button** as a passive "you're up to date" signal; re-enable it when an update is detected (pairs with the existing "update available: v‹X›" notify string, SPEC §Release channels — *Notify on startup*). Design note for whoever picks it up: keep a way to force a manual re-check (the button is currently the only trigger) — e.g. re-enable on a timer, on channel-toggle, or a separate "re-check" affordance — so greying it doesn't strand a user who wants to poll. Small Plugin tab-UI change.
+
 ### BUG (deferred, field-flagged 2026-07-19) — "Remove meter" button renders red until moused over, on the last window
 On the last remaining meter (where **Remove meter** is meant to be disabled — the tab toggle is the master off-switch, §Multiple windows), the button shows its **red destructive fill initially** and only corrects to the disabled/greyed look **on mouse-over**. So the disabled state isn't applied on the popup's initial construction — a hover event is what forces the correct restyle. Not a header-redesign regression: it's in the `MeterPopup` lifecycle cluster / `ThemeButton` (from the styling-theme-system increment 4). Likely fix: apply the `canRemove`-gated disabled visual at build time, not only on the first `IsEnabled`/hover state change. Deferred by Alex ("bug for later").
 
