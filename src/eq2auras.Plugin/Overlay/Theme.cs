@@ -25,6 +25,7 @@ namespace Eq2Auras.Plugin.Overlay
         public static readonly SolidColorBrush AccentAmber  = Frozen(Colors.Gold);
         public static readonly SolidColorBrush AccentCrimson = Frozen(Colors.Crimson);
         public static readonly SolidColorBrush AccentBlue   = Frozen(Color.FromRgb(0x56, 0xB4, 0xE9));
+        public static readonly SolidColorBrush ItemSelected = Frozen(Color.FromArgb(0x10, 0xFF, 0xFF, 0xFF));   // subtle light highlight behind a selected list-item
 
         /// A frozen backdrop brush at a given alpha over SurfaceTint. Increment 1 paints
         /// no backdrop with it — it is the surface-brush factory the settings window and
