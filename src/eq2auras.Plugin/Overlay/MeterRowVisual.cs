@@ -25,7 +25,6 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _percent;
         private readonly SolidColorBrush _backplate;
         private readonly TextBlock _secondary;
-        private static readonly Color MutedText = Color.FromArgb(255, 0x9A, 0xA0, 0xAD);   // subordinate to the value
 
         public UIElement Root => _bar.Root;
 
@@ -47,7 +46,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _percent = new TextBlock
             {
-                Foreground = new SolidColorBrush(Color.FromArgb(255, 0xC4, 0xCA, 0xD6)),
+                Foreground = Theme.TextLabel,
                 VerticalAlignment = VerticalAlignment.Center,
                 Width = percentWidth,
                 TextAlignment = TextAlignment.Right,
@@ -57,7 +56,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _secondary = new TextBlock
             {
-                Foreground = new SolidColorBrush(MutedText),
+                Foreground = Theme.TextMuted,
                 VerticalAlignment = VerticalAlignment.Center,
                 Width = numberWidth,
                 TextAlignment = TextAlignment.Right,

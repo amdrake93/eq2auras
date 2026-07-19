@@ -185,9 +185,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var block = new TextBlock
             {
-                Foreground = new SolidColorBrush(dim
-                    ? Color.FromArgb(255, 0x8B, 0x93, 0xA3)
-                    : OverlayTheme.Text),
+                Foreground = dim ? Theme.TextMuted : Theme.TextPrimary,
                 VerticalAlignment = VerticalAlignment.Center
             };
             style.ApplyFont(block, style.RowText);
