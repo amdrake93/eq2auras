@@ -2,6 +2,24 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-19
+
+### READY FOR MERGE + FIELD TEST — meter UX polish + header metric-label redesign (branch `meter-ux-polish`)
+Last-minute polish before go-live (Alex ships meter v1 before the 2026-07-20 raid). Two waves on one branch.
+
+**Wave 1 — the 3 deferred UX fixes** (the "NEXT SESSION" items 1–3 below), code-only, no spec change (spec already described the intended behavior):
+1. **Popup positioning** — `MeterPopup` `PlacementMode.Mouse` → `Bottom`: anchors below the header edge, not the cursor (matches SPEC §Configuration "anchored to the window you right-clicked", which cursor-anchoring contradicted).
+2. **`Choose…` alignment** — font row's control region = new `ThemeSlider.ContentWidth` (`BoxWidth`+`TrackWidth` consts), `Choose…` docked right in a `DockPanel` → shares the sliders' type-in-box right edge; font-name value ellipsis-trims.
+3. **Header total misalignment (the inc-5 defect)** — root cause was **not** the field-guessed "cog narrower than percent" (cog width == percent width, both `PercentWidth(RowText×11/13)` — verified). It was the header pinned at `hr = 1.0` while rows scale their 8px trailing inset by `HeightRatio` (`BarRowVisual`), so the total drifted `8×(HeightRatio−1)` right as rows thicken. Fix: header builds at `hr = style.HeightRatio` (height stays fixed at `DefaultRowHeight`; only horizontal insets track the rows). Shared `BarRowVisual` untouched → **timer unaffected**. Residual: a row created mid-session right after a *live* row-height slider change can drift until reload (construction-frozen inset); minor, self-heals, flagged in the field script.
+
+**Wave 2 — header metric-label redesign** (NEW this session; items Alex raised at the 07-19 field test):
+- **Cleared-primary title over-trim (item A)** — `UpdateTitleMaxWidth` was a fixed worst-case reserve applied unconditionally; now **dynamic** (measures only the shown duration/labels/total + cog, empty labels collapse), so a cleared primary reserves only the cog and the title reclaims the full width.
+- **Metric labels move to a right-side cluster (item B)** — left side is now just `(duration) title`; the right cluster reads `[secondary label (muted)] [primary label (white)] [total]` pressed against the total, cog far right. The total's right edge is unchanged → it still caps the value column; labels grow leftward into the title's space. Core: `MeterFrame.SecondaryLabel` + `MeterEngine.Tick` populates it (secondary metric label; empty when no secondary or cleared primary) — TDD, **Core 192 green**. SPEC §Header amended present-tense.
+
+**Review:** SPEC §Header amendment + code went through the **automated third-party review loop, 2 rounds to closure** — round 1 request-changes (the amendment described the redesign ahead of the code; the loop's authorized fix was to land the implementation, not reframe), round 2 closure. The branch carries the reviewer's **fix-flow merge-gate live script (8 steps)**: popup anchor; Choose… alignment; header total at **default** height (regression guard) + as rows thicken (the `hr` fix); slider width intact; metric-label cluster colors/order; no-secondary; cleared-primary full-width title. Plugin is **transcribe-only (CI-compile-verified; NOT runtime-verified on the Mac)** — visual/interaction correctness is Alex's on-box gate. Presented ready-for-review; merge + field test are Alex's.
+
+**STILL DEFERRED — item 4: monochromatic meter rows** — the interim color-scale answer (all rows one color; color/shade TBD with the visual companion). Its own pass after this branch lands. The real solve (class colors) is still the next BIG meter effort. (Was item 4 of the 07-17 "NEXT SESSION" list; items 1–3 there are Wave 1 above.)
+
 ## From Alex — 2026-07-17
 
 ### SHIPPED to dev-latest (functional) — Slice 2b: single secondary data point (2026-07-17; styling deferred)
