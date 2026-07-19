@@ -153,8 +153,11 @@ namespace Eq2Auras.Plugin.Overlay
     /// (SPEC Part I §The theme system). Semantic tokens named by ROLE, not value;
     /// frozen SolidColorBrushes so callers share one instance rather than allocating a
     /// brush per element. Timer-only colors stay in OverlayTheme, which aliases the
-    /// shared value. Increment 1 lands the color/brush tokens; the font-weight, spacing,
-    /// and radius scales and the control kit arrive with increment 2.
+    /// shared value. Increment 1 lands the surface, text, accent, and divider tokens; the
+    /// interactive-state tokens (LinkNormal/LinkHover/ItemSelected, SPEC §The theme system)
+    /// land with the control that consumes them — links with the button (increment 2),
+    /// ItemSelected with the selectable list-item (increment 4), a hover/selected form being
+    /// kit-coupled — as do the font-weight, spacing, and radius scales.
     internal static class Theme
     {
         // The single dark blue-grey backdrop tint; opacity is applied per surface
@@ -292,7 +295,7 @@ git commit -m "Meter: retag durable row/header text to Theme tokens (increment 1
 
 ## Self-review
 
-**Spec coverage (increment 1 scope only):** §The theme system's token-module + semantic-naming + `OverlayTheme`-aliasing claims → Tasks 2. The `BackdropOpacity` field (§Settings persistence, plan-watch 3's data half) → Task 1. Retag of scattered chrome literals (§The theme system "ad-hoc chrome colors had scattered") → Task 3 (durable consumers only; settings-window/menu literals retag when rewritten in increments 2/4). The kit, popup, backdrop rendering, header cog/total, and `MetricRegistry` split are **out of increment 1** by design (roadmap above) — not gaps.
+**Spec coverage (increment 1 scope only):** §The theme system's token-module + semantic-naming + `OverlayTheme`-aliasing claims → Task 2, which lands the surface/text/accent/divider tokens. The interactive-state tokens `LinkNormal`/`LinkHover`/`ItemSelected` (SPEC §The theme system) are **deferred to their consuming controls** — links to the button (increment 2), `ItemSelected` to the selectable list-item (increment 4) — because a hover/selected color's form is kit-coupled and no increment-1 surface consumes one; the `Theme` module grows across increments, exactly as it does for the font/spacing/radius scales. The `BackdropOpacity` field (§Settings persistence, plan-watch 3's data half) → Task 1. Retag of scattered chrome literals (§The theme system "ad-hoc chrome colors had scattered") → Task 3 (durable consumers only; settings-window/menu literals retag when rewritten in increments 2/4). The kit, popup, backdrop rendering, header cog/total, and `MetricRegistry` split are **out of increment 1** by design (roadmap above) — not gaps.
 
 **Placeholder scan:** none — every step carries exact code, paths, and commands.
 
