@@ -4,7 +4,6 @@ using Xunit;
 
 public class MeterEngineTests
 {
-    private static readonly List<int> Palette = new() { 0x11, 0x22, 0x33 };   // 3 slots
 
     private static EncounterReading Live(double seconds) => new()
         { Exists = true, Active = true, Title = "Vithnok", LiveDurationSeconds = seconds, FinalDurationSeconds = 0 };
@@ -16,7 +15,7 @@ public class MeterEngineTests
     public void Rates_divide_totals_by_the_live_wall_clock_while_active()
     {
         var frame = new MeterEngine().Tick(Live(100),
-            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", Palette);
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps");
 
         Assert.Equal(500, frame.Rows[0].Value);          // 50k / 100s
         Assert.Equal("500", frame.Rows[0].FormattedValue);
@@ -34,7 +33,7 @@ public class MeterEngineTests
             { Exists = true, Active = false, Title = "Vithnok", LiveDurationSeconds = 120, FinalDurationSeconds = 100 };
 
         var frame = new MeterEngine().Tick(frozen,
-            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", Palette);
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps");
 
         Assert.Equal(500, frame.Rows[0].Value);          // divides by Final (100), not Live (120)
     }
@@ -47,7 +46,7 @@ public class MeterEngineTests
     {
         // Plan-watch item 1: the degenerate fresh-encounter poll must render, not explode.
         var frame = new MeterEngine().Tick(Live(liveSeconds),
-            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", Palette);
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps");
 
         Assert.Equal(0, frame.Rows[0].Value);
         Assert.Equal("0", frame.Rows[0].FormattedValue);
@@ -58,7 +57,7 @@ public class MeterEngineTests
     public void Empty_encounter_and_empty_ally_list_render_an_empty_frame()
     {
         var none = new MeterEngine().Tick(new EncounterReading { Exists = false },
-            new List<CombatantReading>(), "encdps", Palette);
+            new List<CombatantReading>(), "encdps");
 
         Assert.Empty(none.Rows);
         Assert.Equal("", none.Title);
@@ -71,7 +70,7 @@ public class MeterEngineTests
     public void Counts_never_divide_and_format_as_integers()
     {
         var frame = new MeterEngine().Tick(Live(100),
-            new List<CombatantReading> { Ally("A", cures: 7) }, "cures", Palette);
+            new List<CombatantReading> { Ally("A", cures: 7) }, "cures");
 
         Assert.Equal(7, frame.Rows[0].Value);            // NOT 0.07
         Assert.Equal("7", frame.Rows[0].FormattedValue);
@@ -85,7 +84,7 @@ public class MeterEngineTests
         for (int i = 0; i < 12; i++) allies.Add(Ally("P" + i.ToString("00"), damage: 1000 - i * 50));
         allies.Add(Ally("Aardvark", damage: 1000));      // ties with P00 — name breaks it, deterministically
 
-        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");
 
         Assert.Equal(13, frame.Rows.Count);              // NO truncation — the window scrolls (SPEC Part III)
         Assert.Equal("Aardvark", frame.Rows[0].Name);    // tie -> ordinal ascending
@@ -99,7 +98,7 @@ public class MeterEngineTests
         var allies = new List<CombatantReading>
             { Ally("A", damage: 600), Ally("B", damage: 300), Ally("C", damage: 100) };
 
-        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");
 
         Assert.Equal(0.6, frame.Rows[0].Percent, 3);
         Assert.Equal("60%", frame.Rows[0].FormattedPercent);
@@ -114,7 +113,7 @@ public class MeterEngineTests
         var allies = new List<CombatantReading>();
         for (int i = 0; i < 20; i++) allies.Add(Ally("P" + i.ToString("00"), damage: 100));
 
-        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");
 
         Assert.Equal(20, frame.Rows.Count);                // every ally in the frame
         Assert.Equal(0.05, frame.Rows[0].Percent, 3);      // 1/20 of the ALL-allies total
@@ -122,30 +121,34 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void Ally_colors_are_first_seen_stable_and_cycle_past_the_palette()
+    public void All_rows_take_the_primary_metric_family_color()
     {
-        var engine = new MeterEngine();
         var allies = new List<CombatantReading>
-            { Ally("A", damage: 400), Ally("B", damage: 300), Ally("C", damage: 200), Ally("D", damage: 100) };
+            { Ally("A", damage: 300), Ally("B", damage: 200), Ally("C", damage: 100) };
 
-        var first = engine.Tick(Live(10), allies, "encdps", Palette);
-        Assert.Equal(0x11, first.Rows[0].FillArgb);
-        Assert.Equal(0x22, first.Rows[1].FillArgb);
-        Assert.Equal(0x33, first.Rows[2].FillArgb);
-        Assert.Equal(0x11, first.Rows[3].FillArgb);        // 4th name cycles onto slot 0
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");   // DPS -> Damage family
 
-        // B overtakes A next tick: colors follow the NAME, not the rank.
-        allies[1].Damage = 900;
-        var second = engine.Tick(Live(10), allies, "encdps", Palette);
-        Assert.Equal("B", second.Rows[0].Name);
-        Assert.Equal(0x22, second.Rows[0].FillArgb);
+        var red = MeterFamilyColors.ArgbFor("Damage");
+        Assert.All(frame.Rows, r => Assert.Equal(red, r.FillArgb));
+    }
+
+    [Fact]
+    public void The_fill_color_follows_the_metric_family_not_the_ally()
+    {
+        var allies = new List<CombatantReading> { Ally("A", damage: 300, healed: 500) };
+
+        var dps = new MeterEngine().Tick(Live(10), allies, "encdps");
+        var hps = new MeterEngine().Tick(Live(10), allies, "enchps");
+
+        Assert.Equal(MeterFamilyColors.ArgbFor("Damage"), dps.Rows[0].FillArgb);
+        Assert.Equal(MeterFamilyColors.ArgbFor("Healing"), hps.Rows[0].FillArgb);
     }
 
     [Fact]
     public void No_secondary_key_leaves_the_secondaries_list_empty()
     {
         var frame = new MeterEngine().Tick(Live(10),
-            new List<CombatantReading> { Ally("A", damage: 100) }, "encdps", Palette);   // no secondaryKey arg
+            new List<CombatantReading> { Ally("A", damage: 100) }, "encdps");   // no secondaryKey arg
 
         Assert.NotNull(frame.Rows[0].Secondaries);
         Assert.Empty(frame.Rows[0].Secondaries);
@@ -156,7 +159,7 @@ public class MeterEngineTests
     {
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000, healed: 30_000) },
-            "encdps", Palette, "enchps");
+            "encdps", "enchps");
 
         var secondary = Assert.Single(frame.Rows[0].Secondaries);
         Assert.Equal("enchps", secondary.Key);
@@ -168,7 +171,7 @@ public class MeterEngineTests
     {
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000, cures: 7) },
-            "encdps", Palette, "cures");
+            "encdps", "cures");
 
         Assert.Equal("7", Assert.Single(frame.Rows[0].Secondaries).FormattedValue);   // NOT 0.07
     }
@@ -178,7 +181,7 @@ public class MeterEngineTests
     {
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000) },
-            "encdps", Palette, "encdps");
+            "encdps", "encdps");
 
         Assert.Equal(frame.Rows[0].FormattedValue,
             Assert.Single(frame.Rows[0].Secondaries).FormattedValue);   // same DPS, twice — by design
@@ -189,7 +192,7 @@ public class MeterEngineTests
     {
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000) },
-            "encdps", Palette, "no-such-metric");
+            "encdps", "no-such-metric");
 
         Assert.Empty(frame.Rows[0].Secondaries);   // Find -> null -> off
     }
@@ -204,7 +207,7 @@ public class MeterEngineTests
             Ally("B", damage: 100, healed: 900),
         };
 
-        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", Palette, "enchps");
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", "enchps");
 
         Assert.Equal("A", frame.Rows[0].Name);   // DPS leader first, not the HPS leader
         Assert.Equal("B", frame.Rows[1].Name);
@@ -220,7 +223,7 @@ public class MeterEngineTests
             Ally("a lamia deathcaller", damage: 9000, isAlly: false),   // the mob — big number, must not show
         };
 
-        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps");
 
         Assert.Single(frame.Rows);
         Assert.Equal("Biffels", frame.Rows[0].Name);
@@ -239,7 +242,7 @@ public class MeterEngineTests
             Ally("a lamia deathcaller", damage: 200, isAlly: false),
         };
 
-        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps");
 
         Assert.Equal(2, frame.Rows.Count);
         Assert.Equal("Groupmate", frame.Rows[0].Name);   // shows even though unlinked — fixes the field bug
@@ -255,7 +258,7 @@ public class MeterEngineTests
             Ally("Unknown", damage: 300, isAlly: false),
         };
 
-        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps", Palette);
+        var frame = new MeterEngine().Tick(Live(10), combatants, "encdps");
 
         Assert.Single(frame.Rows);
         Assert.Equal("Biffels", frame.Rows[0].Name);
@@ -270,7 +273,7 @@ public class MeterEngineTests
         // pre-cleared-primary "null -> DPS" behavior.)
         var frame = new MeterEngine().Tick(Live(10),
             new List<CombatantReading> { Ally("A", damage: 1000), Ally("B", damage: 500) },
-            metricKey: null, Palette);
+            metricKey: null);
 
         Assert.Empty(frame.Rows);        // cleared primary -> nothing
         Assert.Equal("", frame.MetricLabel);
@@ -284,7 +287,7 @@ public class MeterEngineTests
         // secondary label left of the white primary label).
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000, healed: 30_000) },
-            "encdps", Palette, "enchps");
+            "encdps", "enchps");
 
         Assert.Equal("HPS", frame.SecondaryLabel);
     }
@@ -293,7 +296,7 @@ public class MeterEngineTests
     public void No_secondary_leaves_the_secondary_label_blank()
     {
         var frame = new MeterEngine().Tick(Live(100),
-            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", Palette);
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps");
 
         Assert.Equal("", frame.SecondaryLabel);
     }
@@ -303,7 +306,7 @@ public class MeterEngineTests
     {
         var frame = new MeterEngine().Tick(Live(100),
             new List<CombatantReading> { Ally("A", damage: 50_000) },
-            "encdps", Palette, "no-such-metric");
+            "encdps", "no-such-metric");
 
         Assert.Equal("", frame.SecondaryLabel);   // Find -> null -> no label
     }
@@ -314,7 +317,7 @@ public class MeterEngineTests
         // No primary -> no header labels at all (the header shows only the title + cog).
         var frame = new MeterEngine().Tick(Live(10),
             new List<CombatantReading> { Ally("A", damage: 1000) },
-            metricKey: null, Palette, "enchps");
+            metricKey: null, "enchps");
 
         Assert.Equal("", frame.SecondaryLabel);
     }
