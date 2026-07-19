@@ -71,6 +71,14 @@ Line ~33 — remove `Title = "Vithnok", ` from the frozen encounter so it reads:
 
 Delete the two `Title` assertions: `Assert.Equal("Vithnok", frame.Title);` (in `Rates_divide_totals_by_the_live_wall_clock_while_active`) and `Assert.Equal("", none.Title);` (in `Empty_encounter_and_empty_ally_list_render_an_empty_frame`).
 
+Also fix the now-stale comment in `A_cleared_primary_blanks_the_secondary_label_too` (currently `:317`), which still describes the old title-bearing header:
+
+```csharp
+        // No primary -> the header shows only the duration and cog (SPEC §Header); no metric/secondary/total labels.
+```
+
+(was `// No primary -> no header labels at all (the header shows only the title + cog).`)
+
 - [ ] **Step 2: Remove the `Title` property from the DTOs**
 
 In `src/eq2auras.Core/Meter/MeterReading.cs`, delete line 23:
@@ -134,7 +142,8 @@ MeterWindow stops reading frame.Title. Header restructure follows."
 Plugin/WPF only; **not** Mac-testable. Verified by branch CI compile + the on-box merge-gate script (Testing strategy below). No unit tests.
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Overlay/MeterWindow.cs` — field decl (`:45`), header construction (`:81-102`, `:113-146`), `Render` (`:271-278`), `SetFont` (`:400-409`), `SetRowWidth` (`:447`), `UpdateTitleMaxWidth` (`:417-429`), `SetHeaderLabel` comment (`:225-227`).
+- Modify: `src/eq2auras.Plugin/Overlay/MeterWindow.cs` — class doc (`:14`), field decl (`:45`), header construction (`:81-102`, `:113-146`), `Render` (`:271-278`), `ApplyHeaderFont` (`:398-410`, the private method `SetFont` at `:373` calls), `SetRowWidth` (`:447`), `UpdateTitleMaxWidth` (`:417-429`), `SetHeaderLabel` comment (`:225-227`).
+- Modify: `src/eq2auras.Plugin/Overlay/MeterColumns.cs` — remove now-dead `TextWidth` (`:22-24`).
 
 **Interfaces:**
 - Consumes: `MeterFrame.MetricLabel` / `SecondaryLabel` / `TotalText` / `DurationText` (unchanged); `MeterColumns.NumberWidth` / `PercentWidth` / `ColumnGap` (`MeterColumns.cs`); `Theme.TextPrimary` / `TextLabel` via `HeaderBlock`.
@@ -244,9 +253,9 @@ In `Render` (currently `:271-278`), remove the `UpdateTitleMaxWidth();` line (`:
         }
 ```
 
-- [ ] **Step 6: Update `SetFont` — re-measure the secondary cell, drop the title font + reserve call**
+- [ ] **Step 6: Update `ApplyHeaderFont` — re-measure the secondary cell, drop the title font + reserve call**
 
-In `SetFont` (currently `:400-409`), remove the `_titleText` ApplyFont line and the `UpdateTitleMaxWidth()` call, and add the secondary label's width re-measure alongside the total's:
+In **`ApplyHeaderFont`** (the private method at `:398`, body `:400-409` — NOT the public `SetFont` at `:373`, which only reconstructs `_style` and calls `ApplyHeaderFont()`), remove the `_titleText` ApplyFont line and the `UpdateTitleMaxWidth()` call, and add the secondary label's width re-measure alongside the total's:
 
 ```csharp
             _style.ApplyFont(_durationText, _style.RowText);
@@ -264,9 +273,17 @@ In `SetFont` (currently `:400-409`), remove the `_titleText` ApplyFont line and 
 
 Delete the entire `UpdateTitleMaxWidth` method (currently `:412-429`, doc-comment through the closing brace). Remove its two remaining call sites: the constructor call (currently `:147`, `UpdateTitleMaxWidth();   // cap the title …`) and the `SetRowWidth` call (currently `:447`, `UpdateTitleMaxWidth();`).
 
-- [ ] **Step 8: Refresh the `SetHeaderLabel` comment (drops the "title-trim budget" reference)**
+- [ ] **Step 8: Refresh the stale doc-comments (class summary + `SetHeaderLabel`)**
 
-In the `SetHeaderLabel` doc-comment (currently `:225-227`), replace the "title-trim budget" wording:
+First, the class summary (currently `:12-15`) still describes the old header. Replace the header-anatomy line:
+
+```csharp
+    /// state display ((duration) + primary-metric identity; total + secondary-label cells right),
+```
+
+(was `    /// state display ((duration) title — metric | total),`).
+
+Then the `SetHeaderLabel` doc-comment (currently `:225-227`), replace the "title-trim budget" wording:
 
 ```csharp
         /// A header label that vanishes when blank: an empty label — no secondary selected, or a
@@ -274,15 +291,26 @@ In the `SetHeaderLabel` doc-comment (currently `:225-227`), replace the "title-t
         /// and a cleared primary leaves just the duration on the left and the cog on the right (SPEC §Header).
 ```
 
-- [ ] **Step 9: Commit**
+- [ ] **Step 9: Remove the now-dead `MeterColumns.TextWidth`**
+
+With `UpdateTitleMaxWidth` gone, `MeterColumns.TextWidth` has no callers (grep-confirmed: it was called only from `UpdateTitleMaxWidth`, at `MeterWindow.cs:419,421,423`). In `src/eq2auras.Plugin/Overlay/MeterColumns.cs`, delete it and its doc (currently `:22-24`):
+
+```csharp
+        /// Font-measured width of an arbitrary string — the header's title trim-budget math.
+        public static double TextWidth(VisualStyle style, string text, double fontSize)
+            => Measure(style, text, fontSize);
+```
+
+- [ ] **Step 10: Commit**
 
 ```bash
-git add src/eq2auras.Plugin/Overlay/MeterWindow.cs
+git add src/eq2auras.Plugin/Overlay/MeterWindow.cs src/eq2auras.Plugin/Overlay/MeterColumns.cs
 git commit -m "Meter: header restructure — primary metric is the left identity
 
 Left cluster = (duration) + metric name in a trimming DockPanel; right cluster
 = secondary label (fixed NumberWidth cell) + total over the secondary/value
-columns, cog over percent. _titleText and UpdateTitleMaxWidth removed."
+columns, cog over percent. _titleText, UpdateTitleMaxWidth, and the now-dead
+MeterColumns.TextWidth removed; stale class/test comments refreshed."
 ```
 
 ---
