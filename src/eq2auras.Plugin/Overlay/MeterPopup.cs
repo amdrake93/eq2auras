@@ -81,7 +81,7 @@ namespace Eq2Auras.Plugin.Overlay
             _popup = new Popup
             {
                 PlacementTarget = placementTarget,
-                Placement = PlacementMode.Mouse,
+                Placement = PlacementMode.Bottom,   // anchored to the header edge, not the cursor — drops below the header rather than covering the meter at a random spot (SPEC §Configuration: "anchored to the window you right-clicked")
                 StaysOpen = false,       // dismiss on outside click
                 AllowsTransparency = true,
                 Child = shell

@@ -71,7 +71,12 @@ namespace Eq2Auras.Plugin.Overlay
             SizeToContent = SizeToContent.Height;
             Width = style.RowWidth;   // no horizontal slack: the right edge = the visible edge, so the resize grip sits on it (matches the bottom)
 
-            double hr = 1.0;   // header stays default-proportioned; the row-height knob thickens data rows only (SPEC Part III §Configuration)
+            // Header HEIGHT stays fixed (DefaultRowHeight, below) so the row-height knob thickens
+            // data rows only — but its HORIZONTAL insets must track the rows' HeightRatio. Rows scale
+            // their 8px trailing inset by HeightRatio (BarRowVisual); a header pinned at 1.0 drifts
+            // its total/cog off the value/percent columns by 8*(HeightRatio-1) as rows thicken. Tracking
+            // it keeps the total capping the value column at any row height (SPEC Part III §Header).
+            double hr = style.HeightRatio;
             _durationText = HeaderBlock(style, dim: true);
             _titleText = HeaderBlock(style, dim: false);
             _titleText.FontWeight = FontWeights.SemiBold;
