@@ -28,6 +28,9 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly MeterWindowCallbacks _cb;
         private MenuItem _lockItem;
         private double _opacity;
+        private double _backdropOpacity;
+        private Border _backdrop;
+        private Grid _rowsContainer;
         private SolidColorBrush _headerBackplate;
         private TextBlock _affordance;
         private MeterSettingsWindow _settings;
@@ -48,7 +51,7 @@ namespace Eq2Auras.Plugin.Overlay
         private string _secondaryKey;   // null = None; the settings dropdown's current value
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, int visibleRows,
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
@@ -58,6 +61,7 @@ namespace Eq2Auras.Plugin.Overlay
             _secondaryKey = secondaryKey;                         // null/unknown -> None (no Resolve; off, not DPS)
             _locked = locked;
             _opacity = opacity;
+            _backdropOpacity = backdropOpacity;
             _visibleRows = visibleRows;
 
             WindowStyle = WindowStyle.None;
@@ -146,9 +150,19 @@ namespace Eq2Auras.Plugin.Overlay
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
+            _backdrop = new Border
+            {
+                Background = Theme.Surface(0xFF),                 // SurfaceTint; opacity via Border.Opacity below
+                Opacity = _opacity * _backdropOpacity,            // window × backdrop (they compound, SPEC §Meter display defaults)
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            _rowsContainer = new Grid { MinHeight = ReservedRowsHeight() };
+            _rowsContainer.Children.Add(_backdrop);              // behind
+            _rowsContainer.Children.Add(_rowsPanel);             // on top; empty area shows the backdrop
             _root = new StackPanel { Width = style.RowWidth };
             _root.Children.Add(header);
-            _root.Children.Add(_rowsPanel);
+            _root.Children.Add(_rowsContainer);
 
             // Transparent edge grips (right = width, bottom = visible rows). Top-left is
             // anchored — the window never moves during resize, so GetPosition(this) is a
@@ -316,6 +330,11 @@ namespace Eq2Auras.Plugin.Overlay
             }
         }
 
+        /// The window reserves its configured row count as a persistent backdrop regardless of
+        /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
+        /// so an empty meter shows its size and can be sized up past the present rows.
+        private double ReservedRowsHeight() => _visibleRows * _style.RowHeight;
+
         private void OpenSettings()
         {
             if (_settings != null)
@@ -324,6 +343,7 @@ namespace Eq2Auras.Plugin.Overlay
                 return;
             }
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
+                _backdropOpacity, SetBackdropOpacity,
                 _style.Font?.Source, _style.BaseSize, SetFont, _secondaryKey, SetSecondary)
             {
                 Left = Left + 20,
@@ -333,14 +353,26 @@ namespace Eq2Auras.Plugin.Overlay
             _settings.Show();
         }
 
-        /// Live opacity (SPEC Part III §Meter display defaults): applied to the header and
-        /// every retained row, and persisted. Text stays at full opacity — always readable.
+        /// Window opacity (SPEC Part III §Meter display defaults): the whole window's fill/backplates
+        /// — header + rows + the backdrop (which also takes backdrop opacity, compounded). Text stays
+        /// at full opacity — always readable. Persisted.
         public void SetOpacity(double opacity)
         {
             _opacity = opacity;
             _headerBackplate.Opacity = opacity;
             foreach (var slot in _slots) slot.SetOpacity(opacity);
+            _backdrop.Opacity = _opacity * _backdropOpacity;
             _cb.OpacityChanged(opacity);
+        }
+
+        /// Backdrop opacity (SPEC Part III §Meter display defaults): scales just the persistent
+        /// backdrop, compounded with window opacity — faint backdrop + vivid bars is low here, high
+        /// on the window/rows. Persisted.
+        public void SetBackdropOpacity(double backdropOpacity)
+        {
+            _backdropOpacity = backdropOpacity;
+            _backdrop.Opacity = _opacity * _backdropOpacity;
+            _cb.BackdropOpacityChanged(backdropOpacity);
         }
 
         /// Live row-height: resize every retained row in place and re-point _style so
@@ -356,6 +388,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
             };
+            _rowsContainer.MinHeight = ReservedRowsHeight();
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
             _cb.RowHeightChanged(rowHeight);
         }
@@ -433,6 +466,7 @@ namespace Eq2Auras.Plugin.Overlay
         private void SetVisibleRows(int visibleRows)
         {
             _visibleRows = visibleRows;
+            _rowsContainer.MinHeight = ReservedRowsHeight();
             if (_lastFrame != null) RenderSlots();
         }
 
@@ -447,13 +481,10 @@ namespace Eq2Auras.Plugin.Overlay
                 _resizing = true;
                 _resizeStart = e.GetPosition(this);
                 _startWidth = _style.RowWidth;
-                // Anchor the bottom-drag to the rows actually SHOWN, not the raw cap: the
-                // window sizes to min(visible-row count, ally count), so a default cap of 10
-                // with 2 allies shows 2 — dragging up must start from 2 to hide a row on the
-                // first row-height of travel (else you'd drag ~8 rows before anything moves).
-                _startVisibleRows = _lastFrame != null
-                    ? Math.Min(_visibleRows, _lastFrame.Rows.Count)
-                    : _visibleRows;
+                // The window reserves the full visible-row count as a backdrop (persistent,
+                // §Configuration), so the bottom drag anchors to the raw cap — a size-up past the
+                // present allies now works (previously it anchored to min(cap, allies) and snapped).
+                _startVisibleRows = _visibleRows;
                 grip.CaptureMouse();
                 e.Handled = true;
             };
