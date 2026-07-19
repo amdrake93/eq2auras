@@ -14,6 +14,12 @@ namespace Eq2Auras.Plugin.Overlay
     {
         private static readonly ControlTemplate DarkTemplate = BuildTemplate();
         private const double TrackWidth = 150;   // fixed so the slider has width inside a horizontal StackPanel (matches the pre-overhaul slider)
+        private const double BoxWidth = 58;      // the type-in value box
+
+        /// The control-column width (track + value box) — the settings window's other
+        /// right-column controls (e.g. the font "Choose…" button) align to this so they
+        /// share the sliders' right edge.
+        public const double ContentWidth = TrackWidth + BoxWidth;
 
         private readonly Slider _slider;
         private readonly TextBox _box;
@@ -61,7 +67,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _box = new TextBox
             {
-                Width = 58,
+                Width = BoxWidth,
                 Text = format(value),
                 Foreground = Theme.TextPrimary,
                 Background = Theme.Surface(0xFF),

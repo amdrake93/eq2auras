@@ -83,7 +83,8 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 Text = FontLabel(fontFamily, fontBaseSize),
                 Foreground = Theme.TextPrimary,
-                VerticalAlignment = VerticalAlignment.Center
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis
             };
             var choose = new ThemeButton("Choose…") { Margin = new Thickness(10, 0, 0, 0) };
             choose.Click += () =>
@@ -99,10 +100,15 @@ namespace Eq2Auras.Plugin.Overlay
                     _onFontChanged(_fontFamily, _fontBaseSize);
                 }
             };
+            // Control region matches the sliders' width so Choose… right-aligns with the type-in
+            // value boxes; the font-name value fills the space to its left and ellipsis-trims.
+            var fontControls = new DockPanel { Width = ThemeSlider.ContentWidth };
+            DockPanel.SetDock(choose, Dock.Right);
+            fontControls.Children.Add(choose);
+            fontControls.Children.Add(fontValue);
             var fontRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
             fontRow.Children.Add(fontLabel);
-            fontRow.Children.Add(fontValue);
-            fontRow.Children.Add(choose);
+            fontRow.Children.Add(fontControls);
 
             var opacityLabel = new TextBlock
             {
