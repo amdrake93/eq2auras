@@ -83,7 +83,7 @@ namespace Eq2Auras.Plugin.Overlay
             _titleText.FontWeight = FontWeights.SemiBold;
             _titleText.TextTrimming = TextTrimming.CharacterEllipsis;
             _metricText = HeaderBlock(style, dim: false);          // primary label — white, the apparent one
-            _secondaryLabelText = HeaderBlock(style, dim: true);   // secondary label — muted, matches the row's secondary column
+            _secondaryLabelText = HeaderBlock(style, dim: true);   // secondary label — subordinate grey, matches the row's secondary column
             _totalText = HeaderBlock(style, dim: false);
             _totalText.FontWeight = FontWeights.SemiBold;
 
@@ -215,7 +215,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var block = new TextBlock
             {
-                Foreground = dim ? Theme.TextMuted : Theme.TextPrimary,
+                Foreground = dim ? Theme.TextLabel : Theme.TextPrimary,
                 VerticalAlignment = VerticalAlignment.Center
             };
             style.ApplyFont(block, style.RowText);

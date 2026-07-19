@@ -24,14 +24,6 @@ namespace Eq2Auras.Plugin.Overlay
             public Action RemoveMeter;
         }
 
-        private static readonly Dictionary<string, Color> CategoryColor = new Dictionary<string, Color>
-        {
-            { "Damage",  Color.FromRgb(0xE0, 0x5A, 0x5A) },   // red
-            { "Healing", Color.FromRgb(0x2F, 0xBF, 0x8F) },   // green/teal
-            { "Utility", Color.FromRgb(0x56, 0xB4, 0xE9) },   // blue/sky
-        };
-        private static readonly Color CategoryFallback = Color.FromRgb(0x8B, 0x93, 0xA3);
-
         private readonly Popup _popup;
         private readonly Callbacks _cb;
         private readonly List<KeyValuePair<string, MetricGridItem>> _primaryItems = new List<KeyValuePair<string, MetricGridItem>>();
@@ -146,7 +138,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private static UIElement FamilyHeader(string family)
         {
-            var color = CategoryColor.TryGetValue(family, out var c) ? c : CategoryFallback;
+            var color = OverlayTheme.FromArgbInt(MeterFamilyColors.ArgbFor(family));
             return new TextBlock
             {
                 Text = family,

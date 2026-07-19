@@ -9,7 +9,7 @@ namespace Eq2Auras.Core.Meter
     {
         public string Key { get; }
         public string Label { get; }
-        public string Category { get; }        // picker grouping only — never a dispatch axis
+        public string Category { get; }        // picker grouping + family color (MeterFamilyColors) — a display attribute, never a dispatch axis
         public bool IsRate { get; }
         public Func<CombatantReading, double> Select { get; }
         public Func<double, string> Format { get; }
