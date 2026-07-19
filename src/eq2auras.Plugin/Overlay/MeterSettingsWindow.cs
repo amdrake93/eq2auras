@@ -9,28 +9,25 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// Per-window meter settings (SPEC Part III §Configuration) — Details' options window,
     /// dark and custom-chromed on the Theme kit, modeless and live-applying: row height,
-    /// window opacity, and font, per window. The Secondary selection relocates to the
-    /// right-click popup in a later increment; its ComboBox is retained here until then.
+    /// window opacity, and font, per window. (The Secondary selection lives in the
+    /// right-click popup, not here.)
     internal sealed class MeterSettingsWindow : Window
     {
         private readonly Action<double> _onOpacityChanged;
         private readonly Action<double> _onBackdropOpacityChanged;
         private readonly Action<double> _onRowHeightChanged;
         private readonly Action<string, double> _onFontChanged;
-        private readonly Action<string> _onSecondaryChanged;
         private string _fontFamily;
         private double _fontBaseSize;
 
         public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged,
             double backdropOpacity, Action<double> onBackdropOpacityChanged,
-            string fontFamily, double fontBaseSize, Action<string, double> onFontChanged,
-            string secondaryKey, Action<string> onSecondaryChanged)
+            string fontFamily, double fontBaseSize, Action<string, double> onFontChanged)
         {
             _onOpacityChanged = onOpacityChanged;
             _onBackdropOpacityChanged = onBackdropOpacityChanged;
             _onRowHeightChanged = onRowHeightChanged;
             _onFontChanged = onFontChanged;
-            _onSecondaryChanged = onSecondaryChanged;
             _fontFamily = fontFamily;
             _fontBaseSize = fontBaseSize;
 
@@ -107,30 +104,6 @@ namespace Eq2Auras.Plugin.Overlay
             fontRow.Children.Add(fontValue);
             fontRow.Children.Add(choose);
 
-            var secondaryLabel = new TextBlock
-            {
-                Text = "Secondary",
-                Foreground = Theme.TextLabel,
-                VerticalAlignment = VerticalAlignment.Center,
-                Width = 112
-            };
-            var secondary = new ComboBox { Width = 150, VerticalAlignment = VerticalAlignment.Center };
-            secondary.Items.Add(new ComboBoxItem { Content = "None", Tag = null });
-            foreach (var metric in Eq2Auras.Core.Meter.MetricRegistry.All)
-            {
-                secondary.Items.Add(new ComboBoxItem { Content = metric.Label, Tag = metric.Key });
-            }
-            secondary.SelectedIndex = 0;
-            for (int i = 0; i < secondary.Items.Count; i++)
-            {
-                if ((string)((ComboBoxItem)secondary.Items[i]).Tag == secondaryKey) { secondary.SelectedIndex = i; break; }
-            }
-            secondary.SelectionChanged += (s, e) =>
-                _onSecondaryChanged((string)((ComboBoxItem)secondary.SelectedItem).Tag);
-            var secondaryRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
-            secondaryRow.Children.Add(secondaryLabel);
-            secondaryRow.Children.Add(secondary);
-
             var opacityLabel = new TextBlock
             {
                 Text = "Window opacity",
@@ -179,7 +152,6 @@ namespace Eq2Auras.Plugin.Overlay
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             body.Children.Add(rowHeightRow);
             body.Children.Add(fontRow);
-            body.Children.Add(secondaryRow);
             body.Children.Add(opacityRow);
             body.Children.Add(backdropRow);
             body.Children.Add(reset);

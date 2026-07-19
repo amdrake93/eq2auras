@@ -288,7 +288,7 @@ namespace Eq2Auras.Plugin.Overlay
             }
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
                 _backdropOpacity, SetBackdropOpacity,
-                _style.Font?.Source, _style.BaseSize, SetFont, _secondaryKey, SetSecondary)
+                _style.Font?.Source, _style.BaseSize, SetFont)
             {
                 Left = Left + 20,
                 Top = Top + 20,
