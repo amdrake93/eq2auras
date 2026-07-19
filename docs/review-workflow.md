@@ -25,11 +25,19 @@ what each needs).
 
 ## Review types and their triggers
 
-1. **Spec review** ("spec review \<branch\>") — verify every code-level claim the spec makes
-   against the working tree: signatures, line numbers, constants, existing behavior, naming.
-   A spec is present-tense ("how the system works NOW") — claims about records/features that
-   don't exist in code are findings even when inherited from older text, if the section under
-   edit interacts with them.
+1. **Spec review** ("spec review \<branch\>") — verify the spec's **code-level claims**
+   (signatures, line numbers, constants, existing behavior, naming) against the working tree,
+   and the spec's **internal coherence**. Scope the against-the-tree check to the spec's
+   description of the **current system**: the **unedited text**, and the amendment's citations
+   to the **existing code it references**. A spec amendment is **spec-first** — its edited/new
+   prose describes the **designed target**, which by intent is **not implemented yet**, so those
+   claims will legitimately not verify against the tree; **an unimplemented change is not a
+   finding** (the code lands with the amendment on the branch and they merge together).
+   Findings are: an **internal contradiction** in the spec, or a present-tense claim that is
+   **false or stale about the current system** in text the amendment is **not** deliberately
+   changing (inherited cruft the edited section interacts with included). Confirming the
+   described target actually exists in code is **plan/implementation verification** (types
+   2/3/5 and the owner's merge gate), never spec review.
 2. **Plan review** ("review the plan") — verify: cited line ranges and insertion points are
    exact; interfaces match between producing and consuming tasks; test code matches the
    suite's actual conventions (framework, file style); new files are picked up by the build
