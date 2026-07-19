@@ -166,12 +166,12 @@ In `SetVisibleRows` (`:433-437`), after `_visibleRows = visibleRows;`:
 ```csharp
             _rowsContainer.MinHeight = ReservedRowsHeight();
 ```
-In `SetRowHeight` (after it re-points `_style` to the new row height — the block ending near `:363`), add:
+In `SetRowHeight` (`:348-361`), after its `_style = new VisualStyle {…}` block re-points `_style` to the new row height (that block ends at `:358`), add:
 ```csharp
             _rowsContainer.MinHeight = ReservedRowsHeight();
 ```
 
-- [ ] **Step 7: Decouple the resize anchor from the ally count** — replace the `_startVisibleRows` assignment (`:454-456`):
+- [ ] **Step 7: Decouple the resize anchor from the ally count** — replace the `_startVisibleRows` assignment **together with its now-stale rationale comment** (`:450-456` — the `:450-453` comment describes the removed `min(cap, allies)` collapse and must go with the code it explains, or the file ships two contradictory rationale blocks):
 ```csharp
                 // The window reserves the full visible-row count as a backdrop (persistent,
                 // §Configuration), so the bottom drag anchors to the raw cap — a size-up past the
