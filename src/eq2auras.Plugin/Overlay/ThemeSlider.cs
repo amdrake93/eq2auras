@@ -13,6 +13,7 @@ namespace Eq2Auras.Plugin.Overlay
     internal sealed class ThemeSlider : Grid
     {
         private static readonly ControlTemplate DarkTemplate = BuildTemplate();
+        private const double TrackWidth = 150;   // fixed so the slider has width inside a horizontal StackPanel (matches the pre-overhaul slider)
 
         private readonly Slider _slider;
         private readonly TextBox _box;
@@ -34,7 +35,12 @@ namespace Eq2Auras.Plugin.Overlay
             _format = format;
             _parse = parse;
 
-            ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });
+            // The track column is a FIXED width, not Star: this control sits in a horizontal
+            // StackPanel (the settings-window rows), which measures children at their desired
+            // width — a Star column has zero desired width there, so the slider collapsed to
+            // nothing (field bug, 2026-07-19). A definite width gives the Grid a real size in
+            // the StackPanel; the native Slider then lays out and drags normally.
+            ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(TrackWidth) });
             ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
 
             _slider = new Slider
