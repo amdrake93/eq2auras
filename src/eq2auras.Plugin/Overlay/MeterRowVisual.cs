@@ -56,7 +56,7 @@ namespace Eq2Auras.Plugin.Overlay
 
             _secondary = new TextBlock
             {
-                Foreground = Theme.TextMuted,
+                Foreground = Theme.TextLabel,
                 VerticalAlignment = VerticalAlignment.Center,
                 Width = numberWidth,
                 TextAlignment = TextAlignment.Right,

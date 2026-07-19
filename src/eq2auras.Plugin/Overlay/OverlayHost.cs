@@ -216,8 +216,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one
         /// shared snapshot to each window's metric through the one shared engine/palette —
         /// an ally reads the same color in every window (SPEC Part III §Multiple windows).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants,
-            IReadOnlyList<int> paletteArgb)
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
@@ -225,7 +224,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 foreach (var pair in _meterWindows)
                 {
-                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, paletteArgb, pair.Key.SecondaryKey);
+                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, pair.Key.SecondaryKey);
                     pair.Value.Render(frame);
                 }
             }));

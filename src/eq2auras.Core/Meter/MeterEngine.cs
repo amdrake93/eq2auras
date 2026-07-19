@@ -1,21 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Core.Meter
 {
     /// The meter-side sibling of OverlayEngine (SPEC Part III §Assembly split):
-    /// per-poll readings in, one renderable frame out. Owns its OWN PaletteAssigner —
-    /// ally names and timer names are disjoint namespaces; sharing one first-fired
-    /// sequence would let ally names shift the shipped timer slot assignments
-    /// (SPEC Part III §The meter window — Rows).
+    /// per-poll readings in, one renderable frame out. Row fill is the primary metric's
+    /// family color (MeterFamilyColors, keyed by MetricDef.Category) — monochromatic per
+    /// window, no palette (SPEC Part III §Rows).
     public sealed class MeterEngine
     {
-        private readonly PaletteAssigner _palette = new PaletteAssigner();
-
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
-            string metricKey, IReadOnlyList<int> paletteArgb, string secondaryKey = null)
+            string metricKey, string secondaryKey = null)
         {
             var metric = MetricRegistry.ResolvePrimary(metricKey);
             if (metric == null)
@@ -88,7 +84,7 @@ namespace Eq2Auras.Core.Meter
                 row.FormattedPercent = Math.Round(row.Percent * 100) + "%";
                 row.BarFraction = top > 0 ? row.Value / top : 0;     // rank 1 = full bar
                 row.FormattedValue = metric.Format(row.Value);
-                row.FillArgb = paletteArgb[_palette.IndexFor(row.Name) % paletteArgb.Count];
+                row.FillArgb = MeterFamilyColors.ArgbFor(metric.Category);
             }
 
             return new MeterFrame
