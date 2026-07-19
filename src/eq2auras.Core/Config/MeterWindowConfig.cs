@@ -29,6 +29,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "opacity")]
         public double? Opacity { get; set; }   // 0.3..1.0 multiplier over the baked alphas; null = 1.0 (today's look)
 
+        [DataMember(Name = "backdropOpacity")]
+        public double? BackdropOpacity { get; set; }   // 0.0..1.0; null = DefaultBackdropOpacity (1.0). Rendering + knob land in increment 3.
+
         [DataMember(Name = "rowHeight")]
         public double? RowHeight { get; set; }   // null = VisualStyle.DefaultRowHeight (26); clamped to Settings row-height bounds
 

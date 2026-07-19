@@ -232,4 +232,33 @@ public class MeterSettingsTests
         Assert.Null(parsed.Meter.Windows[0].Width);        // null -> VisualStyle.DefaultRowWidth (250)
         Assert.Null(parsed.Meter.Windows[0].VisibleRows);  // null -> MeterWindow.DefaultVisibleRows (10)
     }
+
+    [Theory]
+    [InlineData(-0.2, 0.0)]   // below floor -> clamped up to MinBackdropOpacity
+    [InlineData(1.5, 1.0)]    // above ceiling -> clamped down to MaxBackdropOpacity
+    [InlineData(0.4, 0.4)]    // in range -> unchanged
+    [InlineData(0.0, 0.0)]    // zero is a REAL value (fully transparent backdrop), must survive
+    public void Window_backdrop_opacity_clamps_to_range(double stored, double expected)
+    {
+        var settings = new Settings();
+        settings.Meter.Enabled = true;
+        settings.Meter.Windows = new List<MeterWindowConfig>
+        {
+            new MeterWindowConfig { BackdropOpacity = stored },
+        };
+
+        var parsed = Settings.Parse(settings.ToJson());
+
+        Assert.Equal(expected, parsed.Meter.Windows[0].BackdropOpacity);
+    }
+
+    [Fact]
+    public void Null_backdrop_opacity_stays_null_meaning_default()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Null(parsed.Meter.Windows[0].BackdropOpacity);   // null -> host resolves to DefaultBackdropOpacity (1.0)
+    }
 }

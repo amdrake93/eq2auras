@@ -39,6 +39,9 @@ namespace Eq2Auras.Core.Config
         public const double DefaultOpacity = 1.0;   // null Opacity resolves here — today's baked look
         public const int MinVisibleRows = 1;
         public const int MaxVisibleRows = 40;
+        public const double MinBackdropOpacity = 0.0;   // fully transparent backdrop is allowed
+        public const double MaxBackdropOpacity = 1.0;
+        public const double DefaultBackdropOpacity = 1.0;   // null resolves here (increment 3 may retune the shipped default)
 
         /// DCJS skips initializers, so Windows may be null. Migrates a legacy single-window
         /// file into one config, drops null entries, and seeds one default window when the
@@ -78,6 +81,8 @@ namespace Eq2Auras.Core.Config
             {
                 if (window.Opacity.HasValue && (window.Opacity.Value < MinOpacity || window.Opacity.Value > MaxOpacity))
                     window.Opacity = Math.Min(MaxOpacity, Math.Max(MinOpacity, window.Opacity.Value));
+                if (window.BackdropOpacity.HasValue && (window.BackdropOpacity.Value < MinBackdropOpacity || window.BackdropOpacity.Value > MaxBackdropOpacity))
+                    window.BackdropOpacity = Math.Min(MaxBackdropOpacity, Math.Max(MinBackdropOpacity, window.BackdropOpacity.Value));
                 if (window.RowHeight.HasValue && (window.RowHeight.Value < Settings.MinRowHeight || window.RowHeight.Value > Settings.MaxRowHeight))
                     window.RowHeight = Math.Min(Settings.MaxRowHeight, Math.Max(Settings.MinRowHeight, window.RowHeight.Value));
                 if (window.Width.HasValue && (window.Width.Value < Settings.MinRowWidth || window.Width.Value > Settings.MaxRowWidth))
