@@ -18,7 +18,18 @@ Last-minute polish before go-live (Alex ships meter v1 before the 2026-07-20 rai
 
 **Review:** SPEC §Header amendment + code went through the **automated third-party review loop, 2 rounds to closure** — round 1 request-changes (the amendment described the redesign ahead of the code; the loop's authorized fix was to land the implementation, not reframe), round 2 closure. The branch carries the reviewer's **fix-flow merge-gate live script (8 steps)**: popup anchor; Choose… alignment; header total at **default** height (regression guard) + as rows thicken (the `hr` fix); slider width intact; metric-label cluster colors/order; no-secondary; cleared-primary full-width title. Plugin is **transcribe-only (CI-compile-verified; NOT runtime-verified on the Mac)** — visual/interaction correctness is Alex's on-box gate. Presented ready-for-review; merge + field test are Alex's.
 
-**STILL DEFERRED — item 4: monochromatic meter rows** — the interim color-scale answer (all rows one color; color/shade TBD with the visual companion). Its own pass after this branch lands. The real solve (class colors) is still the next BIG meter effort. (Was item 4 of the 07-17 "NEXT SESSION" list; items 1–3 there are Wave 1 above.)
+### SPEC DONE, READY TO IMPLEMENT — item 4: monochromatic rows → color-by-family (branch `meter-family-colors`)
+The interim color-scale answer, brainstormed with the visual companion (2026-07-19). **Not one flat color — monochromatic *per window* = the primary metric's family color**: Damage red `#E05A5A` / Healing green `#2FBF8F` / Utility blue `#56B4E9`, one Core source shared with the popup family headers, replacing the meaning-free per-ally palette fill (5 hues mush across 24 raiders). The color is honest — it names what the window measures. Text collapses to a **two-tier taxonomy**: **primary white** `#F5F5F5` (title, primary label, total, row name+value) / **subordinate** `#C4CAD6` (`TextLabel` — header duration + secondary label, ⚙ cog, row secondary + percent); **`TextMuted` retired from the meter header+rows** (it drowned over the fills). Timers untouched (own palette).
+
+**Spec:** SPEC Part III amended (§The metric registry, §Header, §Configuration, §Multiple windows, §Rows, §Meter display defaults, §Assembly split, §Slice map); **third-party spec-reviewed to closure** (automated loop, 2 rounds — round 1 request-changes on one Minor internal-consistency finding [slice-map + merge-gate script still called the secondary column "muted," contradicting the redefined taxonomy], round 2 closure). **Fix-flow** — code goes on this same branch (no plan doc), TDD in Core; presents ready-for-review with a merge-gate live script, never ready-to-merge.
+
+**Implementation to-dos (from the design + review nits):**
+1. Move the family colors from `MeterPopup.cs:27-33` (private `CategoryColor` dict) to a **single Core source** consumed by both the popup headers and `MeterEngine`.
+2. `MeterEngine.Tick` drops the `paletteArgb` param + its `PaletteAssigner`; resolves `row.FillArgb` from `metric.Category`. Drop `Settings.PaletteArgb` from `UpdateMeterSample` / `Eq2AurasPlugin.cs:44` (meter side only — timer keeps it).
+3. `MeterWindow` header (`_durationText`, `_secondaryLabelText`, cog `_affordance` — all `dim:true` today) + `MeterRowVisual` secondary column (`:59`) switch `TextMuted` → `TextLabel`.
+4. Update the now-stale `MetricDef.cs:12` comment ("picker grouping only — never a dispatch axis") — category now also drives the family color (still a *display* attribute, not a dispatch axis).
+
+The real solve — **row-color-by-class** — remains the next BIG meter effort (ability-signature inference; ACT exposes no class data). (Was item 4 of the 07-17 "NEXT SESSION" list; items 1–3 there shipped in Wave 1 above.)
 
 ## From Alex — 2026-07-17
 
