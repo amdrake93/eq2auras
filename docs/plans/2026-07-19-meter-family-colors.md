@@ -22,7 +22,7 @@
 
 Single repo (`eq2auras`), no sibling repos. Exhaustive grep of the changing APIs:
 
-- **`MeterEngine.Tick`** — callers: `OverlayHost.cs:228` (Plugin, updated in Task 2) + 20 sites in `MeterEngineTests.cs` (updated in Task 2). No others.
+- **`MeterEngine.Tick`** — callers: `OverlayHost.cs:228` (Plugin, updated in Task 2) + 24 `.Tick(...)` call sites in `MeterEngineTests.cs` (updated in Task 2). No others.
 - **`OverlayHost.UpdateMeterSample`** — sole caller `Eq2AurasPlugin.cs:44` (updated in Task 2).
 - **Meter `PaletteAssigner`** — used only in `MeterEngine.cs` (field `:15`, use `:91`). Isolated from the timer's.
 - **`MeterPopup.CategoryColor` / `CategoryFallback`** — used only in `MeterPopup.FamilyHeader` (same file, updated in Task 3).
@@ -131,7 +131,7 @@ git commit -m "Meter: add MeterFamilyColors — single category-to-color source"
 ### Task 2: `MeterEngine` fills rows by family color; palette removed
 
 **Files:**
-- Modify: `src/eq2auras.Core/Meter/MeterEngine.cs` (class doc `:8-13`, field `:15`, signature `:17-18`, fill `:91`)
+- Modify: `src/eq2auras.Core/Meter/MeterEngine.cs` (class doc `:8-12` + declaration `:13`, field `:15`, signature `:17-18`, fill `:91`)
 - Modify: `tests/eq2auras.Core.Tests/MeterEngineTests.cs` (field `:7`, obsolete test `:124-142`, all `.Tick(...)` call sites)
 - Modify (transcribe-only): `src/eq2auras.Plugin/Overlay/OverlayHost.cs:219-228`, `src/eq2auras.Plugin/Eq2AurasPlugin.cs:44`
 
@@ -193,7 +193,7 @@ Expected: the two new tests PASS. (Other tests still pass; the `Palette` arg is 
 
 In `src/eq2auras.Core/Meter/MeterEngine.cs`:
 
-Replace the class doc comment (lines 8-13) with:
+Replace the class doc comment through the class declaration and opening brace (lines 8-14) with:
 
 ```csharp
     /// The meter-side sibling of OverlayEngine (SPEC Part III §Assembly split):
@@ -266,7 +266,7 @@ timers keep it. Slot-cycling test replaced with family-color tests."
 Plugin/WPF only; **not** Mac-testable. Verified by branch CI compile + the on-box merge-gate script (Testing strategy below). No unit tests.
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Overlay/MeterPopup.cs` (dict `:27-34`, `FamilyHeader` `:147-158`)
+- Modify: `src/eq2auras.Plugin/Overlay/MeterPopup.cs` (dict `:27-33`, `FamilyHeader` `:147-158`)
 - Modify: `src/eq2auras.Plugin/Overlay/MeterWindow.cs` (`HeaderBlock` `:218`, dim-true comment `:86`)
 - Modify: `src/eq2auras.Plugin/Overlay/MeterRowVisual.cs` (secondary foreground `:59`)
 - Modify: `src/eq2auras.Core/Meter/MetricDef.cs` (`Category` comment `:12`)
@@ -276,7 +276,7 @@ Plugin/WPF only; **not** Mac-testable. Verified by branch CI compile + the on-bo
 
 - [ ] **Step 1: Popup family headers read the Core source**
 
-In `src/eq2auras.Plugin/Overlay/MeterPopup.cs`, delete the private dict + fallback (lines 27-34):
+In `src/eq2auras.Plugin/Overlay/MeterPopup.cs`, delete the private dict + fallback (lines 27-33):
 
 ```csharp
         private static readonly Dictionary<string, Color> CategoryColor = new Dictionary<string, Color>
@@ -366,7 +366,7 @@ TextMuted -> TextLabel (two-tier taxonomy). MetricDef.Category comment refreshed
 **On-box merge-gate live script (Alex, Windows box, dev-latest after merge):**
 1. Open a DPS meter → **every row is red**; names and values read cleanly (white) over the fill.
 2. Right-click → switch primary to **HPS** → every row turns **green**; to **Cures** → every row turns **blue**. Colors match the popup's family-column headers.
-3. Header check: **duration `(m:ss)`, the secondary label, and the ⚙ cog are the lighter grey** (same as the percent), no longer the dimmer grey; **title, primary label, and total stay white**.
+3. Header check: **duration `(m:ss)`, the secondary label, and the ⚙ cog are the lighter grey** (same as the percent) — a visible *lightening* from the old dimmer `TextMuted` grey; **title, primary label, and total stay white**.
 4. Set a secondary → the **secondary column reads in the same light grey as the percent** and stays legible on the rank-1 (fully filled) row.
 5. Two windows, both DPS → **both red**; a DPS + HPS pair → **red + green** (color is identical per metric across windows — no per-ally variation).
 6. **Clear the primary** → empty backdrop, no rows, no color (unchanged).
