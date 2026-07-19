@@ -51,7 +51,6 @@ namespace Eq2Auras.Plugin.Act
                         {
                             Exists = true,
                             Active = active,
-                            Title = encounter.GetStrongestEnemy(ActGlobals.charName),
                             // Degenerate pre-first-swing polls (StartTime == DateTime.MaxValue)
                             // produce a hugely negative estimate here — MeterEngine clamps.
                             LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,

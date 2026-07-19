@@ -269,7 +269,6 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _lastFrame = frame;
             _durationText.Text = "(" + frame.DurationText + ") ";
-            _titleText.Text = frame.Title;
             SetHeaderLabel(_secondaryLabelText, frame.SecondaryLabel);
             SetHeaderLabel(_metricText, frame.MetricLabel);
             SetHeaderLabel(_totalText, frame.TotalText);

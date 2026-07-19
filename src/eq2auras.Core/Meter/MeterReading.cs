@@ -20,7 +20,6 @@ namespace Eq2Auras.Core.Meter
     {
         public bool Exists { get; set; }               // false: session start / after a clear
         public bool Active { get; set; }
-        public string Title { get; set; }              // strongest-enemy-so-far; may flip mid-fight
         public double LiveDurationSeconds { get; set; }    // LastEstimatedTime - StartTime (may be garbage pre-first-swing; engine clamps)
         public double FinalDurationSeconds { get; set; }   // ACT's finalized log-time Duration
     }
