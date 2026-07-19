@@ -84,7 +84,7 @@ Then the grid block (`:116-127`) reorders — cluster first (star), total, cog l
 ```
 (was: `TextWidth(_style, "⚙ (00:00)  — Cures ", _style.RowText) + _totalText.Width + _totalText.Margin.Right + 16;` — the `"⚙ "` prefix is gone from the reserve string, `+ _affordance.Width` added.)
 
-- [ ] **Step 4: Verify** — `grep -n "affordance.Margin\|SetColumn(affordance, 0\|PercentWidth(style.*+ MeterColumns.ColumnGap\|⚙ (00:00)" src/eq2auras.Plugin/Overlay/MeterWindow.cs` → no matches (the old left-cog margin, the old cog-column-0, the old total inset, and the old reserve string are all gone). `grep -n "SetColumn(affordance, 2)\|affordance.TextAlignment" ...` → present.
+- [ ] **Step 4: Verify** — `grep -n "affordance.Margin\|SetColumn(affordance, 0\|PercentWidth(.*+ MeterColumns.ColumnGap\|⚙ (00:00)" src/eq2auras.Plugin/Overlay/MeterWindow.cs` → no matches. The `PercentWidth(.*+ MeterColumns.ColumnGap` pattern (no `style`/`_style` prefix) catches **both** inset sites — the ctor (`style`, Step 1) and `ApplyHeaderFont` (`_style`, Step 2) — so a skipped Step 2 can't pass silently. Then `grep -n "SetColumn(affordance, 2)\|affordance.TextAlignment\|_affordance.Width = MeterColumns.PercentWidth" ...` → present at both the ctor and `ApplyHeaderFont`.
 
 - [ ] **Step 5: Commit**
 ```bash
