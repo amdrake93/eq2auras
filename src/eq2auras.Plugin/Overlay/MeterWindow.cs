@@ -103,28 +103,27 @@ namespace Eq2Auras.Plugin.Overlay
                 e.Handled = true;   // don't let the header drag fire under the cog
                 OpenSettings();
             };
-            // Total is a fixed-width right-aligned column matching the row's value column.
-            // The value column sits one column in from the edge (percent is rightmost, SPEC
-            // §Rows), so the total is inset from the right by the percent-column width + gap —
-            // capping the value column it sums.
+            // Total is a fixed-width right-aligned column matching the row's value column: the cog
+            // fills the percent-column slot at the far right, so the total to its left caps the
+            // VALUE column (SPEC §Header) — total over value, cog over percent, down every row.
             _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
             _totalText.TextAlignment = TextAlignment.Right;
-            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);   // gap to the cog
+            affordance.Width = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
+            affordance.TextAlignment = TextAlignment.Right;
 
-            // Outer header: [cog (auto)] [ (dur) title — metric (star; left-packed cluster) ] [total (auto)].
-            // The cog leads on the left; the star column holds the left cluster.
+            // Outer header: [ (dur) title — metric (star; left cluster) ] [total (auto, above value)] [cog (auto, far right, above percent)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title — metric
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total
-            Grid.SetColumn(affordance, 0);
-            Grid.SetColumn(leftCluster, 1);
-            Grid.SetColumn(_totalText, 2);
-            affordance.Margin = new Thickness(0, 0, 6 * hr, 0);   // gap between cog and the duration
-            headerGrid.Children.Add(affordance);
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total (above the value column)
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog (far right, above the percent column)
+            Grid.SetColumn(leftCluster, 0);
+            Grid.SetColumn(_totalText, 1);
+            Grid.SetColumn(affordance, 2);
             headerGrid.Children.Add(leftCluster);
             headerGrid.Children.Add(_totalText);
-            UpdateTitleMaxWidth();   // now that cog/total widths exist, cap the title's trim budget
+            headerGrid.Children.Add(affordance);
+            UpdateTitleMaxWidth();   // now that total/cog widths exist, cap the title's trim budget
 
             var header = new Border
             {
@@ -372,7 +371,8 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
-            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);
+            _affordance.Width = MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0);
             UpdateTitleMaxWidth();
         }
 
@@ -381,8 +381,8 @@ namespace Eq2Auras.Plugin.Overlay
         /// them off (SPEC §Header). Conservative worst-case reserve; recomputed on width/font.
         private void UpdateTitleMaxWidth()
         {
-            double reserve = MeterColumns.TextWidth(_style, "⚙ (00:00)  — Cures ", _style.RowText)
-                + _totalText.Width + _totalText.Margin.Right + 16;
+            double reserve = MeterColumns.TextWidth(_style, "(00:00)  — Cures ", _style.RowText)
+                + _totalText.Width + _totalText.Margin.Right + _affordance.Width + 16;
             _titleText.MaxWidth = Math.Max(30, _style.RowWidth - reserve);
         }
 
