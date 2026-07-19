@@ -342,4 +342,4 @@ MeterColumns.TextWidth removed; stale class/test comments refreshed."
 
 **Placeholder scan:** none — every code step carries the exact code; commands carry expected output.
 
-**Type consistency:** `MeterFrame.MetricLabel` (rendered into `_metricText`) is unchanged; `_metricText` moves from `metricCluster` to `leftCluster` with no signature change. `_secondaryLabelText.Width`/`TextAlignment` set in both the ctor (Step 4) and `SetFont` (Step 6) use the same `MeterColumns.NumberWidth(style, style.RowText)`. `UpdateTitleMaxWidth` is removed in Step 7 and no surviving call references it (Render Step 5, SetFont Step 6, ctor + SetRowWidth Step 7).
+**Type consistency:** `MeterFrame.MetricLabel` (rendered into `_metricText`) is unchanged; `_metricText` moves from `metricCluster` to `leftCluster` with no signature change. `_secondaryLabelText.Width`/`TextAlignment` set in both the ctor (Step 4) and `ApplyHeaderFont` (Step 6) use the same `MeterColumns.NumberWidth(style, style.RowText)`. `UpdateTitleMaxWidth` is removed in Step 7 and no surviving call references it (Render Step 5, `ApplyHeaderFont` Step 6, ctor + SetRowWidth Step 7).
