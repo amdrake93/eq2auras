@@ -20,7 +20,9 @@ jobs:
         run: |
           # MAJOR.MINOR is owner-controlled in version.txt; PATCH auto-counts commits since it last
           # changed, so a version.txt bump commit (HEAD at its build) yields X.Y.0 (SPEC §Versioning).
-          read -r major minor < <(tr '.' ' ' < version.txt)
+          # tr -d '\r' first: the Windows runner checks version.txt out CRLF (autocrlf), and a stray
+          # \r would otherwise leak into the version string (invalid artifact name / polluted tag).
+          read -r major minor < <(tr -d '\r' < version.txt | tr '.' ' ')
           last=$(git log -1 --format=%H -- version.txt)
           patch=$(git rev-list --count "${last}..HEAD")
           echo "version=${major}.${minor}.${patch}" >> "$GITHUB_OUTPUT"
