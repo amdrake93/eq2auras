@@ -4,7 +4,11 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-19
 
-### IMPLEMENTED, ON DEV-LATEST, FIELD-VERIFY PENDING — §Header redesign: drop encounter name, primary metric is the left identity (branch `meter-header-metric-identity` → main)
+### BUG (deferred, field-flagged 2026-07-19) — "Remove meter" button renders red until moused over, on the last window
+On the last remaining meter (where **Remove meter** is meant to be disabled — the tab toggle is the master off-switch, §Multiple windows), the button shows its **red destructive fill initially** and only corrects to the disabled/greyed look **on mouse-over**. So the disabled state isn't applied on the popup's initial construction — a hover event is what forces the correct restyle. Not a header-redesign regression: it's in the `MeterPopup` lifecycle cluster / `ThemeButton` (from the styling-theme-system increment 4). Likely fix: apply the `canRemove`-gated disabled visual at build time, not only on the first `IsEnabled`/hover state change. Deferred by Alex ("bug for later").
+
+### FIELD-VERIFIED (2026-07-19, dev-latest) — §Header redesign: drop encounter name, primary metric is the left identity (branch `meter-header-metric-identity` → main)
+Alex on-box: **"looks good."** (One unrelated deferred bug surfaced — the Remove-meter button styling above.)
 **Implemented + merged (2026-07-19).** Both plan tasks done inline: Task 1 (Core `Title` removal — `EncounterReading.Title`/`MeterFrame.Title` dropped, engine stops setting it, `EncounterProbe` stops calling `GetStrongestEnemy`, `MeterWindow` stops reading `frame.Title`; **Core 198 green**) and Task 2 (Plugin header restructure — left `(duration) metric` in a trimming `DockPanel`, right cluster = secondary label + total in fixed `NumberWidth` cells + cog, `_titleText`/`UpdateTitleMaxWidth`/dead `TextWidth` removed; transcribe-only). Branch verify CI green (WPF compiles) → merged to `main` → publish CI green → **on `dev-latest`**. Plugin NOT Mac-runtime-verified; the 7-step on-box script (plan §Testing strategy) is Alex's field gate. Stable still `0.1.104`.
 
 **(historical) PLAN → IMPLEMENT trail** — §Header redesign: drop encounter name, primary metric is the left identity
