@@ -43,7 +43,7 @@ public class MeterSettingsTests
         var parsed = Settings.Parse(json);
 
         var window = Assert.Single(parsed.Meter.Windows);
-        Assert.Null(window.MetricKey);   // null -> DPS at resolve time
+        Assert.Equal("encdps", window.MetricKey);   // seeded so null only ever means user-cleared (SPEC §Settings)
         Assert.Null(window.Left);        // null -> host default placement
         Assert.Null(window.Top);
         Assert.False(window.Locked);

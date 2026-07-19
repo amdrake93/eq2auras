@@ -72,7 +72,7 @@ namespace Eq2Auras.Core.Config
 
             Windows = Windows.Where(w => w != null).ToList();
 
-            if (Enabled && Windows.Count == 0) Windows.Add(new MeterWindowConfig());
+            if (Enabled && Windows.Count == 0) Windows.Add(new MeterWindowConfig { MetricKey = Meter.MetricRegistry.DefaultKey });
 
             // Clamp only when set (null = "use the default"); a valid value is never
             // rewritten — the overlay thread reads it live. Mirrors Settings.Normalize's

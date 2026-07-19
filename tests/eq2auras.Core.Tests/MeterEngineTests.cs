@@ -262,11 +262,18 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void Null_metric_key_falls_back_to_dps()
+    public void Cleared_primary_yields_an_empty_frame()
     {
+        // A cleared primary (null metricKey) shows nothing — no rows, blank metric/total
+        // (SPEC §Meter display defaults). Every window-creation path seeds a non-null key,
+        // so null reaches the engine only from a deliberate user clear. (Supersedes the
+        // pre-cleared-primary "null -> DPS" behavior.)
         var frame = new MeterEngine().Tick(Live(10),
-            new List<CombatantReading> { Ally("A", damage: 100) }, null, Palette);
+            new List<CombatantReading> { Ally("A", damage: 1000), Ally("B", damage: 500) },
+            metricKey: null, Palette);
 
-        Assert.Equal("DPS", frame.MetricLabel);
+        Assert.Empty(frame.Rows);        // cleared primary -> nothing
+        Assert.Equal("", frame.MetricLabel);
+        Assert.Equal("", frame.TotalText);
     }
 }
