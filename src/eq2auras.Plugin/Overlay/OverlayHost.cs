@@ -138,6 +138,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var created = new MeterWindowConfig
             {
+                MetricKey = MetricRegistry.DefaultKey,   // seed so a New meter shows DPS, and null stays "user-cleared"
                 RowHeight = source.RowHeight,
                 FontFamily = source.FontFamily,
                 FontBaseSize = source.FontBaseSize,

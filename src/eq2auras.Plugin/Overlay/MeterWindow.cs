@@ -11,7 +11,7 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// The Parse Meter window (SPEC Part III §The meter window): INTERACTIVE — never
     /// click-through — with the header as the interaction surface: drag handle,
-    /// state display ((duration) title — metric | total), and right-click menu
+    /// state display ((duration) title — metric | total), and right-click popup
     /// (metric picker + lock). Lock freezes geometry only; content stays clickable.
     /// The mouse wheel scrolls the rank window (Details' model — no scrollbar chrome;
     /// works while locked: scrolling is content, not geometry). The timer module's
@@ -26,7 +26,6 @@ namespace Eq2Auras.Plugin.Overlay
         private int _scrollOffset;           // transient view state — never persisted, clamps to the data
         private VisualStyle _style;
         private readonly MeterWindowCallbacks _cb;
-        private MenuItem _lockItem;
         private double _opacity;
         private double _backdropOpacity;
         private Border _backdrop;
@@ -46,7 +45,6 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _titleText;
         private readonly TextBlock _metricText;
         private readonly TextBlock _totalText;
-        private readonly ContextMenu _menu;
         private string _metricKey;
         private string _secondaryKey;   // null = None; the settings dropdown's current value
         private bool _locked;
@@ -57,7 +55,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _cb = callbacks;
             _style = style;
-            _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
+            _metricKey = metricKey;   // raw: null = cleared (shows nothing); resolution is the engine's (ResolvePrimary)
             _secondaryKey = secondaryKey;                         // null/unknown -> None (no Resolve; off, not DPS)
             _locked = locked;
             _opacity = opacity;
@@ -134,7 +132,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 // A real background — a transparent surface would be mouse-invisible,
-                // and the header IS the drag/menu hit target. Shared with the row
+                // and the header IS the drag/popup hit target. Shared with the row
                 // backplate so they can't drift (SPEC Part III §Meter display defaults).
                 Background = _headerBackplate = new SolidColorBrush(OverlayTheme.MeterBackplate),
                 BorderThickness = new Thickness(1),
@@ -144,9 +142,7 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonDown += OnHeaderDrag;
             MouseWheel += OnScroll;   // window-wide: header and rows both scroll
 
-            _menu = BuildMenu();
-            SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
-            header.ContextMenu = _menu;   // WPF opens it on right-click
+            header.MouseRightButtonUp += (s, e) => OpenPopup(header);   // right-click opens the themed popup (SPEC §Configuration)
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
@@ -206,82 +202,30 @@ namespace Eq2Auras.Plugin.Overlay
             return block;
         }
 
-        private ContextMenu BuildMenu()
+        /// Right-click opens the themed popup (SPEC Part III §Configuration): metric/secondary
+        /// toggle-grids + lifecycle. A fresh popup per open reflects current state; toggles route
+        /// through the callbacks (a cleared primary passes null — the meter shows nothing).
+        private void OpenPopup(UIElement target)
         {
-            var menu = new ContextMenu();
-            foreach (var metric in MetricRegistry.All)
+            var popup = new MeterPopup(target, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
             {
-                var item = new MenuItem { Header = metric.Label, Tag = metric.Key, IsCheckable = true };
-                item.Click += (s, e) =>
-                {
-                    var key = (string)((MenuItem)s).Tag;
-                    _metricKey = key;
-                    SyncMenuChecks();
-                    _cb.MetricPicked(key);
-                };
-                menu.Items.Add(item);
-            }
-            menu.Items.Add(new Separator());
-            _lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
-            _lockItem.Click += (s, e) =>
-            {
-                _locked = _lockItem.IsChecked;
-                UpdateGrips();
-                _cb.LockChanged(_locked);
-            };
-            menu.Items.Add(_lockItem);
-
-            menu.Items.Add(new Separator());
-            var newItem = new MenuItem { Header = "New meter window" };
-            newItem.Click += (s, e) => _cb.NewWindow();
-            menu.Items.Add(newItem);
-            var closeItem = new MenuItem { Header = "Close this window" };
-            closeItem.Click += (s, e) => _cb.CloseWindow();
-            menu.Items.Add(closeItem);
-
-            // The last window can't close (SPEC Part III §Multiple windows) — the tab
-            // toggle is the master off-switch. Evaluated on open so it tracks the live count.
-            menu.Opened += (s, e) => closeItem.IsEnabled = _cb.CanClose();
-
-            StyleMenu(menu);
-            return menu;   // no sync here — _menu is still null until the ctor assigns it
-        }
-
-        /// Quick, iterate-able dark pass over the raw WPF ContextMenu (SPEC Part III
-        /// §Configuration — "no raw ACT chrome"). Fuller MenuItem re-templating (hover
-        /// highlight) is the deferred styling item in the backlog.
-        private static void StyleMenu(ContextMenu menu)
-        {
-            menu.Background = new SolidColorBrush(Color.FromArgb(250, 24, 27, 34));
-            menu.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
-            menu.Foreground = new SolidColorBrush(OverlayTheme.Text);
-
-            // Per-item, NOT an ItemContainerStyle: a MenuItem-targeted style gets applied to
-            // the Separators too and throws at render time ("style intended for MenuItem
-            // cannot be applied to Separator"). Style the MenuItems directly; leave separators.
-            foreach (var entry in menu.Items)
-            {
-                if (entry is MenuItem item) item.Foreground = new SolidColorBrush(OverlayTheme.Text);
-            }
-        }
-
-        private void SyncMenuChecks()
-        {
-            foreach (var entry in _menu.Items)
-            {
-                if (entry is MenuItem item && item.Tag is string key) item.IsChecked = key == _metricKey;
-            }
-            _lockItem.IsChecked = _locked;
+                PrimaryToggled = key => { _metricKey = key; _cb.MetricPicked(key); },
+                SecondaryToggled = SetSecondary,
+                Lock = () => { _locked = !_locked; UpdateGrips(); _cb.LockChanged(_locked); },
+                NewMeter = () => _cb.NewWindow(),
+                RemoveMeter = () => _cb.CloseWindow(),
+            });
+            popup.Show();
         }
 
         private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
         {
-            if (_locked) return;   // lock freezes geometry ONLY — the menu keeps working
+            if (_locked) return;   // lock freezes geometry ONLY — the popup keeps working
             BeginDragAndPersist();
         }
 
         /// One wheel notch = one rank. No lock check — scrolling is content
-        /// interaction, same side of the lock axis as the menu (SPEC Part III).
+        /// interaction, same side of the lock axis as the popup (SPEC Part III).
         private void OnScroll(object sender, MouseWheelEventArgs e)
         {
             if (_lastFrame == null) return;
@@ -297,7 +241,7 @@ namespace Eq2Auras.Plugin.Overlay
             _lastFrame = frame;
             _durationText.Text = "(" + frame.DurationText + ") ";
             _titleText.Text = frame.Title;
-            _metricText.Text = (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel;
+            _metricText.Text = frame.MetricLabel.Length > 0 ? (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel : "";
             _totalText.Text = frame.TotalText;
 
             RenderSlots();
@@ -518,7 +462,7 @@ namespace Eq2Auras.Plugin.Overlay
             => Math.Max(MeterSettings.MinVisibleRows, Math.Min(MeterSettings.MaxVisibleRows, n));
 
         /// Lock freezes geometry: grips only take the mouse when unlocked (SPEC Part III —
-        /// lock freezes position + size; menu/scroll/settings still work).
+        /// lock freezes position + size; popup/scroll/settings still work).
         private void UpdateGrips()
         {
             _rightGrip.IsHitTestVisible = !_locked;
