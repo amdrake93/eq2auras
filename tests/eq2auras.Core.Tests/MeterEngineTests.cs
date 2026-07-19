@@ -6,7 +6,7 @@ public class MeterEngineTests
 {
 
     private static EncounterReading Live(double seconds) => new()
-        { Exists = true, Active = true, Title = "Vithnok", LiveDurationSeconds = seconds, FinalDurationSeconds = 0 };
+        { Exists = true, Active = true, LiveDurationSeconds = seconds, FinalDurationSeconds = 0 };
 
     private static CombatantReading Ally(string name, long damage = 0, long healed = 0, int cures = 0, bool isAlly = true)
         => new() { Name = name, Damage = damage, Healed = healed, CureDispels = cures, IsAlly = isAlly };
@@ -21,7 +21,6 @@ public class MeterEngineTests
         Assert.Equal("500", frame.Rows[0].FormattedValue);
         Assert.Equal("DPS", frame.MetricLabel);
         Assert.Equal("1:40", frame.DurationText);
-        Assert.Equal("Vithnok", frame.Title);
     }
 
     [Fact]
@@ -30,7 +29,7 @@ public class MeterEngineTests
         // Plan-watch item 2: the branch flip IS the intended display behavior — the
         // finalized log-time duration is generally shorter, so the rate steps up.
         var frozen = new EncounterReading
-            { Exists = true, Active = false, Title = "Vithnok", LiveDurationSeconds = 120, FinalDurationSeconds = 100 };
+            { Exists = true, Active = false, LiveDurationSeconds = 120, FinalDurationSeconds = 100 };
 
         var frame = new MeterEngine().Tick(frozen,
             new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps");
@@ -60,7 +59,6 @@ public class MeterEngineTests
             new List<CombatantReading>(), "encdps");
 
         Assert.Empty(none.Rows);
-        Assert.Equal("", none.Title);
         Assert.Equal("0:00", none.DurationText);
         Assert.Equal("DPS", none.MetricLabel);   // header still names the selected metric
         Assert.Equal("0", none.TotalText);
@@ -314,7 +312,7 @@ public class MeterEngineTests
     [Fact]
     public void A_cleared_primary_blanks_the_secondary_label_too()
     {
-        // No primary -> no header labels at all (the header shows only the title + cog).
+        // No primary -> the header shows only the duration and cog (SPEC §Header); no metric/secondary/total labels.
         var frame = new MeterEngine().Tick(Live(10),
             new List<CombatantReading> { Ally("A", damage: 1000) },
             metricKey: null, "enchps");

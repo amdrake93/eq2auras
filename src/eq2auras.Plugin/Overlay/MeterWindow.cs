@@ -11,7 +11,7 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// The Parse Meter window (SPEC Part III §The meter window): INTERACTIVE — never
     /// click-through — with the header as the interaction surface: drag handle,
-    /// state display ((duration) title — metric | total), and right-click popup
+    /// state display ((duration) + primary-metric identity; total + secondary-label cells right), and right-click popup
     /// (metric picker + lock). Lock freezes geometry only; content stays clickable.
     /// The mouse wheel scrolls the rank window (Details' model — no scrollbar chrome;
     /// works while locked: scrolling is content, not geometry). The timer module's
@@ -42,9 +42,8 @@ namespace Eq2Auras.Plugin.Overlay
         private double _startWidth;
         private int _startVisibleRows;
         private readonly TextBlock _durationText;
-        private readonly TextBlock _titleText;
-        private readonly TextBlock _metricText;          // primary metric label (right cluster, white)
-        private readonly TextBlock _secondaryLabelText;  // secondary metric label (right cluster, muted)
+        private readonly TextBlock _metricText;          // primary metric name — the header's left identity (white)
+        private readonly TextBlock _secondaryLabelText;  // secondary metric label (right cluster, subordinate grey)
         private readonly TextBlock _totalText;
         private string _metricKey;
         private string _secondaryKey;   // null = no secondary; toggled from the right-click popup
@@ -79,27 +78,26 @@ namespace Eq2Auras.Plugin.Overlay
             // it keeps the total capping the value column at any row height (SPEC Part III §Header).
             double hr = style.HeightRatio;
             _durationText = HeaderBlock(style, dim: true);
-            _titleText = HeaderBlock(style, dim: false);
-            _titleText.FontWeight = FontWeights.SemiBold;
-            _titleText.TextTrimming = TextTrimming.CharacterEllipsis;
-            _metricText = HeaderBlock(style, dim: false);          // primary label — white, the apparent one
+            _metricText = HeaderBlock(style, dim: false);          // primary metric NAME — white, the header's left identity
+            _metricText.FontWeight = FontWeights.SemiBold;
+            _metricText.TextTrimming = TextTrimming.CharacterEllipsis;
             _secondaryLabelText = HeaderBlock(style, dim: true);   // secondary label — subordinate grey, matches the row's secondary column
             _totalText = HeaderBlock(style, dim: false);
             _totalText.FontWeight = FontWeights.SemiBold;
 
-            // Left cluster: duration · title, packed LEFT. The title carries the whole trim budget
-            // via a live MaxWidth (UpdateTitleMaxWidth) that tracks the ACTUAL right-cluster width —
-            // a long EQ2 mob name ellipsis-trims while the duration and the right-side metric cluster
-            // stay visible, and a cleared primary (no cluster) lets the title reclaim the full width
-            // (SPEC §Header). The metric labels ride the right cluster now, not here.
-            var leftCluster = new StackPanel
+            // Left cluster: (duration) + primary metric NAME (the meter's identity — SPEC §Header).
+            // A DockPanel docks the duration left and lets the metric name fill the remaining width
+            // and ellipsis-trim to it — the layout system bounds it (column 0 is the grid's star
+            // column), so no manual reserve/UpdateTitleMaxWidth is needed. The encounter/mob name is
+            // gone (SPEC §Header — two title-length strings competed).
+            var leftCluster = new DockPanel
             {
-                Orientation = Orientation.Horizontal,
-                HorizontalAlignment = HorizontalAlignment.Left,
+                LastChildFill = true,
                 VerticalAlignment = VerticalAlignment.Center,
             };
+            DockPanel.SetDock(_durationText, Dock.Left);
             leftCluster.Children.Add(_durationText);
-            leftCluster.Children.Add(_titleText);
+            leftCluster.Children.Add(_metricText);   // last child fills column 0's remaining width and trims
 
             _affordance = HeaderBlock(style, dim: true);
             var affordance = _affordance;
@@ -110,16 +108,15 @@ namespace Eq2Auras.Plugin.Overlay
                 e.Handled = true;   // don't let the header drag fire under the cog
                 OpenSettings();
             };
-            // The right metric cluster mirrors the rows' columns (SPEC §Header):
-            // [secondary label (muted)] [primary label (white)] [total]. The total keeps its fixed
-            // value-column width + gap-to-cog, so its right edge never moves — it still caps the
-            // VALUE column while the labels grow LEFTWARD into the title's space; the cog fills the
-            // percent-column slot at the far right (total over value, cog over percent, down every row).
+            // Right cluster mirrors the rows' columns 1:1 (SPEC §Header): [secondary label][total] as
+            // fixed NumberWidth cells over the secondary + value columns, cog in the PercentWidth slot
+            // over the percent column. The primary label is NOT here — it's the left identity now.
             _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
             _totalText.TextAlignment = TextAlignment.Right;
             _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);          // gap to the cog
-            _secondaryLabelText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0); // gap to the primary label
-            _metricText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);         // gap to the total
+            _secondaryLabelText.Width = MeterColumns.NumberWidth(style, style.RowText);  // over the secondary column
+            _secondaryLabelText.TextAlignment = TextAlignment.Right;
+            _secondaryLabelText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0); // gap to the total
             affordance.Width = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
             affordance.TextAlignment = TextAlignment.Right;
 
@@ -130,12 +127,11 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
             };
             metricCluster.Children.Add(_secondaryLabelText);
-            metricCluster.Children.Add(_metricText);
             metricCluster.Children.Add(_totalText);
 
-            // Outer header: [ (dur) title (star; left cluster) ] [metric cluster (auto; total above value)] [cog (auto, far right, above percent)].
+            // Outer header: [ (dur) metric (star; left cluster) ] [secondary label + total (auto)] [cog (auto, far right, above percent)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) metric
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // metric cluster (total above the value column)
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog (far right, above the percent column)
             Grid.SetColumn(leftCluster, 0);
@@ -144,7 +140,6 @@ namespace Eq2Auras.Plugin.Overlay
             headerGrid.Children.Add(leftCluster);
             headerGrid.Children.Add(metricCluster);
             headerGrid.Children.Add(affordance);
-            UpdateTitleMaxWidth();   // cap the title against the actual cluster + cog widths
 
             var header = new Border
             {
@@ -223,8 +218,8 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         /// A header label that vanishes when blank: an empty label — no secondary selected, or a
-        /// cleared primary (no metric, no total) — collapses so it reserves neither cluster width
-        /// nor title-trim budget, letting the title reclaim the space (SPEC §Header).
+        /// cleared primary (no metric name, no total) — collapses so it reserves no cluster width,
+        /// and a cleared primary leaves just the duration on the left and the cog on the right (SPEC §Header).
         private static void SetHeaderLabel(TextBlock block, string text)
         {
             block.Text = text ?? "";
@@ -269,11 +264,9 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _lastFrame = frame;
             _durationText.Text = "(" + frame.DurationText + ") ";
-            _titleText.Text = frame.Title;
             SetHeaderLabel(_secondaryLabelText, frame.SecondaryLabel);
             SetHeaderLabel(_metricText, frame.MetricLabel);
             SetHeaderLabel(_totalText, frame.TotalText);
-            UpdateTitleMaxWidth();   // reserve tracks the current labels/total — a cleared primary reclaims the width
 
             RenderSlots();
         }
@@ -398,34 +391,14 @@ namespace Eq2Auras.Plugin.Overlay
         private void ApplyHeaderFont()
         {
             _style.ApplyFont(_durationText, _style.RowText);
-            _style.ApplyFont(_titleText, _style.RowText);
             _style.ApplyFont(_metricText, _style.RowText);
             _style.ApplyFont(_secondaryLabelText, _style.RowText);
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
             _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);
+            _secondaryLabelText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
             _affordance.Width = MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0);
-            UpdateTitleMaxWidth();
-        }
-
-        /// The title carries the header's whole ellipsis-trim budget: cap it at the width left after
-        /// the duration, the right metric cluster (secondary label · primary label · total, each only
-        /// when shown), and the cog — so a long name trims instead of shoving them off, and a cleared
-        /// primary (empty cluster) lets the title reclaim the full width (SPEC §Header). Dynamic, not
-        /// a worst-case guess: recomputed per frame and on width/font change.
-        private void UpdateTitleMaxWidth()
-        {
-            double reserve = MeterColumns.TextWidth(_style, _durationText.Text, _style.RowText);
-            if (_secondaryLabelText.Text.Length > 0)
-                reserve += MeterColumns.TextWidth(_style, _secondaryLabelText.Text, _style.RowText) + _secondaryLabelText.Margin.Right;
-            if (_metricText.Text.Length > 0)
-                reserve += MeterColumns.TextWidth(_style, _metricText.Text, _style.RowText) + _metricText.Margin.Right;
-            if (_totalText.Text.Length > 0)
-                reserve += _totalText.Width + _totalText.Margin.Right;
-
-            reserve += _affordance.Width + 16 * _style.HeightRatio + 4;   // cog + the header grid's hr-scaled side margins + a small border pad
-            _titleText.MaxWidth = Math.Max(30, _style.RowWidth - reserve);
         }
 
         /// Live width (right-edge drag): re-point _style, resize the root + window + every
@@ -444,7 +417,6 @@ namespace Eq2Auras.Plugin.Overlay
             _root.Width = width;
             Width = width;
             foreach (var slot in _slots) slot.SetRowWidth(width);
-            UpdateTitleMaxWidth();
         }
 
         /// Live visible-row count (bottom-edge drag): re-render at the new slot count; the

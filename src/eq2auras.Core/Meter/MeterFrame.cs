@@ -28,9 +28,8 @@ namespace Eq2Auras.Core.Meter
     {
         public List<MeterRow> Rows { get; set; }
         public string DurationText { get; set; }   // "3:24"
-        public string Title { get; set; }
-        public string MetricLabel { get; set; }    // "DPS" — primary metric label (header: white)
-        public string SecondaryLabel { get; set; } // "HPS" — secondary metric label (header: muted); "" when none
+        public string MetricLabel { get; set; }    // "DPS" — primary metric name (header: white, the left identity)
+        public string SecondaryLabel { get; set; } // "HPS" — secondary metric label (header: subordinate grey); "" when none
         public string TotalText { get; set; }      // all-allies total, metric-formatted
     }
 }
