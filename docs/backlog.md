@@ -32,6 +32,17 @@ Brainstormed 2026-07-18 (Alex-owned, visual companion — Details! reference ima
 
 **FIELD-VERIFY DEPENDENCY (important):** WPF is untestable on the Mac, so the reviews gate logic/compile only — **visual/interaction correctness is unverified until Alex's on-box test.** Each plan carries an on-box merge-gate field script. Highest-risk surfaces (need the closest look): **increment 4's `MeterPopup`** (positioning, toggle/clear, StaysOpen dismissal) and **increment 3's backdrop/reserved-height/resize** (the sizing model has ~6 prior field fixes). Present as ready-for-review, never ready-to-merge (Alex's merge gate + field test are his).
 
+**FIELD-VERIFIED FUNCTIONAL (2026-07-19, `dev-latest 0.1.144`):** Alex's on-box pass — everything load-bearing works: metric/secondary toggle + selected-state highlight + live row data, unselecting, cleared-primary → empty box, lock, popup dismiss (✕ + click-away), dormant backdropped window, resize clipping to rows ("very clean"), all opacity sliders, default reset, new-meter, secondary-in-popup-not-settings, regressions clean. **Plus the shipped slider field fix (`ThemeSlider` zero-width StackPanel collapse → fixed `TrackWidth`, `0.1.144`) confirmed good.** Functionally sound; `stable` still `0.1.104`.
+
+**NEXT SESSION — styling design/UX pass (3 items Alex noted at field test 2026-07-19, all deferred by him, none blocking function):**
+1. **Popup positioning** — `MeterPopup` pops at the mouse (`PlacementMode.Mouse`), so it covers the whole meter. Reposition (anchor to the header edge, not the cursor). *(Deferred: "changed later.")*
+2. **`Choose…` button alignment** — not right-aligned; should align with the input boxes / other right-column controls in the settings window.
+3. **Header total misalignment — a real inc-5 defect, not just a preference.** The total sits too far right (pressed against the cog, not above the value column). Alex's diagnosis: the **cog is narrower than the percent column**, so it doesn't occupy the full percent-column-width slot, and the total gets pushed right. Intended geometry: cog in its own space = the `%` absolute width, total then caps the value column. Investigate why inc-5's `affordance.Width = PercentWidth` isn't producing a full-width cog cell (Auto column collapsing to the glyph? padding mismatch?).
+
+**Accepted as expected (no action):** a **New meter** reserves the default visible-row count (10) as backdrop → tall window even when empty ("suddenly huge") — per the design (new window inherits appearance, not geometry). Worth a glance in the UX pass whether the new-window default row count should be smaller, but Alex accepted it.
+
+Design/colors/readability are deliberately "in flux" — the UX pass is its own (visual) session.
+
 **Deferred out of the arc (recorded so they're not lost):**
 - **Checkbox kit primitive** — its only consumer is the future timer settings window (a separate effort), so building it in these increments would be dead code (YAGNI). Build it *with* the timer-window effort (its first consumer); Alex's "build it available" intent is honored there, not here.
 - **Real-icon set** (Segoe MDL2 / vector) — deferred; text+color carry meaning. Only proven glyphs `⚙`/`✕` used.
