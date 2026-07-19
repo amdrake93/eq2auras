@@ -87,18 +87,16 @@
     [Fact]
     public void Cleared_primary_yields_an_empty_frame()
     {
-        var engine = new MeterEngine();
-        var encounter = ActiveEncounter(durationSeconds: 10);   // existing test helper for a live encounter
-        var combatants = new List<CombatantReading> { Ally("A", damage: 1000), Ally("B", damage: 500) };
-
-        var frame = engine.Tick(encounter, combatants, metricKey: null, paletteArgb: Palette());
+        var frame = new MeterEngine().Tick(Live(10),
+            new List<CombatantReading> { Ally("A", damage: 1000), Ally("B", damage: 500) },
+            metricKey: null, Palette);
 
         Assert.Empty(frame.Rows);        // cleared primary -> nothing
         Assert.Equal("", frame.MetricLabel);
         Assert.Equal("", frame.TotalText);
     }
 ```
-*(Use the file's existing `EncounterReading`/`CombatantReading`/palette test helpers; if they are inline in the test rather than helpers, construct them the same way the neighboring tests do. The assertion is the contract: cleared → empty rows + blank metric/total.)*
+*(Uses the file's real helpers: `Live(double)` → an active `EncounterReading` (`MeterEngineTests.cs:9`), `Ally(name, damage:)` (`:12`), and the `Palette` field (`:7`) — same construction as the neighboring `Rates_divide_totals_by_the_live_wall_clock_while_active`. The assertion is the contract: cleared → empty rows + blank metric/total.)*
 
 - [ ] **Step 6: Run — expect fail** (currently `Resolve(null)` → DPS → non-empty rows).
 
@@ -138,7 +136,7 @@ and extract the duration calc into a helper so both paths share it — replace t
 ```csharp
             if (Enabled && Windows.Count == 0) Windows.Add(new MeterWindowConfig());
 ```
-becomes:
+becomes (the from-nothing seed is at `MeterSettings.cs:75`):
 ```csharp
             if (Enabled && Windows.Count == 0) Windows.Add(new MeterWindowConfig { MetricKey = Meter.MetricRegistry.DefaultKey });
 ```
@@ -446,7 +444,7 @@ git commit -m "Meter: MeterPopup — themed right-click popup (metric/secondary 
 
 **Interfaces:** Consumes `MeterPopup` (Task 3). The `MeterWindowCallbacks` already carry `MetricPicked`/`SecondaryPicked`/`LockChanged`/`NewWindow`/`CloseWindow`/`CanClose` — reused as the popup callbacks.
 
-- [ ] **Step 1: Stop eager-resolving the primary** — `MeterWindow.cs:57`:
+- [ ] **Step 1: Stop eager-resolving the primary** — `MeterWindow.cs:60`:
 ```csharp
             _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
 ```
@@ -466,7 +464,7 @@ and add:
             var popup = new MeterPopup(target, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
             {
                 PrimaryToggled = key => { _metricKey = key; _cb.MetricPicked(key); },
-                SecondaryToggled = key => { _secondaryKey = key; _cb.SecondaryPicked(key); },
+                SecondaryToggled = SetSecondary,   // reuse MeterWindow.SetSecondary (sets _secondaryKey + persists) — keeps it live
                 Lock = () => { _locked = !_locked; UpdateGrips(); _cb.LockChanged(_locked); },
                 NewMeter = () => _cb.NewWindow(),
                 RemoveMeter = () => _cb.CloseWindow(),
@@ -476,7 +474,9 @@ and add:
 ```
 *(The previous `ContextMenu` opened on WPF's built-in right-click; `MouseRightButtonUp` is the explicit replacement. `_locked` toggles directly since the popup's Lock is a fire action, not a checkbox.)*
 
-- [ ] **Step 3: Cleared-primary header render** — in `Render`, the metric-label line (`:286` region):
+Also update the stale ContextMenu-era **comments** the code deletion doesn't reach (they now describe a removed surface): the class doc-comment "right-click menu" → "right-click popup" (`:14`), and the "menu" wording in the comments at `:137` (the header's "drag/menu hit target" → "drag/popup hit target"), `:279`, `:284`, and `:521` → "popup". Grep `menu` in the file after Step 5 and confirm only intentional text remains.
+
+- [ ] **Step 3: Cleared-primary header render** — in `Render`, the metric-label line (`:300` region):
 ```csharp
             _metricText.Text = (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel;
 ```
