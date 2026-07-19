@@ -276,4 +276,46 @@ public class MeterEngineTests
         Assert.Equal("", frame.MetricLabel);
         Assert.Equal("", frame.TotalText);
     }
+
+    [Fact]
+    public void A_selected_secondary_labels_the_header_with_its_metric_name()
+    {
+        // The header names the secondary alongside the primary (SPEC §Header — the muted
+        // secondary label left of the white primary label).
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000, healed: 30_000) },
+            "encdps", Palette, "enchps");
+
+        Assert.Equal("HPS", frame.SecondaryLabel);
+    }
+
+    [Fact]
+    public void No_secondary_leaves_the_secondary_label_blank()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", Palette);
+
+        Assert.Equal("", frame.SecondaryLabel);
+    }
+
+    [Fact]
+    public void An_unknown_secondary_key_leaves_the_secondary_label_blank()
+    {
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000) },
+            "encdps", Palette, "no-such-metric");
+
+        Assert.Equal("", frame.SecondaryLabel);   // Find -> null -> no label
+    }
+
+    [Fact]
+    public void A_cleared_primary_blanks_the_secondary_label_too()
+    {
+        // No primary -> no header labels at all (the header shows only the title + cog).
+        var frame = new MeterEngine().Tick(Live(10),
+            new List<CombatantReading> { Ally("A", damage: 1000) },
+            metricKey: null, Palette, "enchps");
+
+        Assert.Equal("", frame.SecondaryLabel);
+    }
 }

@@ -28,6 +28,7 @@ namespace Eq2Auras.Core.Meter
                     DurationText = FormatDuration(EncounterDuration(encounter)),
                     Title = encounter != null && encounter.Exists ? (encounter.Title ?? "") : "",
                     MetricLabel = "",
+                    SecondaryLabel = "",
                     TotalText = "",
                 };
             }
@@ -96,6 +97,7 @@ namespace Eq2Auras.Core.Meter
                 DurationText = FormatDuration(duration),
                 Title = encounter != null && encounter.Exists ? (encounter.Title ?? "") : "",
                 MetricLabel = metric.Label,
+                SecondaryLabel = secondary != null ? secondary.Label : "",
                 TotalText = metric.Format(total),
             };
         }
