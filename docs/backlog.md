@@ -20,8 +20,24 @@ Brainstormed + spec-amended 2026-07-17 (Alex-owned phase). Guild ask: "show an a
 
 **Implementation (2026-07-17):** all 7 plan tasks done inline (TDD in Core), plan third-party-reviewed 2 rounds to closure; Core **179 green**; branch CI green (WPF compiles, artifact staged). Merged to `main` for functional testing on `dev-latest`. **On-box live script** (9 steps) rides the plan's Testing-strategy section. **Styling deliberately deferred** — the settings-window `Secondary` dropdown ships as **raw WPF `ComboBox` chrome** (light box in the dark window); not styled piecemeal, folded into the styling-centralization effort below (Alex's call: avoid painting into a corner with per-control dark treatments).
 
-### DESIGNED + SPEC'D (2026-07-18) — Styling centralization / theme system — going to review, then plan
-Brainstormed 2026-07-18 (Alex-owned, visual companion — Details! reference images + mockups). Concern from slice 2b: styling control-by-control **paints us into a corner** — no single source of truth. Done as **one coherent pass**. Spec written into `docs/SPEC.md` (**new Part I §The theme system** + Part III meter updates: §Header, §Configuration, §Meter display defaults, §Settings, §Multiple windows). **Next:** third-party review loop, then a dated plan.
+### IMPLEMENTED (2026-07-18) — Styling centralization / theme system — on branch `styling-theme-system`, ready for Alex's merge + on-box field test
+Brainstormed 2026-07-18 (Alex-owned, visual companion — Details! reference images + mockups). Concern from slice 2b: styling control-by-control **paints us into a corner** — no single source of truth. Done as **one coherent pass**. Spec (`docs/SPEC.md`: **new Part I §The theme system** + Part III meter updates) third-party-reviewed to closure. Decomposed into **5 field-testable increments** (plans `docs/plans/2026-07-18-styling-theme-system-increment{1..5}.md`), each: plan → plan-review loop → implement → CI compile → code-review loop, all to closure. Autonomous run (Alex authorized 2026-07-18): every artifact went through the automated review loop; Core strict-TDD, Plugin transcribe-only (CI compile-verified; NOT runtime-verified on the Mac).
+
+**Increments (all on `styling-theme-system`, Core 188 green, WPF CI-green):**
+1. `Theme` token module (semantic frozen brushes) + Core `BackdropOpacity` config field + retag durable row/header text; `OverlayTheme.Text` aliases `Theme`.
+2. Control kit: `ThemeButton` (chromed hover, press-swallow) + `ThemeSlider` (native slider under a `XamlReader` dark template + editable type-in value); settings-window rewrite on Theme+kit; "Window opacity" label.
+3. Persistent `SurfaceTint` backdrop at reserved row-count height (dormant affordance + resize-decouple: can size up past present allies) + backdrop-opacity knob (EQ2 two-slider) + window/backdrop opacity split.
+4. `MeterPopup` (family-column metric+secondary toggle grids, lifecycle Lock/New meter/Remove meter + corner ✕) replacing the raw `ContextMenu`; `MetricGridItem` list-item + `Theme.ItemSelected`; Core cleared-primary (`ResolvePrimary` null→nothing, empty frame, seed DPS); removed the secondary `ComboBox` from the settings window.
+5. Header cog to the far right (above the percent column); total caps the value column.
+
+**FIELD-VERIFY DEPENDENCY (important):** WPF is untestable on the Mac, so the reviews gate logic/compile only — **visual/interaction correctness is unverified until Alex's on-box test.** Each plan carries an on-box merge-gate field script. Highest-risk surfaces (need the closest look): **increment 4's `MeterPopup`** (positioning, toggle/clear, StaysOpen dismissal) and **increment 3's backdrop/reserved-height/resize** (the sizing model has ~6 prior field fixes). Present as ready-for-review, never ready-to-merge (Alex's merge gate + field test are his).
+
+**Deferred out of the arc (recorded so they're not lost):**
+- **Checkbox kit primitive** — its only consumer is the future timer settings window (a separate effort), so building it in these increments would be dead code (YAGNI). Build it *with* the timer-window effort (its first consumer); Alex's "build it available" intent is honored there, not here.
+- **Real-icon set** (Segoe MDL2 / vector) — deferred; text+color carry meaning. Only proven glyphs `⚙`/`✕` used.
+- **Thread C — meter row/data layout** + the **24-combatant color-scale** problem (its own visual session).
+- **Meter row coloring by class** — its own session (ability-signature inference; monochromatic fallback). ACT exposes no class data (investigated).
+- **ACT timer tab overhaul** — its own effort; adopts the tokenized backdrop + kit when it lands (built *available*).
 
 **Settled design (SPEC §The theme system + Part III):**
 - **Mechanism:** C# semantic-token `Theme` module (cached frozen brushes by role) + a code-built control kit (Approach 1 — no XAML ResourceDictionary: no `Application` object under ACT, XAML-compiler fragility). `Theme` supersedes scattered chrome literals; `OverlayTheme`'s timer constants stay, aliasing into `Theme` where byte-identical → **timer rendering 100% untouched this pass**.
