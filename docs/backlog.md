@@ -4,6 +4,12 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-19
 
+### TODO (deferred) — user-facing docs for the meter + a features wiki (for/after 1.0.0)
+README and the other player-facing docs predate the Parse Meter — they describe timers only. Update the README with the meter, and likely **expand into a rough wiki** covering the features of **both products** (the timer overlay + the DPS/parse meter) for end users: what each does, how to configure it (the knob/config model, the right-click popup, release channels), and install/update. Naturally scoped to the **1.0.0 launch** (the first combined timers+meter release is exactly when the public story needs telling). Distinct from internal `docs/` (SPEC + engine ground-truth) — this is **player-facing**.
+
+### IDEA (deferred, compounds on the docs TODO above) — auto-generate/auto-update the user-facing docs
+A way to **auto-generate or keep in sync** the player-facing usage docs (feature list, how-to, available knobs/metrics) so they don't drift from the code as features ship — e.g. derive from single sources already in the tree (the metric registry, the knob/config model, SPEC) into the README/wiki on release. Do the manual docs first (task above); automate the upkeep once the shape is known.
+
 ### REVIEWED TO CLOSURE, READY FOR MERGE GATE — versioning scheme `MAJOR.MINOR.PATCH` + 1.0.0 launch (branch `version-scheme-1.0`)
 Fix-flow (spec + code, one branch). **Scheme:** `MAJOR`/`MINOR` are owner-bumped on command (`MAJOR` = brand-new product; `MINOR` = enough new functionality in an existing product), `PATCH` auto-increments per release and resets to 0 on any `MAJOR`/`MINOR` bump. **Mechanism:** `MAJOR.MINOR` in a committed `version.txt` (=`0.1`, the current line); `build.yml` computes `PATCH = git rev-list --count <version.txt's last change>..HEAD` (needs `fetch-depth: 0`), so a `version.txt` bump commit — HEAD at its own build — yields `X.Y.0`. Spec: SPEC §Release channels gains a **Versioning** subsection + the 1.0.0-launch procedure + a one-time-cutover caveat; §Open decisions versioning item resolved; §Packaging refreshed. **Fix-flow-reviewed to closure (2 rounds):** r1 request-changes (stale §Packaging run-number claim [Important]; unqualified "unique per release" vs the cutover seam [Minor]), r2 closure (+ a post-closure back-reference nit). Presents **ready-for-review; merge is Alex's gate.**
 
