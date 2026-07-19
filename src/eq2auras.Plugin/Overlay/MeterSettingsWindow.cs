@@ -14,6 +14,7 @@ namespace Eq2Auras.Plugin.Overlay
     internal sealed class MeterSettingsWindow : Window
     {
         private readonly Action<double> _onOpacityChanged;
+        private readonly Action<double> _onBackdropOpacityChanged;
         private readonly Action<double> _onRowHeightChanged;
         private readonly Action<string, double> _onFontChanged;
         private readonly Action<string> _onSecondaryChanged;
@@ -21,10 +22,12 @@ namespace Eq2Auras.Plugin.Overlay
         private double _fontBaseSize;
 
         public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged,
+            double backdropOpacity, Action<double> onBackdropOpacityChanged,
             string fontFamily, double fontBaseSize, Action<string, double> onFontChanged,
             string secondaryKey, Action<string> onSecondaryChanged)
         {
             _onOpacityChanged = onOpacityChanged;
+            _onBackdropOpacityChanged = onBackdropOpacityChanged;
             _onRowHeightChanged = onRowHeightChanged;
             _onFontChanged = onFontChanged;
             _onSecondaryChanged = onSecondaryChanged;
@@ -144,12 +147,29 @@ namespace Eq2Auras.Plugin.Overlay
             opacityRow.Children.Add(opacityLabel);
             opacityRow.Children.Add(opacitySlider);
 
+            var backdropLabel = new TextBlock
+            {
+                Text = "Backdrop opacity",
+                Foreground = Theme.TextLabel,
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 112
+            };
+            var backdropSlider = new ThemeSlider(
+                MeterSettings.MinBackdropOpacity, MeterSettings.MaxBackdropOpacity, 0.01, backdropOpacity,
+                v => Math.Round(v * 100) + "%",
+                t => TryParseNumber(t.Replace("%", ""), out double pct) ? (double?)(pct / 100.0) : null);
+            backdropSlider.ValueChanged += v => _onBackdropOpacityChanged(v);
+            var backdropRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
+            backdropRow.Children.Add(backdropLabel);
+            backdropRow.Children.Add(backdropSlider);
+
             var reset = new ThemeButton("Reset to defaults");
             reset.Click += () =>
             {
                 // Each slider's ValueChanged applies + persists; font is reset via its own callback.
                 rowHeightSlider.Value = VisualStyle.DefaultRowHeight;
                 opacitySlider.Value = MeterSettings.DefaultOpacity;
+                backdropSlider.Value = MeterSettings.DefaultBackdropOpacity;
                 _fontFamily = null;
                 _fontBaseSize = 13.0;
                 fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
@@ -161,6 +181,7 @@ namespace Eq2Auras.Plugin.Overlay
             body.Children.Add(fontRow);
             body.Children.Add(secondaryRow);
             body.Children.Add(opacityRow);
+            body.Children.Add(backdropRow);
             body.Children.Add(reset);
 
             var stack = new StackPanel();
