@@ -266,7 +266,7 @@ Replace the two raw light `Slider`s (row height, opacity) with `ThemeSlider`, th
 - Rewrite: `src/eq2auras.Plugin/Overlay/MeterSettingsWindow.cs`
 
 **Interfaces:**
-- Consumes: `ThemeButton` (Task 1), `ThemeSlider` (Task 2), `Theme.*` (increment 1). The public ctor signature is unchanged (`OverlayHost` calls it unmodified — verified `OverlayHost.cs` constructs `MeterSettingsWindow` with the row-height/opacity/font/secondary callbacks).
+- Consumes: `ThemeButton` (Task 1), `ThemeSlider` (Task 2), `Theme.*` (increment 1). The public ctor signature is unchanged, so its **sole construction site — `MeterWindow.cs:326`** (`new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity, _style.Font?.Source, _style.BaseSize, SetFont, _secondaryKey, SetSecondary)`) — compiles unmodified.
 - Produces: nothing new.
 
 **Verification:** WPF — CI compile + code review + field. No unit test.
@@ -286,7 +286,7 @@ Replace the `rowHeightLabel` + `_rowHeight` (`Slider`) + `_rowHeightValue` + `ro
             var rowHeightSlider = new ThemeSlider(
                 Settings.MinRowHeight, Settings.MaxRowHeight, 1, rowHeight,
                 v => Math.Round(v) + " px",
-                t => TryParseNumber(t, out double px) ? (double?)px : null);
+                t => TryParseNumber(t.Replace("px", ""), out double px) ? (double?)px : null);
             rowHeightSlider.ValueChanged += v => _onRowHeightChanged(v);
             var rowHeightRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
             rowHeightRow.Children.Add(rowHeightLabel);
@@ -326,7 +326,7 @@ Close button:
 ```
 Choose button (in the font row, keep `fontValue` label as-is but token its color):
 ```csharp
-            var choose = new ThemeButton("Choose…");
+            var choose = new ThemeButton("Choose…") { Margin = new Thickness(10, 0, 0, 0) };   // gap from fontValue (the old "  " indent is gone)
             choose.Click += () =>
             {
                 using (var dialog = new System.Windows.Forms.FontDialog())
@@ -358,12 +358,13 @@ Reset button:
 
 - [ ] **Step 4: Token the remaining chrome literals**
 
-- `title` foreground `new SolidColorBrush(OverlayTheme.Text)` → `Theme.TextPrimary`; `title.Margin` label column stays.
+- `title` foreground `new SolidColorBrush(OverlayTheme.Text)` → `Theme.TextPrimary`; the title's own left inset `Thickness(12,0,0,0)` is unchanged.
 - `fontValue` foreground `new SolidColorBrush(OverlayTheme.Text)` → `Theme.TextPrimary`.
 - the font-row label + secondary-row label foregrounds `Color.FromArgb(255,0xC4,0xCA,0xD6)` → `Theme.TextLabel`; label `Width` 60 → 112.
 - the title-bar divider `Border { Background = new SolidColorBrush(OverlayTheme.CalmBorder) }` → `Theme.Divider`.
 - the outer `Border` (`:238-245`): `Background = new SolidColorBrush(Color.FromArgb(252,20,23,29))` → `Theme.Surface(0xFC)`; `BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder)` → `Theme.Divider`; `CornerRadius`/`BorderThickness` unchanged.
-- **Leave** the `secondary` `ComboBox` (`:143-165`) and its `secondaryRow` untouched — removed in increment 4.
+- **Row rhythm:** set the `fontRow` (`:138`) and `secondaryRow` (`:163`) `StackPanel` margins from `Thickness(0,0,0,10)` to `Thickness(0,0,0,16)`, so all four body rows share the wrap-safe 16 rhythm (Tasks 1-2 build the row-height and opacity rows at 16). The `secondaryRow` margin is the only edit to that otherwise-untouched row.
+- **Leave** the `secondary` `ComboBox` (`:143-165`) and its `secondaryRow`'s *contents* untouched — removed in increment 4 (only its container margin changes per the rhythm bullet above).
 
 - [ ] **Step 5: Add the `TryParseNumber` helper**
 
@@ -401,7 +402,7 @@ git commit -m "Meter settings window: rewrite on Theme + ThemeButton/ThemeSlider
 
 **On-box field script (merge-gate — first visibly-themed surface):**
 1. Update on `dev-latest`, open a meter's ⚙ settings window.
-2. **Chrome:** window is dark (`SurfaceTint`), bordered, rounded; labels read light-grey, values light.
+2. **Chrome:** window is dark (the `SurfaceTint` at near-solid opacity, `Theme.Surface(0xFC)`), bordered, rounded; labels read light-grey, values light.
 3. **Buttons:** ✕, Choose…, and Reset are bordered buttons that **brighten on hover**; Choose… opens the font dialog; ✕ closes; Reset returns row-height + opacity to defaults and re-applies live.
 4. **Sliders:** row-height and window-opacity sliders are **dark** (dark track, grey round thumb); dragging changes the value live; the **value box is editable** — click it, type a number, press Enter → the row/opacity updates and the box reflects the clamped/snapped value; an out-of-range or garbage entry snaps back to the last good value.
 5. **Secondary:** the `Secondary` dropdown still works (unchanged — it relocates next increments).
@@ -413,7 +414,7 @@ git commit -m "Meter settings window: rewrite on Theme + ThemeButton/ThemeSlider
 
 **Placeholder scan:** none — full code and exact edits throughout.
 
-**Type consistency:** `ThemeButton.Click` is `event Action`; `close.Click += Close` matches (`Window.Close()` is `Action`-compatible — parameterless void). `ThemeSlider.ValueChanged` is `event Action<double>`; `+= v => _onRowHeightChanged(v)` matches the ctor's `Action<double> onRowHeightChanged`. `ThemeSlider.Value` is `double`. `TryParseNumber` is `(string, out double) → bool`. The `format`/`parse` lambdas match `Func<double,string>` / `Func<string,double?>`. The `MeterSettingsWindow` ctor signature is unchanged, so `OverlayHost`'s construction call compiles unmodified.
+**Type consistency:** `ThemeButton.Click` is `event Action`; `close.Click += Close` matches (`Window.Close()` is `Action`-compatible — parameterless void). `ThemeSlider.ValueChanged` is `event Action<double>`; `+= v => _onRowHeightChanged(v)` matches the ctor's `Action<double> onRowHeightChanged`. `ThemeSlider.Value` is `double`. `TryParseNumber` is `(string, out double) → bool`. The `format`/`parse` lambdas match `Func<double,string>` / `Func<string,double?>`. The `MeterSettingsWindow` ctor signature is unchanged, so its sole caller (`MeterWindow.cs:326`) compiles unmodified.
 
 ## Plan-watch items carried forward
 
