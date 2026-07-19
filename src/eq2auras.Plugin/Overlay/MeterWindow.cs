@@ -11,7 +11,7 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// The Parse Meter window (SPEC Part III §The meter window): INTERACTIVE — never
     /// click-through — with the header as the interaction surface: drag handle,
-    /// state display ((duration) title — metric | total), and right-click menu
+    /// state display ((duration) title — metric | total), and right-click popup
     /// (metric picker + lock). Lock freezes geometry only; content stays clickable.
     /// The mouse wheel scrolls the rank window (Details' model — no scrollbar chrome;
     /// works while locked: scrolling is content, not geometry). The timer module's
@@ -26,8 +26,10 @@ namespace Eq2Auras.Plugin.Overlay
         private int _scrollOffset;           // transient view state — never persisted, clamps to the data
         private VisualStyle _style;
         private readonly MeterWindowCallbacks _cb;
-        private MenuItem _lockItem;
         private double _opacity;
+        private double _backdropOpacity;
+        private Border _backdrop;
+        private Grid _rowsContainer;
         private SolidColorBrush _headerBackplate;
         private TextBlock _affordance;
         private MeterSettingsWindow _settings;
@@ -43,21 +45,21 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _titleText;
         private readonly TextBlock _metricText;
         private readonly TextBlock _totalText;
-        private readonly ContextMenu _menu;
         private string _metricKey;
-        private string _secondaryKey;   // null = None; the settings dropdown's current value
+        private string _secondaryKey;   // null = no secondary; toggled from the right-click popup
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, int visibleRows,
+        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
             _cb = callbacks;
             _style = style;
-            _metricKey = MetricRegistry.Resolve(metricKey).Key;   // normalize unknown -> default
+            _metricKey = metricKey;   // raw: null = cleared (shows nothing); resolution is the engine's (ResolvePrimary)
             _secondaryKey = secondaryKey;                         // null/unknown -> None (no Resolve; off, not DPS)
             _locked = locked;
             _opacity = opacity;
+            _backdropOpacity = backdropOpacity;
             _visibleRows = visibleRows;
 
             WindowStyle = WindowStyle.None;
@@ -101,28 +103,27 @@ namespace Eq2Auras.Plugin.Overlay
                 e.Handled = true;   // don't let the header drag fire under the cog
                 OpenSettings();
             };
-            // Total is a fixed-width right-aligned column matching the row's value column.
-            // The value column sits one column in from the edge (percent is rightmost, SPEC
-            // §Rows), so the total is inset from the right by the percent-column width + gap —
-            // capping the value column it sums.
+            // Total is a fixed-width right-aligned column matching the row's value column: the cog
+            // fills the percent-column slot at the far right, so the total to its left caps the
+            // VALUE column (SPEC §Header) — total over value, cog over percent, down every row.
             _totalText.Width = MeterColumns.NumberWidth(style, style.RowText);
             _totalText.TextAlignment = TextAlignment.Right;
-            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);   // gap to the cog
+            affordance.Width = MeterColumns.PercentWidth(style, style.RowText * 11.0 / 13.0);
+            affordance.TextAlignment = TextAlignment.Right;
 
-            // Outer header: [cog (auto)] [ (dur) title — metric (star; left-packed cluster) ] [total (auto)].
-            // The cog leads on the left; the star column holds the left cluster.
+            // Outer header: [ (dur) title — metric (star; left cluster) ] [total (auto, above value)] [cog (auto, far right, above percent)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) title — metric
-            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total
-            Grid.SetColumn(affordance, 0);
-            Grid.SetColumn(leftCluster, 1);
-            Grid.SetColumn(_totalText, 2);
-            affordance.Margin = new Thickness(0, 0, 6 * hr, 0);   // gap between cog and the duration
-            headerGrid.Children.Add(affordance);
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // total (above the value column)
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog (far right, above the percent column)
+            Grid.SetColumn(leftCluster, 0);
+            Grid.SetColumn(_totalText, 1);
+            Grid.SetColumn(affordance, 2);
             headerGrid.Children.Add(leftCluster);
             headerGrid.Children.Add(_totalText);
-            UpdateTitleMaxWidth();   // now that cog/total widths exist, cap the title's trim budget
+            headerGrid.Children.Add(affordance);
+            UpdateTitleMaxWidth();   // now that total/cog widths exist, cap the title's trim budget
 
             var header = new Border
             {
@@ -130,7 +131,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Margin = new Thickness(0, 0, 0, style.RowSpacing),
                 CornerRadius = new CornerRadius(4 * hr),
                 // A real background — a transparent surface would be mouse-invisible,
-                // and the header IS the drag/menu hit target. Shared with the row
+                // and the header IS the drag/popup hit target. Shared with the row
                 // backplate so they can't drift (SPEC Part III §Meter display defaults).
                 Background = _headerBackplate = new SolidColorBrush(OverlayTheme.MeterBackplate),
                 BorderThickness = new Thickness(1),
@@ -140,15 +141,23 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonDown += OnHeaderDrag;
             MouseWheel += OnScroll;   // window-wide: header and rows both scroll
 
-            _menu = BuildMenu();
-            SyncMenuChecks();             // AFTER the field assignment — the sync walks _menu.Items
-            header.ContextMenu = _menu;   // WPF opens it on right-click
+            header.MouseRightButtonUp += (s, e) => OpenPopup(header);   // right-click opens the themed popup (SPEC §Configuration)
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
+            _backdrop = new Border
+            {
+                Background = Theme.Surface(0xFF),                 // SurfaceTint; opacity via Border.Opacity below
+                Opacity = _opacity * _backdropOpacity,            // window × backdrop (they compound, SPEC §Meter display defaults)
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                VerticalAlignment = VerticalAlignment.Stretch
+            };
+            _rowsContainer = new Grid { MinHeight = ReservedRowsHeight() };
+            _rowsContainer.Children.Add(_backdrop);              // behind
+            _rowsContainer.Children.Add(_rowsPanel);             // on top; empty area shows the backdrop
             _root = new StackPanel { Width = style.RowWidth };
             _root.Children.Add(header);
-            _root.Children.Add(_rowsPanel);
+            _root.Children.Add(_rowsContainer);
 
             // Transparent edge grips (right = width, bottom = visible rows). Top-left is
             // anchored — the window never moves during resize, so GetPosition(this) is a
@@ -185,91 +194,37 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var block = new TextBlock
             {
-                Foreground = new SolidColorBrush(dim
-                    ? Color.FromArgb(255, 0x8B, 0x93, 0xA3)
-                    : OverlayTheme.Text),
+                Foreground = dim ? Theme.TextMuted : Theme.TextPrimary,
                 VerticalAlignment = VerticalAlignment.Center
             };
             style.ApplyFont(block, style.RowText);
             return block;
         }
 
-        private ContextMenu BuildMenu()
+        /// Right-click opens the themed popup (SPEC Part III §Configuration): metric/secondary
+        /// toggle-grids + lifecycle. A fresh popup per open reflects current state; toggles route
+        /// through the callbacks (a cleared primary passes null — the meter shows nothing).
+        private void OpenPopup(UIElement target)
         {
-            var menu = new ContextMenu();
-            foreach (var metric in MetricRegistry.All)
+            var popup = new MeterPopup(target, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
             {
-                var item = new MenuItem { Header = metric.Label, Tag = metric.Key, IsCheckable = true };
-                item.Click += (s, e) =>
-                {
-                    var key = (string)((MenuItem)s).Tag;
-                    _metricKey = key;
-                    SyncMenuChecks();
-                    _cb.MetricPicked(key);
-                };
-                menu.Items.Add(item);
-            }
-            menu.Items.Add(new Separator());
-            _lockItem = new MenuItem { Header = "Lock window", IsCheckable = true };
-            _lockItem.Click += (s, e) =>
-            {
-                _locked = _lockItem.IsChecked;
-                UpdateGrips();
-                _cb.LockChanged(_locked);
-            };
-            menu.Items.Add(_lockItem);
-
-            menu.Items.Add(new Separator());
-            var newItem = new MenuItem { Header = "New meter window" };
-            newItem.Click += (s, e) => _cb.NewWindow();
-            menu.Items.Add(newItem);
-            var closeItem = new MenuItem { Header = "Close this window" };
-            closeItem.Click += (s, e) => _cb.CloseWindow();
-            menu.Items.Add(closeItem);
-
-            // The last window can't close (SPEC Part III §Multiple windows) — the tab
-            // toggle is the master off-switch. Evaluated on open so it tracks the live count.
-            menu.Opened += (s, e) => closeItem.IsEnabled = _cb.CanClose();
-
-            StyleMenu(menu);
-            return menu;   // no sync here — _menu is still null until the ctor assigns it
-        }
-
-        /// Quick, iterate-able dark pass over the raw WPF ContextMenu (SPEC Part III
-        /// §Configuration — "no raw ACT chrome"). Fuller MenuItem re-templating (hover
-        /// highlight) is the deferred styling item in the backlog.
-        private static void StyleMenu(ContextMenu menu)
-        {
-            menu.Background = new SolidColorBrush(Color.FromArgb(250, 24, 27, 34));
-            menu.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
-            menu.Foreground = new SolidColorBrush(OverlayTheme.Text);
-
-            // Per-item, NOT an ItemContainerStyle: a MenuItem-targeted style gets applied to
-            // the Separators too and throws at render time ("style intended for MenuItem
-            // cannot be applied to Separator"). Style the MenuItems directly; leave separators.
-            foreach (var entry in menu.Items)
-            {
-                if (entry is MenuItem item) item.Foreground = new SolidColorBrush(OverlayTheme.Text);
-            }
-        }
-
-        private void SyncMenuChecks()
-        {
-            foreach (var entry in _menu.Items)
-            {
-                if (entry is MenuItem item && item.Tag is string key) item.IsChecked = key == _metricKey;
-            }
-            _lockItem.IsChecked = _locked;
+                PrimaryToggled = key => { _metricKey = key; _cb.MetricPicked(key); },
+                SecondaryToggled = SetSecondary,
+                Lock = () => { _locked = !_locked; UpdateGrips(); _cb.LockChanged(_locked); },
+                NewMeter = () => _cb.NewWindow(),
+                RemoveMeter = () => _cb.CloseWindow(),
+            });
+            popup.Show();
         }
 
         private void OnHeaderDrag(object sender, MouseButtonEventArgs e)
         {
-            if (_locked) return;   // lock freezes geometry ONLY — the menu keeps working
+            if (_locked) return;   // lock freezes geometry ONLY — the popup keeps working
             BeginDragAndPersist();
         }
 
         /// One wheel notch = one rank. No lock check — scrolling is content
-        /// interaction, same side of the lock axis as the menu (SPEC Part III).
+        /// interaction, same side of the lock axis as the popup (SPEC Part III).
         private void OnScroll(object sender, MouseWheelEventArgs e)
         {
             if (_lastFrame == null) return;
@@ -285,7 +240,7 @@ namespace Eq2Auras.Plugin.Overlay
             _lastFrame = frame;
             _durationText.Text = "(" + frame.DurationText + ") ";
             _titleText.Text = frame.Title;
-            _metricText.Text = (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel;
+            _metricText.Text = frame.MetricLabel.Length > 0 ? (frame.Title.Length > 0 ? " — " : "") + frame.MetricLabel : "";
             _totalText.Text = frame.TotalText;
 
             RenderSlots();
@@ -318,6 +273,11 @@ namespace Eq2Auras.Plugin.Overlay
             }
         }
 
+        /// The window reserves its configured row count as a persistent backdrop regardless of
+        /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
+        /// so an empty meter shows its size and can be sized up past the present rows.
+        private double ReservedRowsHeight() => _visibleRows * _style.RowHeight;
+
         private void OpenSettings()
         {
             if (_settings != null)
@@ -326,7 +286,8 @@ namespace Eq2Auras.Plugin.Overlay
                 return;
             }
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
-                _style.Font?.Source, _style.BaseSize, SetFont, _secondaryKey, SetSecondary)
+                _backdropOpacity, SetBackdropOpacity,
+                _style.Font?.Source, _style.BaseSize, SetFont)
             {
                 Left = Left + 20,
                 Top = Top + 20,
@@ -335,14 +296,26 @@ namespace Eq2Auras.Plugin.Overlay
             _settings.Show();
         }
 
-        /// Live opacity (SPEC Part III §Meter display defaults): applied to the header and
-        /// every retained row, and persisted. Text stays at full opacity — always readable.
+        /// Window opacity (SPEC Part III §Meter display defaults): the whole window's fill/backplates
+        /// — header + rows + the backdrop (which also takes backdrop opacity, compounded). Text stays
+        /// at full opacity — always readable. Persisted.
         public void SetOpacity(double opacity)
         {
             _opacity = opacity;
             _headerBackplate.Opacity = opacity;
             foreach (var slot in _slots) slot.SetOpacity(opacity);
+            _backdrop.Opacity = _opacity * _backdropOpacity;
             _cb.OpacityChanged(opacity);
+        }
+
+        /// Backdrop opacity (SPEC Part III §Meter display defaults): scales just the persistent
+        /// backdrop, compounded with window opacity — faint backdrop + vivid bars is low here, high
+        /// on the window/rows. Persisted.
+        public void SetBackdropOpacity(double backdropOpacity)
+        {
+            _backdropOpacity = backdropOpacity;
+            _backdrop.Opacity = _opacity * _backdropOpacity;
+            _cb.BackdropOpacityChanged(backdropOpacity);
         }
 
         /// Live row-height: resize every retained row in place and re-point _style so
@@ -358,6 +331,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
             };
+            _rowsContainer.MinHeight = ReservedRowsHeight();
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
             _cb.RowHeightChanged(rowHeight);
         }
@@ -397,7 +371,8 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
-            _totalText.Margin = new Thickness(0, 0, MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0) + MeterColumns.ColumnGap, 0);
+            _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);
+            _affordance.Width = MeterColumns.PercentWidth(_style, _style.RowText * 11.0 / 13.0);
             UpdateTitleMaxWidth();
         }
 
@@ -406,8 +381,8 @@ namespace Eq2Auras.Plugin.Overlay
         /// them off (SPEC §Header). Conservative worst-case reserve; recomputed on width/font.
         private void UpdateTitleMaxWidth()
         {
-            double reserve = MeterColumns.TextWidth(_style, "⚙ (00:00)  — Cures ", _style.RowText)
-                + _totalText.Width + _totalText.Margin.Right + 16;
+            double reserve = MeterColumns.TextWidth(_style, "(00:00)  — Cures ", _style.RowText)
+                + _totalText.Width + _totalText.Margin.Right + _affordance.Width + 16;
             _titleText.MaxWidth = Math.Max(30, _style.RowWidth - reserve);
         }
 
@@ -435,6 +410,7 @@ namespace Eq2Auras.Plugin.Overlay
         private void SetVisibleRows(int visibleRows)
         {
             _visibleRows = visibleRows;
+            _rowsContainer.MinHeight = ReservedRowsHeight();
             if (_lastFrame != null) RenderSlots();
         }
 
@@ -449,13 +425,10 @@ namespace Eq2Auras.Plugin.Overlay
                 _resizing = true;
                 _resizeStart = e.GetPosition(this);
                 _startWidth = _style.RowWidth;
-                // Anchor the bottom-drag to the rows actually SHOWN, not the raw cap: the
-                // window sizes to min(visible-row count, ally count), so a default cap of 10
-                // with 2 allies shows 2 — dragging up must start from 2 to hide a row on the
-                // first row-height of travel (else you'd drag ~8 rows before anything moves).
-                _startVisibleRows = _lastFrame != null
-                    ? Math.Min(_visibleRows, _lastFrame.Rows.Count)
-                    : _visibleRows;
+                // The window reserves the full visible-row count as a backdrop (persistent,
+                // §Configuration), so the bottom drag anchors to the raw cap — a size-up past the
+                // present allies now works (previously it anchored to min(cap, allies) and snapped).
+                _startVisibleRows = _visibleRows;
                 grip.CaptureMouse();
                 e.Handled = true;
             };
@@ -489,7 +462,7 @@ namespace Eq2Auras.Plugin.Overlay
             => Math.Max(MeterSettings.MinVisibleRows, Math.Min(MeterSettings.MaxVisibleRows, n));
 
         /// Lock freezes geometry: grips only take the mouse when unlocked (SPEC Part III —
-        /// lock freezes position + size; menu/scroll/settings still work).
+        /// lock freezes position + size; popup/scroll/settings still work).
         private void UpdateGrips()
         {
             _rightGrip.IsHitTestVisible = !_locked;

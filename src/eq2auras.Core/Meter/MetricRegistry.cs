@@ -21,6 +21,13 @@ namespace Eq2Auras.Core.Meter
         public static MetricDef Resolve(string key)
             => All.FirstOrDefault(m => m.Key == key) ?? All.First(m => m.Key == DefaultKey);
 
+        /// The PRIMARY metric's resolver, distinct from Resolve: a *null* key is a user-cleared
+        /// primary (→ null, the window shows nothing, SPEC Part III §Configuration); a non-null but
+        /// unknown key still falls back to the DPS default (forward-compat for a newer version's
+        /// key). All window-creation paths seed a non-null key, so null arises only from a clear.
+        public static MetricDef ResolvePrimary(string key)
+            => key == null ? null : (All.FirstOrDefault(m => m.Key == key) ?? All.First(m => m.Key == DefaultKey));
+
         /// The secondary's resolver: the matching def, or null for null/unknown — no
         /// DPS fallback, because an unresolved secondary means "off", not "show DPS"
         /// (SPEC Part III §Settings — the secondary key's forward-compat guard).

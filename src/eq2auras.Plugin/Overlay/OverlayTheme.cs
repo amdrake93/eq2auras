@@ -14,7 +14,7 @@ namespace Eq2Auras.Plugin.Overlay
         public static readonly Color MeterBackplate = Color.FromArgb(224, 18, 20, 26);
         public static readonly Color ImminentAccent = Colors.Gold;
         public static readonly Color OverdueAccent = Colors.Crimson;
-        public static readonly Color Text = Colors.WhiteSmoke;
+        public static readonly Color Text = Theme.TextPrimary.Color;   // one source of truth (SPEC §The theme system); WhiteSmoke, unchanged
 
         public static Color AccentFor(TimerUrgency urgency)
         {

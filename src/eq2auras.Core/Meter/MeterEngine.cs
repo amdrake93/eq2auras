@@ -17,20 +17,27 @@ namespace Eq2Auras.Core.Meter
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
             string metricKey, IReadOnlyList<int> paletteArgb, string secondaryKey = null)
         {
-            var metric = MetricRegistry.Resolve(metricKey);
+            var metric = MetricRegistry.ResolvePrimary(metricKey);
+            if (metric == null)
+            {
+                // Cleared primary (SPEC Part III §Meter display defaults): show nothing but the
+                // backdrop — no rows, blank metric/total. The window still renders its header.
+                return new MeterFrame
+                {
+                    Rows = new List<MeterRow>(),
+                    DurationText = FormatDuration(EncounterDuration(encounter)),
+                    Title = encounter != null && encounter.Exists ? (encounter.Title ?? "") : "",
+                    MetricLabel = "",
+                    TotalText = "",
+                };
+            }
             var secondary = MetricRegistry.Find(secondaryKey);   // null -> no secondary
 
             // Live wall clock while active, finalized log time once ended (SPEC Part III
             // §Rates come from our wall clock). Clamp defends the degenerate
             // fresh-encounter poll: StartTime == DateTime.MaxValue makes the live
             // estimate hugely negative before the first swing lands.
-            double duration = 0;
-            if (encounter != null && encounter.Exists)
-            {
-                duration = Math.Max(0, encounter.Active
-                    ? encounter.LiveDurationSeconds
-                    : encounter.FinalDurationSeconds);
-            }
+            double duration = EncounterDuration(encounter);
 
             // One duration-policy site for the primary and the secondary alike (SPEC Part
             // III §The metric registry — rate ÷ wall-clock duration, or raw count).
@@ -91,6 +98,15 @@ namespace Eq2Auras.Core.Meter
                 MetricLabel = metric.Label,
                 TotalText = metric.Format(total),
             };
+        }
+
+        /// Live wall clock while active, finalized log time once ended (SPEC Part III §Rates come
+        /// from our wall clock). Clamp defends the degenerate fresh-encounter poll where
+        /// StartTime == DateTime.MaxValue makes the live estimate hugely negative before the first swing.
+        private static double EncounterDuration(EncounterReading encounter)
+        {
+            if (encounter == null || !encounter.Exists) return 0;
+            return Math.Max(0, encounter.Active ? encounter.LiveDurationSeconds : encounter.FinalDurationSeconds);
         }
 
         internal static string FormatDuration(double seconds)

@@ -64,4 +64,18 @@ public class MetricRegistryTests
         Assert.Null(MetricRegistry.Find(null));            // no secondary
         Assert.Null(MetricRegistry.Find("no-such-metric")); // unknown -> off, NOT DPS
     }
+
+    [Fact]
+    public void ResolvePrimary_null_is_cleared()
+        => Assert.Null(MetricRegistry.ResolvePrimary(null));   // cleared -> show nothing
+
+    [Theory]
+    [InlineData("")]                 // non-null but unknown -> DPS (forward-compat)
+    [InlineData("no-such-metric")]
+    public void ResolvePrimary_unknown_nonnull_key_is_dps(string key)
+        => Assert.Equal("encdps", MetricRegistry.ResolvePrimary(key).Key);
+
+    [Fact]
+    public void ResolvePrimary_known_key_resolves()
+        => Assert.Equal("enchps", MetricRegistry.ResolvePrimary("enchps").Key);
 }

@@ -108,6 +108,7 @@ namespace Eq2Auras.Plugin.Overlay
                 config.SecondaryKey,
                 config.Locked,
                 config.Opacity ?? MeterSettings.DefaultOpacity,
+                config.BackdropOpacity ?? MeterSettings.DefaultBackdropOpacity,
                 config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
                 new MeterWindowCallbacks
                 {
@@ -116,6 +117,7 @@ namespace Eq2Auras.Plugin.Overlay
                     SecondaryPicked = key => SettingsStore.Update(_settings, () => config.SecondaryKey = key),
                     LockChanged = locked => SettingsStore.Update(_settings, () => config.Locked = locked),
                     OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
+                    BackdropOpacityChanged = v => SettingsStore.Update(_settings, () => config.BackdropOpacity = v),
                     RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
                     FontChanged = (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
                     GeometryChanged = (width, rows) => SettingsStore.Update(_settings, () => { config.Width = width; config.VisibleRows = rows; }),
@@ -136,10 +138,12 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var created = new MeterWindowConfig
             {
+                MetricKey = MetricRegistry.DefaultKey,   // seed so a New meter shows DPS, and null stays "user-cleared"
                 RowHeight = source.RowHeight,
                 FontFamily = source.FontFamily,
                 FontBaseSize = source.FontBaseSize,
                 Opacity = source.Opacity,
+                BackdropOpacity = source.BackdropOpacity,
                 // SecondaryKey intentionally omitted -> null = None: the secondary is a data
                 // choice, not inherited (SPEC Part III §Multiple windows — new window -> None).
             };

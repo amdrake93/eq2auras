@@ -12,6 +12,7 @@ namespace Eq2Auras.Plugin.Overlay
         public Action<string> SecondaryPicked;   // null = None
         public Action<bool> LockChanged;
         public Action<double> OpacityChanged;
+        public Action<double> BackdropOpacityChanged;
         public Action<double> RowHeightChanged;
         public Action<string, double> FontChanged;
         public Action<double, int> GeometryChanged;   // width + visible-row count, persisted at resize drag-end
