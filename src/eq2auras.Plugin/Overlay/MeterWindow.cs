@@ -46,7 +46,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _metricText;
         private readonly TextBlock _totalText;
         private string _metricKey;
-        private string _secondaryKey;   // null = None; the settings dropdown's current value
+        private string _secondaryKey;   // null = no secondary; toggled from the right-click popup
         private bool _locked;
 
         public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
