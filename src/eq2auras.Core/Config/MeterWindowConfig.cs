@@ -1,4 +1,5 @@
 using System.Runtime.Serialization;
+using Eq2Auras.Core.Meter;
 
 namespace Eq2Auras.Core.Config
 {
@@ -16,6 +17,9 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "secondaryKey")]
         public string SecondaryKey { get; set; }   // null/unknown -> no secondary (off), resolved at the engine via MetricRegistry.Find
+
+        [DataMember(Name = "scope")]
+        public MeterScope Scope { get; set; } = MeterScope.Allies;   // the PRIMARY's scope; 0-value survives DCJS (no initializer on deserialize). Unknown values degrade to Allies at the engine read site.
 
         [DataMember(Name = "left")]
         public double? Left { get; set; }
