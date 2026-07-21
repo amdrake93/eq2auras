@@ -98,12 +98,9 @@ namespace Eq2Auras.Plugin
                 Checked = _settings.BetaChannel
             };
             betaCheck.CheckedChanged += (s, e) =>
-            {
+                // Only persist the channel preference; the version swap happens on an
+                // explicit "Check for updates" click, never on toggle (SPEC §Updates target by channel identity).
                 SettingsStore.Update(_settings, () => _settings.BetaChannel = betaCheck.Checked);
-                // Toggling triggers a check against the now-selected channel (SPEC §Updates target by channel identity).
-                new SelfUpdater(SetStatusThreadSafe, ReloadSelf)
-                    .RunInBackground(pluginsDir, _settings.BetaChannel, _version);
-            };
 
             // Update-available notice — the tab surface of the two the spec requires
             // (the other is the ACT status label). Filled by the startup check (Task 7).
