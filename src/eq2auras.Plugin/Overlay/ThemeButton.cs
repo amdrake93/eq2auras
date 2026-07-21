@@ -65,10 +65,10 @@ namespace Eq2Auras.Plugin.Overlay
             SetEnabled(enabled);
         }
 
-        /// Toggle interactivity + the visual. Applied at construction so a gated action
-        /// (e.g. Remove meter on the last meter) reads as blocked immediately, not only
-        /// after a hover event forces the restyle.
-        public void SetEnabled(bool enabled)
+        /// Set interactivity + the matching visual. Called from the constructor so a gated
+        /// action (e.g. Remove meter on the last meter) reads as blocked immediately, not
+        /// only after a hover event forces the restyle.
+        private void SetEnabled(bool enabled)
         {
             _interactive = enabled;
             Cursor = enabled ? Cursors.Hand : Cursors.Arrow;
