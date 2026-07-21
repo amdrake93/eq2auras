@@ -264,7 +264,7 @@ git commit -m "Core: add MeterSelections — nine predefined primary selections"
 - Consumes: `MeterScope` (Task 1), `MeterSelections.Resolve` (Task 2).
 - Produces: `MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants, string metricKey, string secondaryKey = null, MeterScope scope = MeterScope.Allies)`. Population: Allies = `ShowOnlyAllies` filter (unchanged); Enemies = show only `!IsAlly` (Unknown dropped). `frame.MetricLabel` = the matching selection's label, or the metric's label when no selection matches.
 
-- [ ] **Step 1: Write the failing tests** — append to `MeterEngineTests.cs`. First extend the helper to set the new fields (replace the existing `Ally` helper's body signature by adding optional params — keep existing call sites working):
+- [ ] **Step 1: Write the failing tests** — append to `MeterEngineTests.cs`. First add a **new** helper `Combatant` alongside the existing `Ally` helper (`MeterEngineTests.cs:11-12`) — leave `Ally` and its ~15 call sites untouched; the new helper sets the `DamageTaken`/`PowerReplenish` fields these scope tests exercise:
 
 ```csharp
     private static CombatantReading Combatant(string name, bool isAlly, long damageTaken = 0, long healed = 0, long powerReplenish = 0)
@@ -542,6 +542,7 @@ git commit -m "Plugin: snapshot DamageTaken/HealsTaken/PowerReplenish per combat
 **Files:**
 - Modify: `src/eq2auras.Plugin/Overlay/MeterPopup.cs` (primary grid → selections, callback carries scope)
 - Modify: `src/eq2auras.Plugin/Overlay/MeterWindow.cs:48-59, 234-237` (hold `_scope`, constructor param, callback)
+- Modify: `src/eq2auras.Plugin/Overlay/MeterWindowCallbacks.cs:1,11` (add `using Eq2Auras.Core.Meter;`; rename `MetricPicked` → `PrimaryPicked`, retyped `Action<MeterScope, string>`)
 - Modify: `src/eq2auras.Plugin/Overlay/OverlayHost.cs:100-149, 227` (pass `config.Scope`, persist scope + metric together)
 
 **Interfaces:**
@@ -667,13 +668,13 @@ Update the popup construction and its primary callback (`:234-237`):
 
 (The remaining callback wiring — Lock/NewMeter/RemoveMeter — is unchanged.)
 
-Change the callback type: in `MeterWindowCallbacks` (find `public Action<string> MetricPicked;`) rename to:
+Change the callback type in the **separate file** `MeterWindowCallbacks.cs` — rename its `public Action<string> MetricPicked;` (`MeterWindowCallbacks.cs:11`) to:
 
 ```csharp
         public Action<MeterScope, string> PrimaryPicked;   // (scope, metricKey) persisted together
 ```
 
-Add `using Eq2Auras.Core.Meter;` if not already present (the file references `MetricRegistry`/`MeterFrame`, so it is).
+`MeterWindowCallbacks.cs` currently imports **only** `using System;` (`:1`); add `using Eq2Auras.Core.Meter;` there so `MeterScope` resolves. (`MeterWindow.cs` itself already imports `Eq2Auras.Core.Meter` at `:8`, so its own edits in this step need no new using.)
 
 - [ ] **Step 3: `OverlayHost` — pass `config.Scope` to the window, the engine, and persist scope+metric together.**
 
@@ -706,7 +707,7 @@ Pass scope to the engine (`:227`):
 - [ ] **Step 4: Push the branch and verify the plugin compiles in CI** (the only build gate available off-Mac):
 
 ```bash
-git add src/eq2auras.Plugin/Overlay/MeterPopup.cs src/eq2auras.Plugin/Overlay/MeterWindow.cs src/eq2auras.Plugin/Overlay/OverlayHost.cs
+git add src/eq2auras.Plugin/Overlay/MeterPopup.cs src/eq2auras.Plugin/Overlay/MeterWindow.cs src/eq2auras.Plugin/Overlay/MeterWindowCallbacks.cs src/eq2auras.Plugin/Overlay/OverlayHost.cs
 git commit -m "Plugin: thread scope through popup selections, window, and host"
 git push -u origin meter-basic-metrics
 gh run watch $(gh run list --branch meter-basic-metrics --limit 1 --json databaseId --jq '.[0].databaseId') --exit-status
