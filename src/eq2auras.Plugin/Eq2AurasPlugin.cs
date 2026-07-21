@@ -88,8 +88,11 @@ namespace Eq2Auras.Plugin
 
             var updateButton = new Button { Left = 10, Top = 12, Width = 150, Text = "Check for updates" };
             updateButton.Click += (s, e) =>
-                new SelfUpdater(SetStatusThreadSafe, ReloadSelf)
+            {
+                SetUpdateMessage("checking for updates…");   // instant feedback under the button; overwritten by the outcome
+                new SelfUpdater(SetUpdateMessage, ReloadSelf)
                     .RunInBackground(pluginsDir, _settings.BetaChannel, _version);
+            };
 
             var betaCheck = new CheckBox
             {
@@ -343,6 +346,15 @@ namespace Eq2Auras.Plugin
             _paletteRow.Controls.Add(add);
             _paletteRow.Controls.Add(remove);
             _paletteRow.Controls.Add(reset);
+        }
+
+        /// Writes an update message to BOTH the tab notice under the button (where the user
+        /// is looking after clicking) and ACT's plugin status label. Used for the manual
+        /// "check for updates" click lifecycle so a check that finds nothing is still visible.
+        private void SetUpdateMessage(string message)
+        {
+            SetStatusThreadSafe(message);
+            SetTabNoticeThreadSafe(message);
         }
 
         private void SetStatusThreadSafe(string message)
