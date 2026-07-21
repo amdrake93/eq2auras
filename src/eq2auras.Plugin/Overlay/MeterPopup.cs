@@ -17,7 +17,7 @@ namespace Eq2Auras.Plugin.Overlay
     {
         public sealed class Callbacks
         {
-            public Action<string> PrimaryToggled;    // new key, or null to clear
+            public Action<MeterScope, string> PrimarySelected;    // (scope, metricKey); metricKey null clears the primary
             public Action<string> SecondaryToggled;   // new key, or null to clear
             public Action Lock;
             public Action NewMeter;
@@ -28,12 +28,14 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Callbacks _cb;
         private readonly List<KeyValuePair<string, MetricGridItem>> _primaryItems = new List<KeyValuePair<string, MetricGridItem>>();
         private readonly List<KeyValuePair<string, MetricGridItem>> _secondaryItems = new List<KeyValuePair<string, MetricGridItem>>();
+        private MeterScope _scope;
         private string _primaryKey;
         private string _secondaryKey;
 
-        public MeterPopup(UIElement placementTarget, string primaryKey, string secondaryKey, Func<bool> canRemove, Callbacks cb)
+        public MeterPopup(UIElement placementTarget, MeterScope scope, string primaryKey, string secondaryKey, Func<bool> canRemove, Callbacks cb)
         {
             _cb = cb;
+            _scope = scope;
             _primaryKey = primaryKey;
             _secondaryKey = secondaryKey;
 
@@ -84,41 +86,58 @@ namespace Eq2Auras.Plugin.Overlay
 
         private UIElement BuildGrid(bool isPrimary)
         {
-            var items = isPrimary ? _primaryItems : _secondaryItems;
             var grid = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(11, 2, 11, 10) };
             foreach (var family in MetricRegistry.All.Select(m => m.Category).Distinct())
             {
                 var col = new StackPanel { Margin = new Thickness(0, 0, 10, 0) };
                 col.Children.Add(FamilyHeader(family));
-                foreach (var metric in MetricRegistry.All.Where(m => m.Category == family))
+                if (isPrimary)
                 {
-                    string key = metric.Key;
-                    bool selected = isPrimary ? key == _primaryKey : key == _secondaryKey;
-                    var item = new MetricGridItem(metric.Label, selected);
-                    items.Add(new KeyValuePair<string, MetricGridItem>(key, item));
-                    item.Toggled += () => OnToggle(isPrimary, key);
-                    col.Children.Add(item);
+                    foreach (var selection in MeterSelections.Primary.Where(s => MetricRegistry.Resolve(s.MetricKey).Category == family))
+                    {
+                        bool selected = selection.Scope == _scope && selection.MetricKey == _primaryKey;
+                        var item = new MetricGridItem(selection.Label, selected);
+                        _primaryItems.Add(new KeyValuePair<string, MetricGridItem>(SelectionId(selection), item));
+                        var captured = selection;
+                        item.Toggled += () => OnPrimaryToggle(captured);
+                        col.Children.Add(item);
+                    }
+                }
+                else
+                {
+                    foreach (var metric in MetricRegistry.All.Where(m => m.Category == family))
+                    {
+                        string key = metric.Key;
+                        var item = new MetricGridItem(metric.Label, key == _secondaryKey);
+                        _secondaryItems.Add(new KeyValuePair<string, MetricGridItem>(key, item));
+                        item.Toggled += () => OnSecondaryToggle(key);
+                        col.Children.Add(item);
+                    }
                 }
                 grid.Children.Add(col);
             }
             return grid;
         }
 
-        private void OnToggle(bool isPrimary, string key)
+        // A primary grid item's id encodes both axes so the lit item tracks the exact
+        // (scope, metric) selected — an ally and an enemy entry can share a metric key.
+        private static string SelectionId(PrimarySelection s) => (int)s.Scope + ":" + s.MetricKey;
+
+        private void OnPrimaryToggle(PrimarySelection selection)
         {
-            // Toggle: clicking the lit one clears (null); clicking another switches to it.
-            if (isPrimary)
-            {
-                _primaryKey = _primaryKey == key ? null : key;
-                RefreshSection(_primaryItems, _primaryKey);
-                _cb.PrimaryToggled(_primaryKey);
-            }
-            else
-            {
-                _secondaryKey = _secondaryKey == key ? null : key;
-                RefreshSection(_secondaryItems, _secondaryKey);
-                _cb.SecondaryToggled(_secondaryKey);
-            }
+            bool wasSelected = selection.Scope == _scope && selection.MetricKey == _primaryKey;
+            _scope = selection.Scope;
+            _primaryKey = wasSelected ? null : selection.MetricKey;   // click the lit one to clear
+            foreach (var pair in _primaryItems)
+                pair.Value.Selected = !wasSelected && pair.Key == SelectionId(selection);
+            _cb.PrimarySelected(_scope, _primaryKey);
+        }
+
+        private void OnSecondaryToggle(string key)
+        {
+            _secondaryKey = _secondaryKey == key ? null : key;
+            RefreshSection(_secondaryItems, _secondaryKey);
+            _cb.SecondaryToggled(_secondaryKey);
         }
 
         // Single-selection per section: exactly the item whose key == the section's current

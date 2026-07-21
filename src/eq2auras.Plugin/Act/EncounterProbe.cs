@@ -72,6 +72,9 @@ namespace Eq2Auras.Plugin.Act
                                 Damage = combatant.Damage,
                                 Healed = combatant.Healed,
                                 CureDispels = combatant.CureDispels,
+                                DamageTaken = combatant.DamageTaken,
+                                HealsTaken = combatant.HealsTaken,
+                                PowerReplenish = combatant.PowerReplenish,
                                 IsAlly = allySet.Contains(combatant),
                             });
                         }

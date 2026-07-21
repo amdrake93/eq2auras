@@ -31,9 +31,9 @@ public class MetricRegistryTests
         => Assert.Equal(MetricRegistry.DefaultKey, MetricRegistry.Resolve(key).Key);
 
     [Fact]
-    public void Ships_exactly_the_three_slice1_metrics()
+    public void Ships_the_seven_metrics_in_order()
     {
-        Assert.Equal(new[] { "encdps", "enchps", "cures" },
+        Assert.Equal(new[] { "encdps", "enchps", "cures", "damagetaken", "totalhealing", "healstaken", "powerheal" },
             System.Linq.Enumerable.Select(MetricRegistry.All, m => m.Key));
     }
 
@@ -78,4 +78,45 @@ public class MetricRegistryTests
     [Fact]
     public void ResolvePrimary_known_key_resolves()
         => Assert.Equal("enchps", MetricRegistry.ResolvePrimary("enchps").Key);
+
+    [Theory]
+    [InlineData("damagetaken", "Damage Taken", "Damage")]
+    [InlineData("totalhealing", "Total Healing", "Healing")]
+    [InlineData("healstaken", "Healing Taken", "Healing")]
+    [InlineData("powerheal", "Power Replenish", "Utility")]
+    public void New_total_metrics_are_registered_as_abbreviated_non_rates(string key, string label, string category)
+    {
+        var metric = MetricRegistry.Resolve(key);
+
+        Assert.Equal(key, metric.Key);
+        Assert.Equal(label, metric.Label);
+        Assert.Equal(category, metric.Category);
+        Assert.False(metric.IsRate);                 // a total, not a rate — never divided by duration
+        Assert.Equal("1.5M", metric.Format(1_500_000));   // K/M/B abbreviation, not a plain integer
+    }
+
+    [Theory]
+    [InlineData("damagetaken", 4200L, 0L, 0L, 4200)]
+    [InlineData("healstaken", 0L, 900L, 0L, 900)]
+    [InlineData("powerheal", 0L, 0L, 700L, 700)]
+    public void New_metric_selectors_read_their_combatant_field(string key, long dmgTaken, long healsTaken, long powerReplenish, double expected)
+    {
+        var reading = new CombatantReading
+        {
+            DamageTaken = dmgTaken,
+            HealsTaken = healsTaken,
+            PowerReplenish = powerReplenish,
+        };
+
+        Assert.Equal(expected, MetricRegistry.Resolve(key).Select(reading));
+    }
+
+    [Fact]
+    public void Total_healing_and_hps_share_the_healed_selector()
+    {
+        var reading = new CombatantReading { Healed = 12_000 };
+
+        Assert.Equal(12_000, MetricRegistry.Resolve("totalhealing").Select(reading));
+        Assert.Equal(12_000, MetricRegistry.Resolve("enchps").Select(reading));
+    }
 }

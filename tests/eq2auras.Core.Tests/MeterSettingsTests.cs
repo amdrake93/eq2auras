@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using Eq2Auras.Core.Config;
+using Eq2Auras.Core.Meter;
 using Xunit;
 
 public class MeterSettingsTests
@@ -260,5 +261,28 @@ public class MeterSettingsTests
         var parsed = Settings.Parse(json);
 
         Assert.Null(parsed.Meter.Windows[0].BackdropOpacity);   // null -> host resolves to DefaultBackdropOpacity (1.0)
+    }
+
+    [Fact]
+    public void A_window_with_no_scope_key_defaults_to_allies()
+    {
+        // DCJS skips the field initializer on deserialize, so a window carrying no "scope"
+        // arrives at the enum's 0-value = Allies (the legacy-config case).
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"encdps\"}]}}";
+
+        var parsed = Settings.Parse(json);
+
+        Assert.Equal(MeterScope.Allies, parsed.Meter.Windows[0].Scope);
+    }
+
+    [Fact]
+    public void Enemies_scope_parses_and_reserializes_numerically()
+    {
+        var json = "{\"meter\":{\"enabled\":true,\"windows\":[{\"metricKey\":\"damagetaken\",\"scope\":1}]}}";
+
+        var parsed = Settings.Parse(json);
+        Assert.Equal(MeterScope.Enemies, parsed.Meter.Windows[0].Scope);
+
+        Assert.Contains("\"scope\":1", parsed.ToJson());   // DCJS house style: enum as its numeric value
     }
 }

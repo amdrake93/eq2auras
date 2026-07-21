@@ -10,6 +10,9 @@ namespace Eq2Auras.Core.Meter
         public long Damage { get; set; }
         public long Healed { get; set; }      // includes wards — the EQ2 parser folds absorbs in
         public int CureDispels { get; set; }
+        public long DamageTaken { get; set; }
+        public long HealsTaken { get; set; }
+        public long PowerReplenish { get; set; }   // power restored to others (ACT swing type 13)
         public bool IsAlly { get; set; }      // was this combatant in ACT's GetAllies()? — drives the mini-parse ShowOnlyAllies filter
     }
 

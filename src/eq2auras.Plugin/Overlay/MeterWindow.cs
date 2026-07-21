@@ -45,16 +45,18 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly TextBlock _metricText;          // primary metric name — the header's left identity (white)
         private readonly TextBlock _secondaryLabelText;  // secondary metric label (right cluster, subordinate grey)
         private readonly TextBlock _totalText;
+        private MeterScope _scope;
         private string _metricKey;
         private string _secondaryKey;   // null = no secondary; toggled from the right-click popup
         private bool _locked;
 
-        public MeterWindow(double left, double top, VisualStyle style, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
+        public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
             _cb = callbacks;
             _style = style;
+            _scope = scope;
             _metricKey = metricKey;   // raw: null = cleared (shows nothing); resolution is the engine's (ResolvePrimary)
             _secondaryKey = secondaryKey;                         // null/unknown -> None (no Resolve; off, not DPS)
             _locked = locked;
@@ -231,9 +233,9 @@ namespace Eq2Auras.Plugin.Overlay
         /// through the callbacks (a cleared primary passes null — the meter shows nothing).
         private void OpenPopup(UIElement target)
         {
-            var popup = new MeterPopup(target, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
+            var popup = new MeterPopup(target, _scope, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
             {
-                PrimaryToggled = key => { _metricKey = key; _cb.MetricPicked(key); },
+                PrimarySelected = (scope, key) => { _scope = scope; _metricKey = key; _cb.PrimaryPicked(scope, key); },
                 SecondaryToggled = SetSecondary,
                 Lock = () => { _locked = !_locked; UpdateGrips(); _cb.LockChanged(_locked); },
                 NewMeter = () => _cb.NewWindow(),

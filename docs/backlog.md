@@ -2,10 +2,22 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-20
+
+### IMPLEMENTED, READY FOR REVIEW + FIELD TEST — basic meter metrics + independent scope axis (branch `meter-basic-metrics`)
+Addresses **DEFERRED #1** below (more generic metrics). Full normal-flow, **full-autonomous** (Alex-authorized): brainstorm → SPEC amendment (third-party-reviewed to closure, 3 rounds) → plan (third-party-reviewed to closure, 2 rounds) → implement inline. **Not merged — Alex's merge gate + on-box field test are his.**
+
+**Settled design (SPEC Part III — §The metric registry / §Displayed combatants / §Configuration / §Settings / §Header / §Assembly split / §Slice map):**
+- **Registry grows 3 → 7 scope-free metrics** — adds the `damagetaken` (Damage Taken), `totalhealing` (Total Healing), `healstaken` (Healing Taken), `powerheal` (Power Replenish) **totals** (all `isRate:false` + K/M/B abbreviation — a total that abbreviates, a combo the code supported but had never used). All read direct `CombatantData` properties.
+- **Scope is an independent axis** (Allies/Enemies), on the window, **not** the `MetricDef` — "enemy" = "not in ACT's ally set" (the only friend/foe signal). The engine's population filter honors it: Allies = today's `ShowOnlyAllies`, Enemies = its inverse (mirror pre-engage wart, self-heals on engage).
+- **Primary picker = predefined selections** (curated scope + metric under one label, e.g. "Enemy Damage Taken" = Enemies × `damagetaken`); **secondary = scope-free metric that inherits the primary's scope** (no "Enemy…" entries in the secondary grid). The selection's label is the header identity.
+
+**Implementation (2026-07-20):** all 6 plan tasks done inline. Core strict-TDD (**221 green** — +new metric/selection/scope/config tests); Plugin **transcribe-only** (`CombatantReading`/`EncounterProbe` +3 fields, `MeterEngine.Tick` +scope arg, `MeterWindowConfig.scope`, popup/window/host selection wiring). Branch pushed → **verify-only CI green** (Core tests + WPF compiles + artifact staged; publish correctly skipped on a branch). **NOT Mac-runtime-verified** — the 8-step on-box merge-gate live script rides the plan (`docs/plans/2026-07-20-meter-basic-metrics.md` §Testing strategy). Timers provably untouched. Presented ready-for-review; merge + field test are Alex's.
+
 ## From Alex — 2026-07-19
 
 ### DEFERRED (meter, future) — more metrics + row drill-down (capturing 3 asks; 2026-07-19)
-1. **More generic metrics** — extend the flat registry beyond DPS/HPS/Cures. *Mechanism already exists* ("adding a metric is appending a definition," SPEC §The metric registry; `MetricRegistry.All`), but no explicit set is queued. Candidates are the generic combat totals/rates ACT already exposes via direct property selectors (e.g. damage-taken/DTPS, hit/attempt counts, crit%). Pick the set when taken up.
+1. **More generic metrics** — **→ IMPLEMENTED 2026-07-20** (branch `meter-basic-metrics`, ready-for-review entry above): the set picked was four **totals** (Damage Taken, Total Healing, Healing Taken, Power Replenish) plus an independent **Allies/Enemies scope axis** surfaced as predefined primary selections. Rates/counts beyond these (DTPS, hit/attempt counts, crit%) remain appendable the same way if later wanted; crit%/accuracy were noted as a distinct third "kind" (percentage) that would need a new formatter + bar/percent-column semantics — deferred, not taken this round.
 2. **Row drill-down** — click a row to swap the window to per-row detail (ability/target breakdown). **Already designed-for — documented, not new:** SPEC §The meter window ("interactive content — popup now; row drill-down later"), §Slice map deferred ("row drill-down"), the data path (§The one data rule — ACT retains raw `MasterSwing`s under `AttackType.Items`, iterated under the lock; "Drill-down stays possible without our own store"), and the window/theme shell built forward-compatible for a row-click that swaps to a drill-down (§The theme system). This bullet is the backlog pointer to that.
 3. **Non-generic / derived metrics — deaths, special avoidance** *(NEW — not previously captured)* — metrics that likely need more than a direct property selector: event detection or derived counters (death count; special-attack avoidance rate; similar). Feasibility is per-metric and depends on what ACT's model/log exposes for these events — a small investigation each. Related to the user-defined-metric path (SPEC §The metric registry), but these would probably ship as **built-ins** first once the data source is confirmed.
 
