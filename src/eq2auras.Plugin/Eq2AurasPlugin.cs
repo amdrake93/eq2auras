@@ -24,6 +24,7 @@ namespace Eq2Auras.Plugin
         private OverlayEngine _engine;
         private EncounterProbe _encounterProbe;
         private Settings _settings;
+        private Timer _updatePollTimer;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
         {
@@ -54,21 +55,20 @@ namespace Eq2Auras.Plugin
             // single-assembly packaging Core cannot diverge from it.
             _statusLabel.Text = "eq2auras v" + _version + " | logging to " + _log.FilePath;
 
-            // Notify-only startup check on the selected channel (SPEC §Notify on startup).
-            // Best-effort, background; never blocks InitPlugin, never auto-installs.
-            // Surfaces the notice on BOTH the tab label and the ACT status label ("both … and").
-            new SelfUpdater(SetStatusThreadSafe, ReloadSelf).CheckInBackground(
-                _settings.BetaChannel, _version,
-                available =>
-                {
-                    var notice = "update available: v" + available + " — click \"Check for updates\"";
-                    SetTabNoticeThreadSafe(notice);
-                    SetStatusThreadSafe(notice);
-                });
+            // Notify-only update check (SPEC §Notify on startup, and on a recurring poll):
+            // best-effort, background, never auto-installs. Runs now and every 5 minutes so a
+            // build published while the plugin is loaded surfaces without a restart.
+            CheckForUpdateNotify();
+            _updatePollTimer = new Timer { Interval = 5 * 60 * 1000 };
+            _updatePollTimer.Tick += (s, e) => CheckForUpdateNotify();
+            _updatePollTimer.Start();
         }
 
         public void DeInitPlugin()
         {
+            _updatePollTimer?.Stop();
+            _updatePollTimer?.Dispose();
+            _updatePollTimer = null;
             _probe?.Dispose();
             _probe = null;
             _encounterProbe = null;   // no timers/subscriptions of its own — driven by the probe's tick
@@ -88,8 +88,11 @@ namespace Eq2Auras.Plugin
 
             var updateButton = new Button { Left = 10, Top = 12, Width = 150, Text = "Check for updates" };
             updateButton.Click += (s, e) =>
-                new SelfUpdater(SetStatusThreadSafe, ReloadSelf)
+            {
+                SetUpdateMessage("checking for updates…");   // instant feedback under the button; overwritten by the outcome
+                new SelfUpdater(SetUpdateMessage, ReloadSelf)
                     .RunInBackground(pluginsDir, _settings.BetaChannel, _version);
+            };
 
             var betaCheck = new CheckBox
             {
@@ -343,6 +346,25 @@ namespace Eq2Auras.Plugin
             _paletteRow.Controls.Add(add);
             _paletteRow.Controls.Add(remove);
             _paletteRow.Controls.Add(reset);
+        }
+
+        /// Notify-only channel check (SPEC §Notify on startup, and on a recurring poll):
+        /// no download, no reload. Surfaces "update available: v‹X›" on both the tab notice
+        /// and ACT's status label (via SetUpdateMessage), and only when an update exists.
+        private void CheckForUpdateNotify()
+        {
+            new SelfUpdater(SetStatusThreadSafe, ReloadSelf).CheckInBackground(
+                _settings.BetaChannel, _version,
+                available => SetUpdateMessage("update available: v" + available + " — click \"Check for updates\""));
+        }
+
+        /// Writes an update message to BOTH the tab notice under the button (where the user
+        /// is looking after clicking) and ACT's plugin status label. Used for the manual
+        /// "check for updates" click lifecycle so a check that finds nothing is still visible.
+        private void SetUpdateMessage(string message)
+        {
+            SetStatusThreadSafe(message);
+            SetTabNoticeThreadSafe(message);
         }
 
         private void SetStatusThreadSafe(string message)
