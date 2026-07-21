@@ -13,7 +13,7 @@
 - **Plugin project is transcribe-only.** It cannot be built or unit-tested on the Mac (net472 + WPF/WinForms). Verification is: branch-push verify CI (WPF/plugin compiles) + Alex's on-box field script. There is **no Core logic** in this change, so no Core tests are added; Core's existing suite remains the Core regression guard.
 - **Scan-safety (SPEC §Packaging / hard rules):** no `async` added to the Plugin project; no non-GAC types in fields. `System.Windows.Forms.Timer` is a GAC type — safe as a field. `SelfUpdater` already does its own `Task.Run` internally; this plan does not add async.
 - **Single-assembly packaging:** no new project references; all edits live in the existing `src/eq2auras.Plugin/Eq2AurasPlugin.cs`.
-- **Reuse existing outcome strings.** The only new user-facing string is the transient `checking for updates…`. The five outcome strings (`already up to date (v‹X›)`, `downloading …`, `update v‹X› installed — reloading…`, `update failed: …`, `no ‹tag› release yet`) live in `SelfUpdater.cs` and are not modified.
+- **Reuse existing outcome strings.** The only new user-facing string is the transient `checking for updates…`. The five outcome strings (`already up to date (v‹X›)`, `downloading …`, `update v‹X› installed — reloading…`, `update failed: …`, `no ‹tag› release yet`) live in `src/eq2auras.Plugin/SelfUpdate/SelfUpdater.cs` and are not modified.
 - **Behavior per SPEC §Release channels** — *Notify on startup, and on a recurring poll* + *The manual "check for updates" click reports its outcome on the tab* (branch `update-notify-poll-and-feedback`, `docs/SPEC.md`).
 
 ## File Structure
@@ -37,7 +37,7 @@ No new files. No Core changes.
 - Test: none (transcribe-only Plugin; verified by CI compile + field script).
 
 **Interfaces:**
-- Consumes: `SetStatusThreadSafe(string)` (`:348`), `SetTabNoticeThreadSafe(string)` (`:353`), `ReloadSelf` (`:361`), `SelfUpdater(Action<string> status, Action applyReload)` + `.RunInBackground(pluginsDir, betaChannel, version)` (`SelfUpdater.cs:25,33`).
+- Consumes: `SetStatusThreadSafe(string)` (`:348`), `SetTabNoticeThreadSafe(string)` (`:353`), `ReloadSelf` (`:361`), `SelfUpdater(Action<string> status, Action applyReload)` + `.RunInBackground(pluginsDir, betaChannel, version)` (`src/eq2auras.Plugin/SelfUpdate/SelfUpdater.cs:25,33`).
 - Produces: `private void SetUpdateMessage(string message)` — writes a message to both the ACT status label and the tab notice; used by the manual-click path in this task and available to the poll path in Task 2.
 
 - [ ] **Step 1: Add the `SetUpdateMessage` helper.**
@@ -94,11 +94,11 @@ git commit -m "Manual check-for-updates reports outcome on the tab notice + inst
 ### Task 2: Recurring 5-minute notify poll
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` — add `_updatePollTimer` field (fields block `:17-26`); extract the startup notify block (`:60-67`) into `CheckForUpdateNotify()`; start the timer in `InitPlugin`; dispose it in `DeInitPlugin` (`:70-81`).
+- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` — add `_updatePollTimer` field (fields block `:17-26`); extract the startup notify block (`:57-67`, comment + call) into `CheckForUpdateNotify()`; start the timer in `InitPlugin`; dispose it in `DeInitPlugin` (`:70-81`).
 - Test: none (transcribe-only; CI compile + field script).
 
 **Interfaces:**
-- Consumes: `SetUpdateMessage(string)` (from Task 1), `SetStatusThreadSafe` (`:348`), `ReloadSelf` (`:361`), `SelfUpdater(...).CheckInBackground(betaChannel, version, Action<string> onUpdateAvailable)` (`SelfUpdater.cs:44`), `System.Windows.Forms.Timer` (the `using System.Windows.Forms;` at the top of the file makes `Timer` resolve to the WinForms timer, as in `TimerProbe.cs`).
+- Consumes: `SetUpdateMessage(string)` (from Task 1), `SetStatusThreadSafe` (`:348`), `ReloadSelf` (`:361`), `SelfUpdater(...).CheckInBackground(betaChannel, version, Action<string> onUpdateAvailable)` (`src/eq2auras.Plugin/SelfUpdate/SelfUpdater.cs:44`), `System.Windows.Forms.Timer` (the `using System.Windows.Forms;` at the top of the file makes `Timer` resolve to the WinForms timer, as in `TimerProbe.cs`).
 - Produces: `private void CheckForUpdateNotify()` — the notify-only check (surfaces `update available: v‹X›` only when an update exists); called at startup and per timer tick.
 
 > Depends on Task 1 (uses `SetUpdateMessage`); implement Task 1 first.
@@ -189,7 +189,7 @@ git commit -m "Add recurring 5-minute notify poll so mid-session releases surfac
 
 - [ ] **Step 2: Mark the "Update-notify caching observation" addressed.** Note that a mid-session build now surfaces within one 5-minute poll interval without a disable/re-enable — the recurring poll resolves the observed behavior (it was the missing re-poll, not an HTTP cache).
 
-- [ ] **Step 3: Refresh stale section-name cross-references.** Both entries cite `SPEC §Release channels — Notify on startup`; that heading is now "Notify on startup, and on a recurring poll." Update the pointers.
+- [ ] **Step 3: Refresh the one stale section-name cross-reference.** Only the grey-out IDEA entry cites the heading — `docs/backlog.md`, the "grey out 'Check for updates' when no update is detected" entry: "…notify string, SPEC §Release channels — *Notify on startup*". That heading is now "Notify on startup, and on a recurring poll" (`docs/SPEC.md:485`); update that single pointer. (The caching-observation entry has **no** §-heading pointer — Step 2 covers its content — and the historical go-public entry's descriptive "Notify-on-startup" prose is not a heading citation, so leave it as-is.)
 
 - [ ] **Step 4: Commit.**
 
