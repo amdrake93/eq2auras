@@ -319,4 +319,102 @@ public class MeterEngineTests
 
         Assert.Equal("", frame.SecondaryLabel);
     }
+
+    private static CombatantReading Combatant(string name, bool isAlly, long damageTaken = 0, long healed = 0, long powerReplenish = 0)
+        => new() { Name = name, DamageTaken = damageTaken, Healed = healed, PowerReplenish = powerReplenish, IsAlly = isAlly };
+
+    [Fact]
+    public void Enemy_scope_shows_only_non_allies()
+    {
+        var combatants = new List<CombatantReading>
+        {
+            Combatant("Me", isAlly: true, damageTaken: 100),
+            Combatant("Boss", isAlly: false, damageTaken: 5000),
+            Combatant("Add", isAlly: false, damageTaken: 3000),
+        };
+
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, MeterScope.Enemies);
+
+        Assert.Equal(new[] { "Boss", "Add" }, frame.Rows.Select(r => r.Name));   // allies excluded, sorted desc
+        Assert.Equal(8000, frame.Rows.Sum(r => r.Value));
+    }
+
+    [Fact]
+    public void Allies_scope_default_still_shows_only_allies()
+    {
+        var combatants = new List<CombatantReading>
+        {
+            Combatant("Me", isAlly: true, damageTaken: 100),
+            Combatant("Boss", isAlly: false, damageTaken: 5000),
+        };
+
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken");   // scope defaults to Allies
+
+        Assert.Equal(new[] { "Me" }, frame.Rows.Select(r => r.Name));
+    }
+
+    [Fact]
+    public void Pre_engage_shows_everyone_under_either_scope()
+    {
+        var combatants = new List<CombatantReading>   // no allies classified yet
+        {
+            Combatant("Groupmate", isAlly: false, damageTaken: 10),
+            Combatant("Mob", isAlly: false, damageTaken: 20),
+        };
+
+        var allies = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, MeterScope.Allies);
+        var enemies = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, MeterScope.Enemies);
+
+        Assert.Equal(2, allies.Rows.Count);   // Allies escape hatch: no allies -> show all
+        Assert.Equal(2, enemies.Rows.Count);  // Enemies: all are non-allies -> show all
+    }
+
+    [Fact]
+    public void Enemy_scope_with_no_enemies_yields_no_rows()
+    {
+        var combatants = new List<CombatantReading> { Combatant("Me", isAlly: true, damageTaken: 100) };
+
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, MeterScope.Enemies);
+
+        Assert.Empty(frame.Rows);
+    }
+
+    [Fact]
+    public void Header_identity_is_the_selection_label_not_the_bare_metric()
+    {
+        var combatants = new List<CombatantReading> { Combatant("Boss", isAlly: false, damageTaken: 5000) };
+
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, MeterScope.Enemies);
+
+        Assert.Equal("Enemy Damage Taken", frame.MetricLabel);
+    }
+
+    [Fact]
+    public void Secondary_is_computed_over_the_scoped_population()
+    {
+        var combatants = new List<CombatantReading>
+        {
+            Combatant("Boss", isAlly: false, damageTaken: 5000, healed: 800),
+        };
+
+        // primary = enemy damage taken; secondary = total healing -> reads the enemy's Healed
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken", "totalhealing", MeterScope.Enemies);
+
+        Assert.Single(frame.Rows[0].Secondaries);
+        Assert.Equal("800", frame.Rows[0].Secondaries[0].FormattedValue);
+    }
+
+    [Fact]
+    public void Unknown_scope_value_degrades_to_allies_behavior()
+    {
+        var combatants = new List<CombatantReading>
+        {
+            Combatant("Me", isAlly: true, damageTaken: 100),
+            Combatant("Boss", isAlly: false, damageTaken: 5000),
+        };
+
+        var frame = new MeterEngine().Tick(Live(100), combatants, "damagetaken", null, (MeterScope)99);
+
+        Assert.Equal(new[] { "Me" }, frame.Rows.Select(r => r.Name));   // not Enemies -> Allies filter
+    }
 }

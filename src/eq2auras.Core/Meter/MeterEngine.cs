@@ -11,7 +11,7 @@ namespace Eq2Auras.Core.Meter
     public sealed class MeterEngine
     {
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
-            string metricKey, string secondaryKey = null)
+            string metricKey, string secondaryKey = null, MeterScope scope = MeterScope.Allies)
         {
             var metric = MetricRegistry.ResolvePrimary(metricKey);
             if (metric == null)
@@ -29,6 +29,12 @@ namespace Eq2Auras.Core.Meter
             }
             var secondary = MetricRegistry.Find(secondaryKey);   // null -> no secondary
 
+            // The primary's identity is the SELECTION label (e.g. "Enemy Damage Taken"),
+            // not the bare metric name — SPEC Part III §Header. Falls back to the metric's
+            // own label when no selection matches (forward-compat for an unknown (scope, key)).
+            var selection = MeterSelections.Resolve(scope, metricKey);
+            string metricLabel = selection?.Label ?? metric.Label;
+
             // Live wall clock while active, finalized log time once ended (SPEC Part III
             // §Rates come from our wall clock). Clamp defends the degenerate
             // fresh-encounter poll: StartTime == DateTime.MaxValue makes the live
@@ -43,20 +49,28 @@ namespace Eq2Auras.Core.Meter
                 return def.IsRate ? (duration > 0 ? raw / duration : 0) : raw;
             }
 
-            // Mirror ACT's mini parse combatant selection (SPEC Part III §Displayed
-            // combatants). Base set = every combatant; ShowOnlyAllies hides non-allies
-            // BUT only when the ally set is non-empty (ACT's escape hatch) — so before
-            // the user acts (no allies classified) every combatant shows, mob included,
-            // which self-heals the instant the user engages. "Unknown" is always dropped.
+            // Scope selects the population (SPEC Part III §Displayed combatants): Allies mirrors
+            // ACT's ShowOnlyAllies filter (hide non-allies only when the ally set is non-empty —
+            // ACT's escape hatch, so pre-engage shows everyone); Enemies is the exact inverse
+            // (show only non-allies). "Unknown" is always dropped. An unrecognized scope value
+            // degrades to Allies (forward-compat, read-site — no persisted clamp).
             var all = combatants ?? new List<CombatantReading>();
-            bool anyAlly = all.Any(c => c.IsAlly);   // ACT's `list2.Count > 0` escape-hatch guard
+            bool enemyScope = scope == MeterScope.Enemies;
+            bool anyAlly = all.Any(c => c.IsAlly);
 
             var rows = new List<MeterRow>();
             double total = 0;
             foreach (var combatant in all)
             {
                 if (combatant.Name == "Unknown") continue;
-                if (anyAlly && !combatant.IsAlly) continue;
+                if (enemyScope)
+                {
+                    if (combatant.IsAlly) continue;
+                }
+                else if (anyAlly && !combatant.IsAlly)
+                {
+                    continue;
+                }
 
                 double value = Compute(metric, combatant);
                 total += value;
@@ -90,7 +104,7 @@ namespace Eq2Auras.Core.Meter
             {
                 Rows = rows,
                 DurationText = FormatDuration(duration),
-                MetricLabel = metric.Label,
+                MetricLabel = metricLabel,
                 SecondaryLabel = secondary != null ? secondary.Label : "",
                 TotalText = metric.Format(total),
             };
