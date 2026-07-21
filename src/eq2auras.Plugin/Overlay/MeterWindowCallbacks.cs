@@ -1,4 +1,5 @@
 using System;
+using Eq2Auras.Core.Meter;
 
 namespace Eq2Auras.Plugin.Overlay
 {
@@ -8,7 +9,7 @@ namespace Eq2Auras.Plugin.Overlay
     public sealed class MeterWindowCallbacks
     {
         public Action<double, double> PersistPosition;
-        public Action<string> MetricPicked;
+        public Action<MeterScope, string> PrimaryPicked;   // (scope, metricKey) persisted together
         public Action<string> SecondaryPicked;   // null = None
         public Action<bool> LockChanged;
         public Action<double> OpacityChanged;

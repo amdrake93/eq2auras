@@ -104,6 +104,7 @@ namespace Eq2Auras.Plugin.Overlay
                 config.Left ?? DefaultMeterLeft(style),
                 config.Top ?? DefaultMeterTop,
                 style,
+                config.Scope,
                 config.MetricKey,
                 config.SecondaryKey,
                 config.Locked,
@@ -113,7 +114,7 @@ namespace Eq2Auras.Plugin.Overlay
                 new MeterWindowCallbacks
                 {
                     PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
-                    MetricPicked = key => SettingsStore.Update(_settings, () => config.MetricKey = key),
+                    PrimaryPicked = (scope, key) => SettingsStore.Update(_settings, () => { config.Scope = scope; config.MetricKey = key; }),
                     SecondaryPicked = key => SettingsStore.Update(_settings, () => config.SecondaryKey = key),
                     LockChanged = locked => SettingsStore.Update(_settings, () => config.Locked = locked),
                     OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
@@ -224,7 +225,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 foreach (var pair in _meterWindows)
                 {
-                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, pair.Key.SecondaryKey);
+                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, pair.Key.SecondaryKey, pair.Key.Scope);
                     pair.Value.Render(frame);
                 }
             }));
