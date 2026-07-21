@@ -4,8 +4,8 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ## From Alex — 2026-07-20
 
-### IMPLEMENTED, READY FOR REVIEW + FIELD TEST — basic meter metrics + independent scope axis (branch `meter-basic-metrics`)
-Addresses **DEFERRED #1** below (more generic metrics). Full normal-flow, **full-autonomous** (Alex-authorized): brainstorm → SPEC amendment (third-party-reviewed to closure, 3 rounds) → plan (third-party-reviewed to closure, 2 rounds) → implement inline. **Not merged — Alex's merge gate + on-box field test are his.**
+### 🚀 SHIPPED + PROMOTED to stable 1.0.33 — basic meter metrics + independent scope axis (branch `meter-basic-metrics`, merged + deleted)
+Addresses **DEFERRED #1** below (more generic metrics). Full normal-flow, **full-autonomous** (Alex-authorized): brainstorm → SPEC amendment (third-party-reviewed to closure, 3 rounds) → plan (third-party-reviewed to closure, 2 rounds) → implement inline → merged to `main` → **published `dev-latest 1.0.33`**, Alex **field-verified on-box ("looks all good")**, then **promoted exact bytes to `stable 1.0.33`** (public default now serves metrics + scope). `dev-latest` and `stable` both `1.0.33`.
 
 **Settled design (SPEC Part III — §The metric registry / §Displayed combatants / §Configuration / §Settings / §Header / §Assembly split / §Slice map):**
 - **Registry grows 3 → 7 scope-free metrics** — adds the `damagetaken` (Damage Taken), `totalhealing` (Total Healing), `healstaken` (Healing Taken), `powerheal` (Power Replenish) **totals** (all `isRate:false` + K/M/B abbreviation — a total that abbreviates, a combo the code supported but had never used). All read direct `CombatantData` properties.
