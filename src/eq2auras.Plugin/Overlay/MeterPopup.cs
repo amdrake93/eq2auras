@@ -157,11 +157,13 @@ namespace Eq2Auras.Plugin.Overlay
             lockBtn.Click += () => { _cb.Lock(); _popup.IsOpen = false; };
             var newBtn = new ThemeButton("New meter") { Margin = new Thickness(7, 0, 0, 0) };
             newBtn.Click += () => { _cb.NewMeter(); _popup.IsOpen = false; };
-            var removeBtn = new ThemeButton("Remove meter")
+            // Destructive red, and disabled (greyed, non-interactive) on the last meter — the
+            // disabled visual is set at construction, not left for a hover to force (SPEC §Configuration:
+            // Remove meter is "blocked when only one meter remains"). A fresh popup per open, so
+            // canRemove() here reflects the current window count.
+            var removeBtn = new ThemeButton("Remove meter", ThemeButton.Variant.Destructive, canRemove())
             {
-                Margin = new Thickness(14, 0, 0, 0),
-                Background = new SolidColorBrush(Color.FromRgb(0xA2, 0x32, 0x32)),
-                BorderBrush = new SolidColorBrush(Color.FromRgb(0xB3, 0x40, 0x40))
+                Margin = new Thickness(14, 0, 0, 0)
             };
             removeBtn.Click += () => { if (canRemove()) { _cb.RemoveMeter(); _popup.IsOpen = false; } };
 
