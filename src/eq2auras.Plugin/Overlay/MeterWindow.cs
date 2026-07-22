@@ -49,6 +49,10 @@ namespace Eq2Auras.Plugin.Overlay
         private string _metricKey;
         private string _secondaryKey;   // null = no secondary; toggled from the right-click popup
         private bool _locked;
+        private string _drilledCombatant;              // null = list mode; non-null = drilled into this combatant
+        private MetricBreakdownSource _drillSource;    // resolved from the metric at EnterDrill
+        private string _drillMetricLabel;              // the framing metric's identity label (selection label), shown in the header
+        private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
@@ -159,7 +163,6 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonDown += OnHeaderDrag;
             MouseWheel += OnScroll;   // window-wide: header and rows both scroll
 
-            header.MouseRightButtonUp += (s, e) => OpenPopup(header);   // right-click opens the themed popup (SPEC §Configuration)
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
@@ -204,6 +207,16 @@ namespace Eq2Auras.Plugin.Overlay
             contentGrid.Children.Add(_rightGrip);
             contentGrid.Children.Add(_bottomGrip);
             Content = contentGrid;
+
+            // Right-click = up one layer (SPEC §Row drill-down): list mode opens the popup (anchored to
+            // the header, as before); drill mode returns to the list. One window-level handler so it fires
+            // over the header AND the body ("right-click anywhere", SPEC §Configuration).
+            contentGrid.MouseRightButtonUp += (s, e) =>
+            {
+                if (_drilledCombatant != null) ExitDrill();
+                else OpenPopup(header);
+                e.Handled = true;
+            };
 
             UpdateGrips();   // gate on the initial lock state
         }
@@ -254,7 +267,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// interaction, same side of the lock axis as the popup (SPEC Part III).
         private void OnScroll(object sender, MouseWheelEventArgs e)
         {
-            if (_lastFrame == null) return;
+            if (_currentRows == null) return;
             _scrollOffset += e.Delta < 0 ? 1 : -1;
             RenderSlots();   // immediate re-bind from the retained frame — no waiting for the next poll
         }
@@ -265,6 +278,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void Render(MeterFrame frame)
         {
             _lastFrame = frame;
+            _currentRows = frame.Rows;
             _durationText.Text = "(" + frame.DurationText + ") ";
             SetHeaderLabel(_secondaryLabelText, frame.SecondaryLabel);
             SetHeaderLabel(_metricText, frame.MetricLabel);
@@ -275,7 +289,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void RenderSlots()
         {
-            var rows = _lastFrame.Rows;
+            var rows = _currentRows ?? new List<MeterRow>();
             int total = rows.Count;
             _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, total - _visibleRows));   // <= _visibleRows allies -> always 0
             int visible = Math.Min(_visibleRows, total);
@@ -283,6 +297,16 @@ namespace Eq2Auras.Plugin.Overlay
             while (_slots.Count < visible)
             {
                 var slot = new MeterRowVisual(_style, _opacity);
+                slot.Root.MouseLeftButtonUp += (s, e) =>
+                {
+                    // Left-click a combatant row drills in; left-click an ability row (drill mode)
+                    // is reserved (no-op) for the future per-ability detail window (SPEC §Row drill-down).
+                    if (_drilledCombatant == null)
+                    {
+                        EnterDrill(slot.CurrentName);
+                        e.Handled = true;
+                    }
+                };
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
@@ -298,6 +322,61 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 _slots[i].Update(rows[_scrollOffset + i]);
             }
+        }
+
+        /// The window's current drill request, or null in list mode — the host reads this to build
+        /// the probe's drill-request set and to route list-vs-drill rendering (SPEC §Row drill-down).
+        public DrillRequest DrillTarget => _drilledCombatant == null
+            ? null
+            : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource };
+
+        /// Enter drill mode for a combatant (left-click a row). Resolves the framing metric, swaps
+        /// the header's left identity to "‹ Name — metric" (back-hint chevron; SPEC §Header while
+        /// drilled), hides the secondary-label cell, clears the body until the next poll's breakdown,
+        /// and publishes the new drill state so the host requests the deep-read.
+        public void EnterDrill(string combatantName)
+        {
+            if (string.IsNullOrEmpty(combatantName)) return;
+            var metric = MetricRegistry.ResolvePrimary(_metricKey);
+            if (metric == null) return;   // cleared primary shows no rows — nothing to drill
+
+            _drilledCombatant = combatantName;
+            _drillSource = metric.BreakdownSource;
+            var selection = MeterSelections.Resolve(_scope, _metricKey);
+            _drillMetricLabel = selection?.Label ?? metric.Label;
+
+            // Set _metricText directly (not via SetHeaderLabel): the drill label is never empty, so
+            // the helper's collapse-when-blank behavior isn't wanted here — the identity always shows.
+            _metricText.Text = "‹ " + combatantName + " — " + _drillMetricLabel;
+            _metricText.Visibility = Visibility.Visible;
+            SetHeaderLabel(_secondaryLabelText, "");   // no secondary cell while drilled (SPEC §Header while drilled)
+            SetHeaderLabel(_totalText, "");            // filled by the next RenderDrill from the combatant's own total
+
+            _currentRows = new List<MeterRow>();
+            _scrollOffset = 0;
+            RenderSlots();
+            _cb.DrillChanged?.Invoke();
+        }
+
+        /// Leave drill mode. Clears state and republishes; the host's next Render(listFrame) restores
+        /// the list header + rows. Called by the user (right-click) or the host on auto-exit.
+        public void ExitDrill()
+        {
+            if (_drilledCombatant == null) return;
+            _drilledCombatant = null;
+            _cb.DrillChanged?.Invoke();
+        }
+
+        /// Render the drilled combatant's by-ability rows (host, each poll). The header's left identity
+        /// was set at EnterDrill; here we set the combatant's own total (from the list frame's row) and
+        /// swap the body. Reuses the same slot pool as the list (SPEC §Row drill-down).
+        public void RenderDrill(List<MeterRow> rows, string ownTotalText)
+        {
+            SetHeaderLabel(_secondaryLabelText, "");
+            SetHeaderLabel(_totalText, ownTotalText);
+            _currentRows = rows ?? new List<MeterRow>();
+            _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, _currentRows.Count - _visibleRows));
+            RenderSlots();
         }
 
         /// The window reserves its configured row count as a persistent backdrop regardless of

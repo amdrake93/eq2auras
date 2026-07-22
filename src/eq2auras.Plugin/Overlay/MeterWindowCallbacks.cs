@@ -20,5 +20,6 @@ namespace Eq2Auras.Plugin.Overlay
         public Action NewWindow;
         public Action CloseWindow;
         public Func<bool> CanClose;
+        public Action DrillChanged;   // window entered/left drill mode -> host rebuilds the drill-request snapshot
     }
 }

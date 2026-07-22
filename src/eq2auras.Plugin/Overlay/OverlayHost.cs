@@ -24,6 +24,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly MeterEngine _meterEngine = new MeterEngine();
         private readonly Dictionary<MeterWindowConfig, MeterWindow> _meterWindows =
             new Dictionary<MeterWindowConfig, MeterWindow>();
+        private volatile IReadOnlyList<DrillRequest> _drillRequests = new List<DrillRequest>();
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -125,6 +126,7 @@ namespace Eq2Auras.Plugin.Overlay
                     NewWindow = () => AddNewWindow(config),
                     CloseWindow = () => CloseMeterWindow(config),
                     CanClose = () => _meterWindows.Count > 1,
+                    DrillChanged = RebuildDrillRequests,
                 });
             _meterWindows[config] = window;
             window.Show();
@@ -167,6 +169,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _meterWindows.Remove(config);
             }
             SettingsStore.Update(_settings, () => _settings.Meter.Windows.Remove(config));
+            RebuildDrillRequests();   // a closed window drops out of the drill-request set
         }
 
         // Per-window style resolved from the config: zero row spacing (meter rows touch —
@@ -214,19 +217,71 @@ namespace Eq2Auras.Plugin.Overlay
             }));
         }
 
-        /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one
-        /// shared snapshot to each window's metric through the one shared engine/palette —
-        /// an ally reads the same color in every window (SPEC Part III §Multiple windows).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants)
+        /// Recompute the drill-request set from every window's current DrillTarget. Runs on the STA
+        /// thread (a window's DrillChanged callback fires there); the assignment is a lock-free
+        /// reference swap the probe reads via CurrentDrillRequests().
+        private void RebuildDrillRequests()
+        {
+            var list = new List<DrillRequest>();
+            foreach (var window in _meterWindows.Values)
+            {
+                var target = window.DrillTarget;
+                if (target != null) list.Add(target);
+            }
+            _drillRequests = list;
+        }
+
+        /// Read by EncounterProbe on ACT's UI thread each poll (SPEC §Assembly split). Returns the
+        /// latest lock-free snapshot — the probe deep-reads each requested combatant under the lock.
+        public IReadOnlyList<DrillRequest> CurrentDrillRequests() => _drillRequests;
+
+        /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
+        /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
+        /// instead of the list (SPEC Part III §Row drill-down).
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
             dispatcher.BeginInvoke((Action)(() =>
             {
+                double duration = MeterEngine.DurationSeconds(encounter);
                 foreach (var pair in _meterWindows)
                 {
-                    var frame = _meterEngine.Tick(encounter, combatants, pair.Key.MetricKey, pair.Key.SecondaryKey, pair.Key.Scope);
-                    pair.Value.Render(frame);
+                    var config = pair.Key;
+                    var window = pair.Value;
+                    var listFrame = _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
+
+                    var target = window.DrillTarget;
+                    var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
+                    if (target == null || metric == null)
+                    {
+                        window.Render(listFrame);
+                        continue;
+                    }
+
+                    // The drilled combatant's OWN row in the scope-filtered list is its total AND the
+                    // auto-exit signal: gone from the list -> it left the scoped population (plan-watch #3).
+                    MeterRow ownRow = null;
+                    foreach (var row in listFrame.Rows)
+                        if (row.Name == target.CombatantName) { ownRow = row; break; }
+                    if (ownRow == null)
+                    {
+                        window.ExitDrill();
+                        window.Render(listFrame);
+                        continue;
+                    }
+
+                    BreakdownReading breakdown = null;
+                    if (breakdowns != null)
+                        foreach (var b in breakdowns)
+                            if (b.CombatantName == target.CombatantName && b.Source == target.Source) { breakdown = b; break; }
+
+                    // Header total is the combatant's own list value (ready immediately); the body fills
+                    // when the breakdown arrives (one poll later than the click).
+                    var rows = breakdown != null
+                        ? BreakdownEngine.Build(breakdown.Entries, metric, duration)
+                        : new List<MeterRow>();
+                    window.RenderDrill(rows, ownRow.FormattedValue);
                 }
             }));
         }

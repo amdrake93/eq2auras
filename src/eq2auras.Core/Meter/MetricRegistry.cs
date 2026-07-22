@@ -11,13 +11,13 @@ namespace Eq2Auras.Core.Meter
 
         public static readonly IReadOnlyList<MetricDef> All = new List<MetricDef>
         {
-            new MetricDef("encdps", "DPS", "Damage", isRate: true, r => r.Damage, NumberFormat.Abbreviate),
-            new MetricDef("enchps", "HPS", "Healing", isRate: true, r => r.Healed, NumberFormat.Abbreviate),
-            new MetricDef("cures", "Cures", "Utility", isRate: false, r => r.CureDispels, NumberFormat.Integer),
-            new MetricDef("damagetaken", "Damage Taken", "Damage", isRate: false, r => r.DamageTaken, NumberFormat.Abbreviate),
-            new MetricDef("totalhealing", "Total Healing", "Healing", isRate: false, r => r.Healed, NumberFormat.Abbreviate),
-            new MetricDef("healstaken", "Healing Taken", "Healing", isRate: false, r => r.HealsTaken, NumberFormat.Abbreviate),
-            new MetricDef("powerheal", "Power Replenish", "Utility", isRate: false, r => r.PowerReplenish, NumberFormat.Abbreviate),
+            new MetricDef("encdps", "DPS", "Damage", isRate: true, r => r.Damage, NumberFormat.Abbreviate, MetricBreakdownSource.OutgoingDamage),
+            new MetricDef("enchps", "HPS", "Healing", isRate: true, r => r.Healed, NumberFormat.Abbreviate, MetricBreakdownSource.OutgoingHealing),
+            new MetricDef("cures", "Cures", "Utility", isRate: false, r => r.CureDispels, NumberFormat.Integer, MetricBreakdownSource.Cures),
+            new MetricDef("damagetaken", "Damage Taken", "Damage", isRate: false, r => r.DamageTaken, NumberFormat.Abbreviate, MetricBreakdownSource.IncomingDamage),
+            new MetricDef("totalhealing", "Total Healing", "Healing", isRate: false, r => r.Healed, NumberFormat.Abbreviate, MetricBreakdownSource.OutgoingHealing),
+            new MetricDef("healstaken", "Healing Taken", "Healing", isRate: false, r => r.HealsTaken, NumberFormat.Abbreviate, MetricBreakdownSource.IncomingHealing),
+            new MetricDef("powerheal", "Power Replenish", "Utility", isRate: false, r => r.PowerReplenish, NumberFormat.Abbreviate, MetricBreakdownSource.PowerReplenish),
         };
 
         /// Null/unknown keys resolve to the DPS default — the forward-compat guard

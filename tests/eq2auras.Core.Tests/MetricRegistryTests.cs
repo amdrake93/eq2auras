@@ -1,8 +1,32 @@
+using System.Linq;
 using Eq2Auras.Core.Meter;
 using Xunit;
 
 public class MetricRegistryTests
 {
+    [Theory]
+    [InlineData("encdps", MetricBreakdownSource.OutgoingDamage)]
+    [InlineData("damagetaken", MetricBreakdownSource.IncomingDamage)]
+    [InlineData("enchps", MetricBreakdownSource.OutgoingHealing)]
+    [InlineData("totalhealing", MetricBreakdownSource.OutgoingHealing)]
+    [InlineData("healstaken", MetricBreakdownSource.IncomingHealing)]
+    [InlineData("powerheal", MetricBreakdownSource.PowerReplenish)]
+    [InlineData("cures", MetricBreakdownSource.Cures)]
+    public void Each_metric_names_its_by_ability_breakdown_bucket(string key, MetricBreakdownSource expected)
+    {
+        var metric = MetricRegistry.All.Single(m => m.Key == key);
+        Assert.Equal(expected, metric.BreakdownSource);
+    }
+
+    [Fact]
+    public void Damage_dealt_and_damage_taken_read_opposite_buckets()
+    {
+        // Same Damage total, opposite direction — the descriptor cannot be derived from `select`.
+        var dealt = MetricRegistry.All.Single(m => m.Key == "encdps");
+        var taken = MetricRegistry.All.Single(m => m.Key == "damagetaken");
+        Assert.NotEqual(dealt.BreakdownSource, taken.BreakdownSource);
+    }
+
     [Theory]
     [InlineData(0, "0")]
     [InlineData(7.5, "8")]              // sub-1K is integer-rounded, NOT 3-sig-figs "7.50"
