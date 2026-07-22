@@ -22,7 +22,7 @@
 
 ## Plan-watch items (from the spec review 2026-07-21 — this plan must land each)
 
-1. **`breakdownSource` bucket per metric** — pinned in **Task 1** against the vendored `ThirdParty/ACT_English_Parser.cs` and `docs/act-parse-engine.md`; the Plugin's enum→bucket map is in **Task 3**. `cures`/`powerheal` are the non-obvious ones — resolved to `"Cure/Dispel (Out)"` / `"Power Replenish (Out)"` (`ACT_English_Parser.cs:2086,2088`).
+1. **`breakdownSource` bucket per metric** — pinned in **Task 1** against the vendored `ThirdParty/ACT_English_Parser.cs` and `docs/act-parse-engine.md`; the Plugin's enum→bucket map is in **Task 3**. `cures`/`powerheal` are the non-obvious ones — resolved to `cures` → `"Cure/Dispel (Out)"` (`ACT_English_Parser.cs:2088`), `powerheal` → `"Power Replenish (Out)"` (`ACT_English_Parser.cs:2086`).
 2. **Deep-read lock discipline** — the drilled combatant's `AttackType` read in **Task 3** happens inside the existing `lock (form.AfterCombatActionDataLock)` block in `EncounterProbe.OnTick`, in the same pass that snapshots the combatants; it reads at most **one** `CombatantData` per drill request, never a per-combatant fan-out.
 3. **Auto-exit wiring** — **Task 6**: a drilled window whose target name is absent from the scope-filtered `listFrame.Rows` is auto-exited (`ExitDrill()` + list render) before any breakdown lookup; no stale/empty detail, no crash.
 
@@ -92,7 +92,7 @@ public void Damage_dealt_and_damage_taken_read_opposite_buckets()
 }
 ```
 
-(The file already `using Eq2Auras.Core.Meter;` and `using System.Linq;`? — add `using System.Linq;` if absent.)
+(The added test uses `.Single(...)`, so **add `using System.Linq;`** at the top of the file — `MetricRegistryTests.cs` does not import it today, it uses a fully-qualified `System.Linq.Enumerable` reference. `using Eq2Auras.Core.Meter;` is already present.)
 
 - [ ] **Step 2: Run test to verify it fails**
 
@@ -368,7 +368,11 @@ namespace Eq2Auras.Core.Meter
 
 - [ ] **Step 4: Add `MeterEngine.DurationSeconds` (refactor the private helper to public static)**
 
-In `src/eq2auras.Core/Meter/MeterEngine.cs`, replace the private `EncounterDuration` with a public static `DurationSeconds`, and update its one caller (`double duration = EncounterDuration(encounter);` → `double duration = DurationSeconds(encounter);`):
+In `src/eq2auras.Core/Meter/MeterEngine.cs`, replace the private `EncounterDuration` (defined at `:116`) with a public static `DurationSeconds`. **`EncounterDuration` has two call sites — update both** or the untouched one fails to compile:
+- `MeterEngine.cs:24` — inside the cleared-primary early-return branch: `DurationText = FormatDuration(EncounterDuration(encounter)),` → `DurationText = FormatDuration(DurationSeconds(encounter)),`.
+- `MeterEngine.cs:42` — the main path: `double duration = EncounterDuration(encounter);` → `double duration = DurationSeconds(encounter);`.
+
+The renamed definition:
 
 ```csharp
 /// Live wall clock while active, finalized log time once ended (SPEC Part III §Rates come
@@ -382,7 +386,7 @@ public static double DurationSeconds(EncounterReading encounter)
 }
 ```
 
-(Change the call site at the top of `Tick`: `double duration = DurationSeconds(encounter);`.)
+(Confirm no stragglers: `grep -n EncounterDuration src/eq2auras.Core/Meter/MeterEngine.cs` should return only the renamed definition's line — zero `EncounterDuration` references remain.)
 
 - [ ] **Step 5: Create the engine**
 
@@ -491,10 +495,9 @@ public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> dril
 
 - [ ] **Step 2: Deep-read each drilled combatant inside the existing lock**
 
-In `OnTick`, snapshot the drill requests **before** the lock (cheap reference read), then inside the `else` branch that iterates `encounter.Items.Values` — still under `lock (form.AfterCombatActionDataLock)` — build the breakdowns. Add a `List<BreakdownReading> breakdowns = new List<BreakdownReading>();` alongside `combatants`, and after the combatant loop (still inside the lock, inside the `else`):
+In `OnTick`, snapshot the drill requests **before** the lock (a cheap O(1) volatile reference read — `CurrentDrillRequests()` just returns a field, no lock needed), then inside the `else` branch that iterates `encounter.Items.Values` — still under `lock (form.AfterCombatActionDataLock)` — build the breakdowns from that snapshot. After the combatant loop (still inside the lock, inside the `else`):
 
 ```csharp
-var requests = _drillRequests?.Invoke();
 if (requests != null && requests.Count > 0)
 {
     foreach (var request in requests)
@@ -516,12 +519,13 @@ Then change the hand-off at the end of the method:
 _onSample(encounterReading, combatants, breakdowns);   // outside the lock — hold it briefly
 ```
 
-Declare `breakdowns` next to `combatants` so it is in scope at the hand-off:
+Declare `breakdowns` next to `combatants`, and read the drill-request snapshot **before** the `try`/lock block so it is in scope for the deep-read and the lock holds no longer than needed:
 
 ```csharp
 EncounterReading encounterReading;
 var combatants = new List<CombatantReading>();
 var breakdowns = new List<BreakdownReading>();
+var requests = _drillRequests?.Invoke();   // O(1) volatile read — before the lock
 ```
 
 - [ ] **Step 3: Add the bucket + value map (the enum→ACT translation)**
@@ -658,6 +662,8 @@ public void EnterDrill(string combatantName)
     var selection = MeterSelections.Resolve(_scope, _metricKey);
     _drillMetricLabel = selection?.Label ?? metric.Label;
 
+    // Set _metricText directly (not via SetHeaderLabel): the drill label is never empty, so
+    // the helper's collapse-when-blank behavior isn't wanted here — the identity always shows.
     _metricText.Text = "‹ " + combatantName + " — " + _drillMetricLabel;
     _metricText.Visibility = Visibility.Visible;
     SetHeaderLabel(_secondaryLabelText, "");   // no secondary cell while drilled (SPEC §Header while drilled)
