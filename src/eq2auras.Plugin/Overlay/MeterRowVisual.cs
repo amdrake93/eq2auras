@@ -28,6 +28,10 @@ namespace Eq2Auras.Plugin.Overlay
 
         public UIElement Root => _bar.Root;
 
+        /// The last-bound row's name — the window resolves a left-click into a drill target
+        /// from this (SPEC Part III §Row drill-down).
+        public string CurrentName { get; private set; }
+
         public MeterRowVisual(VisualStyle style, double opacity)
         {
             _bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha);
@@ -75,6 +79,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public void Update(MeterRow row)
         {
+            CurrentName = row.Name;
             _bar.NameText.Text = row.Name;
             _bar.TrailingText.Text = row.FormattedValue;
             _percent.Text = row.FormattedPercent;
