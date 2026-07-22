@@ -42,7 +42,8 @@ namespace Eq2Auras.Plugin
             _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
             _encounterProbe = new EncounterProbe(
                 () => _settings.Meter.Enabled,
-                (encounter, combatants) => _overlay.UpdateMeterSample(encounter, combatants));
+                () => _overlay.CurrentDrillRequests(),
+                (encounter, combatants, breakdowns) => _overlay.UpdateMeterSample(encounter, combatants, breakdowns));
             _probe = new TimerProbe(_log,
                 () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(
