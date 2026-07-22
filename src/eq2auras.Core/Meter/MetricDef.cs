@@ -13,9 +13,11 @@ namespace Eq2Auras.Core.Meter
         public bool IsRate { get; }
         public Func<CombatantReading, double> Select { get; }
         public Func<double, string> Format { get; }
+        public MetricBreakdownSource BreakdownSource { get; }   // which ACT bucket the by-ability drill-down reads (SPEC §The metric registry)
 
         public MetricDef(string key, string label, string category, bool isRate,
-            Func<CombatantReading, double> select, Func<double, string> format)
+            Func<CombatantReading, double> select, Func<double, string> format,
+            MetricBreakdownSource breakdownSource)
         {
             Key = key;
             Label = label;
@@ -23,6 +25,7 @@ namespace Eq2Auras.Core.Meter
             IsRate = isRate;
             Select = select;
             Format = format;
+            BreakdownSource = breakdownSource;
         }
     }
 }
