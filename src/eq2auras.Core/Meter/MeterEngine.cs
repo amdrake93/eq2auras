@@ -21,7 +21,7 @@ namespace Eq2Auras.Core.Meter
                 return new MeterFrame
                 {
                     Rows = new List<MeterRow>(),
-                    DurationText = FormatDuration(EncounterDuration(encounter)),
+                    DurationText = FormatDuration(DurationSeconds(encounter)),
                     MetricLabel = "",
                     SecondaryLabel = "",
                     TotalText = "",
@@ -39,7 +39,7 @@ namespace Eq2Auras.Core.Meter
             // §Rates come from our wall clock). Clamp defends the degenerate
             // fresh-encounter poll: StartTime == DateTime.MaxValue makes the live
             // estimate hugely negative before the first swing lands.
-            double duration = EncounterDuration(encounter);
+            double duration = DurationSeconds(encounter);
 
             // One duration-policy site for the primary and the secondary alike (SPEC Part
             // III §The metric registry — rate ÷ wall-clock duration, or raw count).
@@ -113,7 +113,8 @@ namespace Eq2Auras.Core.Meter
         /// Live wall clock while active, finalized log time once ended (SPEC Part III §Rates come
         /// from our wall clock). Clamp defends the degenerate fresh-encounter poll where
         /// StartTime == DateTime.MaxValue makes the live estimate hugely negative before the first swing.
-        private static double EncounterDuration(EncounterReading encounter)
+        /// Public + static so the drill-down's BreakdownEngine shares the one duration policy.
+        public static double DurationSeconds(EncounterReading encounter)
         {
             if (encounter == null || !encounter.Exists) return 0;
             return Math.Max(0, encounter.Active ? encounter.LiveDurationSeconds : encounter.FinalDurationSeconds);
