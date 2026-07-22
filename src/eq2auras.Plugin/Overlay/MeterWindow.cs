@@ -163,7 +163,6 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonDown += OnHeaderDrag;
             MouseWheel += OnScroll;   // window-wide: header and rows both scroll
 
-            header.MouseRightButtonUp += (s, e) => OpenPopup(header);   // right-click opens the themed popup (SPEC §Configuration)
             _headerBackplate.Opacity = _opacity;
 
             _rowsPanel = new StackPanel();
@@ -208,6 +207,16 @@ namespace Eq2Auras.Plugin.Overlay
             contentGrid.Children.Add(_rightGrip);
             contentGrid.Children.Add(_bottomGrip);
             Content = contentGrid;
+
+            // Right-click = up one layer (SPEC §Row drill-down): list mode opens the popup (anchored to
+            // the header, as before); drill mode returns to the list. One window-level handler so it fires
+            // over the header AND the body ("right-click anywhere", SPEC §Configuration).
+            contentGrid.MouseRightButtonUp += (s, e) =>
+            {
+                if (_drilledCombatant != null) ExitDrill();
+                else OpenPopup(header);
+                e.Handled = true;
+            };
 
             UpdateGrips();   // gate on the initial lock state
         }
@@ -288,6 +297,16 @@ namespace Eq2Auras.Plugin.Overlay
             while (_slots.Count < visible)
             {
                 var slot = new MeterRowVisual(_style, _opacity);
+                slot.Root.MouseLeftButtonUp += (s, e) =>
+                {
+                    // Left-click a combatant row drills in; left-click an ability row (drill mode)
+                    // is reserved (no-op) for the future per-ability detail window (SPEC §Row drill-down).
+                    if (_drilledCombatant == null)
+                    {
+                        EnterDrill(slot.CurrentName);
+                        e.Handled = true;
+                    }
+                };
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
