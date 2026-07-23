@@ -14,6 +14,9 @@ Brainstormed 2026-07-22/23 (Alex-owned phase, visual companion). First of the QU
 2. **Health-reconstruction clamp** at the window top when the 10s net damage exceeds the `GetMaxHealth()` estimate (earliest shown second pins at 100%).
 3. **Killing-blow identification + recap buckets** — last incoming damage swing ≤ death `TimeSorter` (ability + dmg + attacker); the incoming buckets the recap pulls (**Incoming Damage + Incoming Healing**) pinned against `docs/act-parse-engine.md`.
 
+### IDEA (investigate) — buff tracking (a packaged timer set, or a better mechanism)
+Track (self/raid) buff uptimes/durations — e.g. as a **package set of timers** shipped together, or some other mechanism if timers aren't the right fit. **Core feasibility problem (Alex, 2026-07-23):** **not all outgoing buffs emit a combat-log line**, so for those buffs there is no event to trigger off of — making autonomous/automatic tracking near-impossible. Likely unavoidable dependency: **players set up in-game macros that emit a custom log line** on cast, which ACT (and our timers) can then trigger on — i.e. coverage is gated by what the log exposes (the same one-data-rule reality as the meter). **Investigate:** which buffs are log-visible vs silent; whether a curated timer package + a documented macro convention is the pragmatic answer; whether anything beats timers here. **Timer-module territory, not the meter.** Not yet designed — own brainstorm/spike.
+
 ## From Alex — 2026-07-21
 
 ### 🚀 SHIPPED + PROMOTED to stable 1.1.0 — row drill-down: click a combatant → its metric broken down by ability (branch `meter-row-drilldown`, merged)
