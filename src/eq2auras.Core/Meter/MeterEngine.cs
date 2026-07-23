@@ -28,6 +28,7 @@ namespace Eq2Auras.Core.Meter
                 };
             }
             var secondary = MetricRegistry.Find(secondaryKey);   // null -> no secondary
+            if (secondary != null && secondary.IsEvent) secondary = null;   // event metrics (Deaths) are primary-only — never a per-row secondary (SPEC §Deaths)
 
             // The primary's identity is the SELECTION label (e.g. "Enemy Damage Taken"),
             // not the bare metric name — SPEC Part III §Header. Falls back to the metric's
