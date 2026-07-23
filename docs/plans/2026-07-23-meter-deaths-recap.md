@@ -53,6 +53,7 @@
 
 **Files:**
 - Modify: `src/eq2auras.Core/Meter/NumberFormat.cs`
+- Modify: `src/eq2auras.Core/Meter/MeterEngine.cs` (consolidate `FormatDuration` onto `Mmss`)
 - Test: `tests/eq2auras.Core.Tests/NumberFormatTests.cs` (create if absent)
 
 **Interfaces:**
@@ -78,7 +79,7 @@ public class NumberFormatTests
     [Theory]
     [InlineData(0, "0")]
     [InlineData(-500, "-500")]
-    [InlineData(1000, "+1.0K")]
+    [InlineData(1000, "+1K")]
     [InlineData(-4200, "-4.2K")]
     [InlineData(-9800, "-9.8K")]
     public void SignedAbbreviate_prefixes_sign_and_abbreviates_magnitude(double v, string expected)
@@ -110,6 +111,14 @@ public static string SignedAbbreviate(double value)
 }
 ```
 
+Then consolidate the M:SS formatter (addresses the two-formatter nit; CLAUDE.md single-source-of-truth) — redirect `MeterEngine.FormatDuration` (`MeterEngine.cs:123-127`) so `Mmss` is the only M:SS implementation:
+
+```csharp
+internal static string FormatDuration(double seconds) => NumberFormat.Mmss(seconds);
+```
+
+Existing `MeterEngineTests` (duration `"1:40"` for 100 s) still pass — `Mmss(100)` = `"1:40"`.
+
 - [ ] **Step 4: Run to verify pass**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter NumberFormatTests`
@@ -118,8 +127,8 @@ Expected: PASS.
 - [ ] **Step 5: Commit**
 
 ```bash
-git add src/eq2auras.Core/Meter/NumberFormat.cs tests/eq2auras.Core.Tests/NumberFormatTests.cs
-git commit -m "Deaths: add Mmss + SignedAbbreviate formatters (Core TDD)"
+git add src/eq2auras.Core/Meter/NumberFormat.cs src/eq2auras.Core/Meter/MeterEngine.cs tests/eq2auras.Core.Tests/NumberFormatTests.cs
+git commit -m "Deaths: add Mmss + SignedAbbreviate formatters; consolidate FormatDuration onto Mmss (Core TDD)"
 ```
 
 ---
@@ -329,7 +338,7 @@ namespace Eq2Auras.Core.Meter
             return new MeterFrame
             {
                 Rows = rows,
-                DurationText = MeterEngine.FormatDuration(durationSeconds),
+                DurationText = NumberFormat.Mmss(durationSeconds),
                 MetricLabel = "Deaths",
                 SecondaryLabel = "",
                 TotalText = rows.Count.ToString(System.Globalization.CultureInfo.InvariantCulture),
@@ -339,7 +348,7 @@ namespace Eq2Auras.Core.Meter
 }
 ```
 
-> Note: `MeterEngine.FormatDuration` is `internal` (`MeterEngine.cs:123`); `DeathsEngine` is in the same assembly, so it is callable. If a reviewer flags visibility, promote it or inline the same `(t/60):(t%60)` logic — do not duplicate the formatter in two public spots.
+> `NumberFormat.Mmss` is the single M:SS formatter (Task 1 redirected `MeterEngine.FormatDuration` onto it), used for both the header duration here and each row's time-of-death value.
 
 - [ ] **Step 6: Run to verify pass**
 
@@ -669,7 +678,8 @@ public class DeathRecapEngineTests
         Assert.Equal("-1s", rows[0].Name);        // oldest first
         Assert.Equal("0s", rows[1].Name);
         Assert.Equal(0, rows[1].Percent, 3);       // death second → 0% hp
-        Assert.Equal(3000.0 / 8000, rows[0].Percent, 3);   // hp before the killing second = the 5000 that killed... see formula
+        // HP at end of the second before death = the net damage that then killed them in second 0 = dmg[0] = 5000.
+        Assert.Equal(5000.0 / 8000, rows[0].Percent, 3);   // 0.625
     }
 
     [Fact]
@@ -716,9 +726,9 @@ public class DeathRecapEngineTests
         Assert.Equal(new[] { "-4s", "0s" }, rows.ConvertAll(r => r.Name).ToArray());
         var deathRow = rows[1];
         Assert.Equal(2, deathRow.Secondaries.Count);
-        Assert.Equal("-5.0K", deathRow.Secondaries[0].FormattedValue);   // dmg, red
+        Assert.Equal("-5K", deathRow.Secondaries[0].FormattedValue);   // dmg, red
         Assert.Equal(DeathRecapEngine.DmgArgb, deathRow.Secondaries[0].Argb);
-        Assert.Equal("+1.0K", deathRow.Secondaries[1].FormattedValue);   // heals, green
+        Assert.Equal("+1K", deathRow.Secondaries[1].FormattedValue);   // heals, green
         Assert.Equal(DeathRecapEngine.HealArgb, deathRow.Secondaries[1].Argb);
     }
 
