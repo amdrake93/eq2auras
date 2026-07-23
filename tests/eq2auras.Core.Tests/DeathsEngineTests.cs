@@ -39,16 +39,30 @@ public class DeathsEngineTests
     }
 
     [Fact]
-    public void Bar_and_percent_are_the_deaths_position_in_the_fight()
+    public void Bar_and_percent_are_how_far_into_the_fight_the_death_fell()
     {
         var frame = DeathsEngine.BuildList(new List<DeathRecord>
         {
-            D("A", 1, 60, "X", 1), // 60/120 = 0.5
+            D("A", 1, 60, "X", 1), // 60/120 = 0.5 into the fight
         }, 120);
 
-        Assert.Equal(0.5, frame.Rows[0].BarFraction, 3);
+        Assert.Equal(0.5, frame.Rows[0].BarFraction, 3);   // proportional timeline bar
         Assert.Equal(0.5, frame.Rows[0].Percent, 3);
         Assert.Equal("50%", frame.Rows[0].FormattedPercent);
+    }
+
+    [Fact]
+    public void A_degenerate_zero_duration_fills_the_bar_fully_rather_than_empty()
+    {
+        // Solo pre-engage death: no ally outgoing damage → ACT encounter Duration is 0. Treat the 0
+        // denominator as a FULL (100%) bar, not a collapsed empty one (SPEC §Deaths).
+        var atZero = DeathsEngine.BuildList(new List<DeathRecord> { D("A", 1, 10, "X", 1) }, 0);
+        Assert.Equal(1.0, atZero.Rows[0].BarFraction, 3);
+        Assert.Equal("100%", atZero.Rows[0].FormattedPercent);
+
+        var past = DeathsEngine.BuildList(new List<DeathRecord> { D("A", 1, 200, "X", 1) }, 120);
+        Assert.Equal(1.0, past.Rows[0].BarFraction, 3);         // time > duration clamps to 100%
+        Assert.Equal("100%", past.Rows[0].FormattedPercent);
     }
 
     [Fact]
@@ -75,15 +89,5 @@ public class DeathsEngineTests
         }, 120);
 
         Assert.Equal("(1) · —", frame.Rows[0].Detail);
-    }
-
-    [Fact]
-    public void Into_fight_fraction_clamps_when_duration_is_zero_or_less_than_time()
-    {
-        var atZero = DeathsEngine.BuildList(new List<DeathRecord> { D("A", 1, 10, "X", 1) }, 0);
-        Assert.Equal(0, atZero.Rows[0].BarFraction, 3);   // no divide-by-zero
-
-        var past = DeathsEngine.BuildList(new List<DeathRecord> { D("A", 1, 200, "X", 1) }, 120);
-        Assert.Equal(1.0, past.Rows[0].BarFraction, 3);   // clamp to 1
     }
 }
