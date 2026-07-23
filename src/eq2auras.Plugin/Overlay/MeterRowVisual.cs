@@ -91,7 +91,11 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 _bar.NameText.Text = row.Name;   // single white run (resets any prior inlines)
             }
-            _bar.TrailingText.Text = row.FormattedValue;
+            // An empty value collapses its column (no reserved gap) — the recap drops the raw health
+            // number and lets the bar + hp% carry it (SPEC §Death Recap). Meter-only; the timer drives
+            // BarRowVisual directly and never sets an empty trailing value.
+            _bar.TrailingText.Text = row.FormattedValue ?? "";
+            _bar.TrailingText.Visibility = string.IsNullOrEmpty(row.FormattedValue) ? Visibility.Collapsed : Visibility.Visible;
             _percent.Text = row.FormattedPercent;
 
             int need = row.Secondaries?.Count ?? 0;
