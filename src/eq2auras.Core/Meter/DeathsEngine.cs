@@ -20,9 +20,12 @@ namespace Eq2Auras.Core.Meter
             {
                 foreach (var d in deaths)
                 {
+                    // Bar fills to how far into the fight the death fell (the timeline). ACT's encounter
+                    // duration is 0 when no ally dealt outgoing damage (a solo pre-engage death) — treat
+                    // that degenerate 0 denominator as a FULL bar (100%), not an empty one (SPEC §Deaths).
                     double frac = durationSeconds > 0
                         ? Math.Max(0, Math.Min(1, d.TimeOfDeathSeconds / durationSeconds))
-                        : 0;
+                        : 1.0;
                     string blow = string.IsNullOrEmpty(d.KillingBlowAbility)
                         ? "—"
                         : d.KillingBlowAbility + " " + NumberFormat.Abbreviate(d.KillingBlowDamage);
@@ -35,7 +38,7 @@ namespace Eq2Auras.Core.Meter
                         FormattedValue = NumberFormat.Mmss(d.TimeOfDeathSeconds),
                         Percent = frac,
                         FormattedPercent = Math.Round(frac * 100) + "%",
-                        BarFraction = frac,
+                        BarFraction = frac,   // proportional — how far into the fight the death fell (the timeline)
                         FillArgb = fill,
                         Secondaries = new List<SecondaryValue>(),
                     });
