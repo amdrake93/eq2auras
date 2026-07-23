@@ -120,10 +120,6 @@ namespace Eq2Auras.Core.Meter
             return Math.Max(0, encounter.Active ? encounter.LiveDurationSeconds : encounter.FinalDurationSeconds);
         }
 
-        internal static string FormatDuration(double seconds)
-        {
-            int t = (int)Math.Max(0, seconds);
-            return (t / 60) + ":" + (t % 60).ToString("00");
-        }
+        internal static string FormatDuration(double seconds) => NumberFormat.Mmss(seconds);
     }
 }
