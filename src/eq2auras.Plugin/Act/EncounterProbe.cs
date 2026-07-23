@@ -18,7 +18,7 @@ namespace Eq2Auras.Plugin.Act
 
         private readonly Func<bool> _enabled;
         private readonly Func<IReadOnlyList<DrillRequest>> _drillRequests;
-        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>> _onSample;
+        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> _onSample;
         private int _tick;
 
         // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan).
@@ -27,7 +27,7 @@ namespace Eq2Auras.Plugin.Act
         private DateTime _encounterStartKey = DateTime.MinValue;
 
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
-            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>> onSample)
+            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> onSample)
         {
             _enabled = enabled;
             _drillRequests = drillRequests;
@@ -43,6 +43,7 @@ namespace Eq2Auras.Plugin.Act
             EncounterReading encounterReading;
             var combatants = new List<CombatantReading>();
             var breakdowns = new List<BreakdownReading>();
+            var recaps = new List<RecapReading>();
             var requests = _drillRequests?.Invoke();   // O(1) volatile read — before the lock
             try
             {
@@ -135,6 +136,12 @@ namespace Eq2Auras.Plugin.Act
                             {
                                 // At most one CombatantData per request — never a per-combatant fan-out
                                 // (plan-watch #2). GetAllies is already resolved above; Items is keyed UPPERCASE.
+                                if (request.Source == MetricBreakdownSource.Deaths)
+                                {
+                                    var recap = ReadRecap(encounter, request, killingKey);
+                                    if (recap != null) recaps.Add(recap);
+                                    continue;
+                                }
                                 if (request.Source == MetricBreakdownSource.None) continue;
                                 if (!encounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
                                 var entries = ReadBreakdown(combatant, request.Source);
@@ -151,7 +158,7 @@ namespace Eq2Auras.Plugin.Act
             }
 
             var deaths = new List<DeathRecord>(_deathStore);       // snapshot for the WPF thread
-            _onSample(encounterReading, combatants, breakdowns, deaths);   // outside the lock — hold it briefly
+            _onSample(encounterReading, combatants, breakdowns, deaths, recaps);   // outside the lock — hold it briefly
         }
 
         /// The killing blow = the victim's last INCOMING DAMAGE swing at/before the death's TimeSorter
@@ -174,6 +181,56 @@ namespace Eq2Auras.Plugin.Act
                 }
             }
             if (best != null) { ability = best.AttackType; damage = (long)best.Damage; }
+        }
+
+        /// The recap for one death (SPEC §Death Recap): the victim's incoming damage + heal swings in
+        /// the 10 s before the death, flattened into Core RecapEvents + the max-health estimate. Returns
+        /// null if the death is gone (host auto-exits) or the DeathKey is malformed.
+        private static RecapReading ReadRecap(EncounterData encounter, DrillRequest request, string killingKey)
+        {
+            int hash = (request.DeathKey ?? "").LastIndexOf('#');
+            if (hash < 0) return null;
+            string victimName = request.DeathKey.Substring(0, hash);
+            if (!int.TryParse(request.DeathKey.Substring(hash + 1), out int ordinal)) return null;
+            if (!encounter.Items.TryGetValue(victimName.ToUpper(), out var victim)) return null;
+
+            var deathSwings = new List<MasterSwing>();
+            if (victim.AllInc.TryGetValue(killingKey, out var killingAt))
+                foreach (var sw in killingAt.Items)
+                    if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
+            deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
+            if (ordinal < 1 || ordinal > deathSwings.Count) return null;   // death gone → host auto-exits
+            var death = deathSwings[ordinal - 1];
+
+            string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+            var events = new List<RecapEvent>();
+            CollectRecap(victim, CombatantData.DamageTypeDataIncomingDamage, isHeal: false, death, allKey, events);
+            CollectRecap(victim, CombatantData.DamageTypeDataIncomingHealing, isHeal: true, death, allKey, events);
+
+            return new RecapReading
+            {
+                DrillKey = request.DeathKey,
+                MaxHealthEstimate = victim.GetMaxHealth(),   // running-min estimate (ACT 3.8.5.288 CombatantData:815)
+                Events = events,
+            };
+        }
+
+        private static void CollectRecap(CombatantData victim, string bucketName, bool isHeal,
+            MasterSwing death, string allKey, List<RecapEvent> events)
+        {
+            if (!victim.Items.TryGetValue(bucketName, out var bucket)) return;
+            foreach (var pair in bucket.Items)
+            {
+                if (pair.Key == allKey) continue;
+                foreach (var sw in pair.Value.Items)
+                {
+                    double secondsBefore = (death.Time - sw.Time).TotalSeconds;
+                    if (sw.TimeSorter > death.TimeSorter || secondsBefore < 0 || secondsBefore >= 10) continue;
+                    long amt = (long)sw.Damage;
+                    if (amt <= 0) continue;   // real damage/heal only
+                    events.Add(new RecapEvent { SecondsBeforeDeath = secondsBefore, Amount = amt, IsHeal = isHeal });
+                }
+            }
         }
 
         /// Enum → ACT bucket alias-static. The statics are set at the EQ2 parser's init
