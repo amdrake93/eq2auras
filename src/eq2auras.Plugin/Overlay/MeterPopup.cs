@@ -105,8 +105,9 @@ namespace Eq2Auras.Plugin.Overlay
                 }
                 else
                 {
-                    foreach (var metric in MetricRegistry.All.Where(m => m.Category == family))
+                    foreach (var metric in MetricRegistry.All.Where(m => m.Category == family && !m.IsEvent))
                     {
+                        // Event metrics (Deaths) are primary-only — never offered as a secondary (SPEC §Deaths).
                         string key = metric.Key;
                         var item = new MetricGridItem(metric.Label, key == _secondaryKey);
                         _secondaryItems.Add(new KeyValuePair<string, MetricGridItem>(key, item));

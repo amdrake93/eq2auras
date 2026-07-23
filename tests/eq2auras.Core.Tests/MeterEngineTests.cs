@@ -12,6 +12,17 @@ public class MeterEngineTests
         => new() { Name = name, Damage = damage, Healed = healed, CureDispels = cures, IsAlly = isAlly };
 
     [Fact]
+    public void An_event_metric_secondary_is_ignored_and_never_crashes()
+    {
+        // Deaths is an event metric (null Select) — it must never be computed as a per-row secondary
+        // (SPEC §Deaths — event metrics are primary-only). A settings file / stale picker naming it
+        // as a secondary resolves to "no secondary", not a NullReferenceException.
+        var frame = new MeterEngine().Tick(Live(100),
+            new List<CombatantReading> { Ally("A", damage: 50_000) }, "encdps", secondaryKey: "deaths");
+        Assert.Empty(frame.Rows[0].Secondaries);
+    }
+
+    [Fact]
     public void Rates_divide_totals_by_the_live_wall_clock_while_active()
     {
         var frame = new MeterEngine().Tick(Live(100),
