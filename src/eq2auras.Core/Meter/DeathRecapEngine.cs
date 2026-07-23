@@ -44,7 +44,10 @@ namespace Eq2Auras.Core.Meter
                     {
                         Name = s == 0 ? "0s" : "-" + s + "s",
                         Value = clamped,
-                        FormattedValue = NumberFormat.Abbreviate(clamped),
+                        // No raw health K-number: the reconstruction is inflated by the killing blow's
+                        // overkill (EQ2 logs none), so the absolute reads as false precision. The bar + hp%
+                        // carry the honest RELATIVE story; the value column is dropped (SPEC §Death Recap).
+                        FormattedValue = "",
                         Percent = pct,
                         FormattedPercent = Math.Round(pct * 100) + "%",
                         BarFraction = pct,
@@ -63,8 +66,10 @@ namespace Eq2Auras.Core.Meter
         {
             return new List<SecondaryValue>
             {
-                new SecondaryValue { Key = "dmg",  FormattedValue = dmg > 0 ? NumberFormat.SignedAbbreviate(-dmg) : "—", Argb = DmgArgb },
-                new SecondaryValue { Key = "heal", FormattedValue = heal > 0 ? NumberFormat.SignedAbbreviate(heal) : "—", Argb = HealArgb },
+                // A second with no damage / no heals shows "0" in the column's color (red 0 / green 0),
+                // not a dash — "0 healing received that second" is meaningful in a death recap.
+                new SecondaryValue { Key = "dmg",  FormattedValue = NumberFormat.SignedAbbreviate(-dmg), Argb = DmgArgb },
+                new SecondaryValue { Key = "heal", FormattedValue = NumberFormat.SignedAbbreviate(heal), Argb = HealArgb },
             };
         }
     }

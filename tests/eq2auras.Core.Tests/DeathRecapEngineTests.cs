@@ -46,9 +46,9 @@ public class DeathRecapEngineTests
             MaxHealthEstimate = 4000,
             Events = new List<RecapEvent> { Dmg(0.5, 5000), Dmg(1.5, 3000) },  // cumulative to top = 5000 > 4000
         });
-        Assert.Equal(1.0, rows[0].Percent, 3);                 // pinned at 100%
+        Assert.Equal(1.0, rows[0].Percent, 3);                 // pinned at 100% (the bar/% carry the clamp)
         Assert.Equal("100%", rows[0].FormattedPercent);
-        Assert.Equal(NumberFormat.Abbreviate(4000), rows[0].FormattedValue);   // est-health clamped to the estimate
+        Assert.Equal("", rows[0].FormattedValue);              // raw health K-number dropped (SPEC §Death Recap)
     }
 
     [Fact]
@@ -67,6 +67,13 @@ public class DeathRecapEngineTests
         Assert.Equal(DeathRecapEngine.DmgArgb, deathRow.Secondaries[0].Argb);
         Assert.Equal("+1K", deathRow.Secondaries[1].FormattedValue);   // heals, green
         Assert.Equal(DeathRecapEngine.HealArgb, deathRow.Secondaries[1].Argb);
+
+        // A second with damage but no heals shows a green "0", not a dash; no raw health value.
+        var damageOnly = rows[0];   // -4s: dmg 2000, no heal
+        Assert.Equal("-2K", damageOnly.Secondaries[0].FormattedValue);
+        Assert.Equal("0", damageOnly.Secondaries[1].FormattedValue);    // heals = green 0, not "—"
+        Assert.Equal(DeathRecapEngine.HealArgb, damageOnly.Secondaries[1].Argb);
+        Assert.Equal("", damageOnly.FormattedValue);                    // no raw health number
     }
 
     [Fact]
