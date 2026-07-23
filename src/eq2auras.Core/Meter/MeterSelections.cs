@@ -34,6 +34,7 @@ namespace Eq2Auras.Core.Meter
             new PrimarySelection("Healing Taken", MeterScope.Allies, "healstaken"),
             new PrimarySelection("Cures", MeterScope.Allies, "cures"),
             new PrimarySelection("Power Replenish", MeterScope.Allies, "powerheal"),
+            new PrimarySelection("Deaths", MeterScope.Allies, "deaths"),
         };
 
         /// The selection a window's (scope, metric) state names — its label is the header

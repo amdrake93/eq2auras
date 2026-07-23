@@ -55,9 +55,9 @@ public class MetricRegistryTests
         => Assert.Equal(MetricRegistry.DefaultKey, MetricRegistry.Resolve(key).Key);
 
     [Fact]
-    public void Ships_the_seven_metrics_in_order()
+    public void Ships_the_seven_scalar_metrics_then_the_deaths_event_metric_in_order()
     {
-        Assert.Equal(new[] { "encdps", "enchps", "cures", "damagetaken", "totalhealing", "healstaken", "powerheal" },
+        Assert.Equal(new[] { "encdps", "enchps", "cures", "damagetaken", "totalhealing", "healstaken", "powerheal", "deaths" },
             System.Linq.Enumerable.Select(MetricRegistry.All, m => m.Key));
     }
 

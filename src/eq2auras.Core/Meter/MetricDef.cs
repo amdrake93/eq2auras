@@ -14,10 +14,11 @@ namespace Eq2Auras.Core.Meter
         public Func<CombatantReading, double> Select { get; }
         public Func<double, string> Format { get; }
         public MetricBreakdownSource BreakdownSource { get; }   // which ACT bucket the by-ability drill-down reads (SPEC §The metric registry)
+        public bool IsEvent { get; }   // true = a special event metric (Deaths) — rows come from its own engine, not Select/Tick (SPEC §Deaths)
 
         public MetricDef(string key, string label, string category, bool isRate,
             Func<CombatantReading, double> select, Func<double, string> format,
-            MetricBreakdownSource breakdownSource)
+            MetricBreakdownSource breakdownSource, bool isEvent = false)
         {
             Key = key;
             Label = label;
@@ -26,6 +27,7 @@ namespace Eq2Auras.Core.Meter
             Select = select;
             Format = format;
             BreakdownSource = breakdownSource;
+            IsEvent = isEvent;
         }
     }
 }

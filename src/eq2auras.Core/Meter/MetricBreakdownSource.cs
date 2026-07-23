@@ -16,5 +16,6 @@ namespace Eq2Auras.Core.Meter
         IncomingHealing,
         PowerReplenish,
         Cures,
+        Deaths,   // the Deaths special metric routes to the recap surface, not a by-ability bucket (SPEC §Deaths)
     }
 }
