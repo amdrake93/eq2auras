@@ -18,11 +18,16 @@ namespace Eq2Auras.Plugin.Act
 
         private readonly Func<bool> _enabled;
         private readonly Func<IReadOnlyList<DrillRequest>> _drillRequests;
-        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>> _onSample;
+        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>> _onSample;
         private int _tick;
 
+        // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan).
+        private readonly List<DeathRecord> _deathStore = new List<DeathRecord>();
+        private readonly Dictionary<string, int> _deathsSeen = new Dictionary<string, int>();
+        private DateTime _encounterStartKey = DateTime.MinValue;
+
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
-            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>> onSample)
+            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>> onSample)
         {
             _enabled = enabled;
             _drillRequests = drillRequests;
@@ -84,6 +89,46 @@ namespace Eq2Auras.Plugin.Act
                             });
                         }
 
+                        // Deaths capture (SPEC §Deaths): poll-only count-delta → bounded killing-blow scan.
+                        if (encounter.StartTime != _encounterStartKey)   // new encounter → reset the store
+                        {
+                            _encounterStartKey = encounter.StartTime;
+                            _deathStore.Clear();
+                            _deathsSeen.Clear();
+                        }
+                        string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
+                        foreach (var combatant in encounter.Items.Values)
+                        {
+                            if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
+                            int deaths = combatant.Deaths;                   // boolean-cached, cheap (verified ACT 3.8.5.288)
+                            _deathsSeen.TryGetValue(combatant.Name, out int seen);
+                            if (deaths <= seen) continue;                    // no new death for this victim
+
+                            // The victim's Death swings live as the incoming "Killing" AttackType (AllInc);
+                            // enumerate chronologically and record the un-seen ordinals.
+                            var deathSwings = new List<MasterSwing>();
+                            if (combatant.AllInc.TryGetValue(killingKey, out var killingAt))
+                                foreach (var sw in killingAt.Items)
+                                    if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
+                            deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
+
+                            for (int ordinal = seen + 1; ordinal <= deaths && ordinal <= deathSwings.Count; ordinal++)
+                            {
+                                var deathSwing = deathSwings[ordinal - 1];
+                                FindKillingBlow(combatant, deathSwing.TimeSorter, out string blowAbility, out double blowDamage);
+                                _deathStore.Add(new DeathRecord
+                                {
+                                    Victim = combatant.Name,
+                                    Ordinal = ordinal,
+                                    TimeOfDeathSeconds = (deathSwing.Time - encounter.StartTime).TotalSeconds,
+                                    KillingBlowAbility = blowAbility,
+                                    KillingBlowDamage = blowDamage,
+                                    DrillKey = combatant.Name + "#" + ordinal,
+                                });
+                            }
+                            _deathsSeen[combatant.Name] = deaths;
+                        }
+
                         if (requests != null && requests.Count > 0)
                         {
                             foreach (var request in requests)
@@ -105,7 +150,30 @@ namespace Eq2Auras.Plugin.Act
                 return;   // same defensive stance as TimerProbe's GetTimerFrames read
             }
 
-            _onSample(encounterReading, combatants, breakdowns);   // outside the lock — hold it briefly
+            var deaths = new List<DeathRecord>(_deathStore);       // snapshot for the WPF thread
+            _onSample(encounterReading, combatants, breakdowns, deaths);   // outside the lock — hold it briefly
+        }
+
+        /// The killing blow = the victim's last INCOMING DAMAGE swing at/before the death's TimeSorter
+        /// (SPEC §Deaths). ability=null / damage=0 when none is found (unsourced/absorbed) → the row shows "—".
+        private static void FindKillingBlow(CombatantData victim, int deathTimeSorter, out string ability, out double damage)
+        {
+            ability = null;
+            damage = 0;
+            if (!victim.Items.TryGetValue(CombatantData.DamageTypeDataIncomingDamage, out var incoming)) return;
+            string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+            MasterSwing best = null;
+            foreach (var pair in incoming.Items)
+            {
+                if (pair.Key == allKey) continue;
+                foreach (var sw in pair.Value.Items)
+                {
+                    if ((long)sw.Damage <= 0) continue;             // real damage only (skip misses/avoids/the death sentinel)
+                    if (sw.TimeSorter > deathTimeSorter) continue;  // at/before the death
+                    if (best == null || sw.TimeSorter > best.TimeSorter) best = sw;
+                }
+            }
+            if (best != null) { ability = best.AttackType; damage = (long)best.Damage; }
         }
 
         /// Enum → ACT bucket alias-static. The statics are set at the EQ2 parser's init

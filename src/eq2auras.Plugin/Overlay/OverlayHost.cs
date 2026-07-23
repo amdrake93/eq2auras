@@ -238,7 +238,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
         /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
         /// instead of the list (SPEC Part III §Row drill-down).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns)
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns, List<DeathRecord> deaths)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
