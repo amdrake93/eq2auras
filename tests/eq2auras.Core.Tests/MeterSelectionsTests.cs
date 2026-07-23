@@ -5,9 +5,9 @@ using Xunit;
 public class MeterSelectionsTests
 {
     [Fact]
-    public void The_nine_selections_cover_every_metric_and_add_two_enemy_twins()
+    public void The_selections_cover_every_metric_and_add_two_enemy_twins()
     {
-        Assert.Equal(9, MeterSelections.Primary.Count);
+        Assert.Equal(10, MeterSelections.Primary.Count);   // 8 allies (incl. Deaths) + 2 enemy twins
 
         // Every registry metric appears at least once as an allies selection.
         foreach (var metric in MetricRegistry.All)

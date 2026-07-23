@@ -52,6 +52,7 @@ namespace Eq2Auras.Plugin.Overlay
         private string _drilledCombatant;              // null = list mode; non-null = drilled into this combatant
         private MetricBreakdownSource _drillSource;    // resolved from the metric at EnterDrill
         private string _drillMetricLabel;              // the framing metric's identity label (selection label), shown in the header
+        private string _drillDeathKey;                 // set when drilled into a death (Deaths metric) — which death (Victim#Ordinal)
         private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
@@ -303,7 +304,7 @@ namespace Eq2Auras.Plugin.Overlay
                     // is reserved (no-op) for the future per-ability detail window (SPEC §Row drill-down).
                     if (_drilledCombatant == null)
                     {
-                        EnterDrill(slot.CurrentName);
+                        EnterDrill(slot.CurrentRow);
                         e.Handled = true;
                     }
                 };
@@ -328,29 +329,45 @@ namespace Eq2Auras.Plugin.Overlay
         /// the probe's drill-request set and to route list-vs-drill rendering (SPEC §Row drill-down).
         public DrillRequest DrillTarget => _drilledCombatant == null
             ? null
-            : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource };
+            : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource, DeathKey = _drillDeathKey };
 
         /// Enter drill mode for a combatant (left-click a row). Resolves the framing metric, swaps
         /// the header's left identity to "‹ Name — metric" (back-hint chevron; SPEC §Header while
         /// drilled), hides the secondary-label cell, clears the body until the next poll's breakdown,
         /// and publishes the new drill state so the host requests the deep-read.
-        public void EnterDrill(string combatantName)
+        public void EnterDrill(MeterRow row)
         {
-            if (string.IsNullOrEmpty(combatantName)) return;
+            if (row == null) return;
             var metric = MetricRegistry.ResolvePrimary(_metricKey);
             if (metric == null) return;   // cleared primary shows no rows — nothing to drill
 
-            _drilledCombatant = combatantName;
-            _drillSource = metric.BreakdownSource;
-            var selection = MeterSelections.Resolve(_scope, _metricKey);
-            _drillMetricLabel = selection?.Label ?? metric.Label;
-
             // Set _metricText directly (not via SetHeaderLabel): the drill label is never empty, so
             // the helper's collapse-when-blank behavior isn't wanted here — the identity always shows.
-            _metricText.Text = "‹ " + combatantName + " — " + _drillMetricLabel;
-            _metricText.Visibility = Visibility.Visible;
-            SetHeaderLabel(_secondaryLabelText, "");   // no secondary cell while drilled (SPEC §Header while drilled)
-            SetHeaderLabel(_totalText, "");            // filled by the next RenderDrill from the combatant's own total
+            if (metric.IsEvent)   // Deaths → the recap drill (SPEC §Death Recap)
+            {
+                if (string.IsNullOrEmpty(row.DrillKey)) return;
+                _drilledCombatant = row.Name;
+                _drillSource = metric.BreakdownSource;   // Deaths
+                _drillDeathKey = row.DrillKey;
+                // Header mirrors the clicked row: "‹ Name (N) · killing blow + dmg"; time-of-death in the total cell.
+                _metricText.Text = "‹ " + row.Name + " " + (row.Detail ?? "");
+                _metricText.Visibility = Visibility.Visible;
+                SetHeaderLabel(_secondaryLabelText, "");
+                SetHeaderLabel(_totalText, row.FormattedValue);   // the death's time — the view's value, right-aligned
+            }
+            else                  // by-ability drill (unchanged, now with the shared middot)
+            {
+                if (string.IsNullOrEmpty(row.Name)) return;
+                _drilledCombatant = row.Name;
+                _drillSource = metric.BreakdownSource;
+                _drillDeathKey = null;
+                var selection = MeterSelections.Resolve(_scope, _metricKey);
+                _drillMetricLabel = selection?.Label ?? metric.Label;
+                _metricText.Text = "‹ " + row.Name + " · " + _drillMetricLabel;   // shared drill-header middot (SPEC §Row drill-down)
+                _metricText.Visibility = Visibility.Visible;
+                SetHeaderLabel(_secondaryLabelText, "");   // no secondary cell while drilled (SPEC §Header while drilled)
+                SetHeaderLabel(_totalText, "");            // filled by the next RenderDrill from the combatant's own total
+            }
 
             _currentRows = new List<MeterRow>();
             _scrollOffset = 0;

@@ -18,6 +18,7 @@ namespace Eq2Auras.Core.Meter
             new MetricDef("totalhealing", "Total Healing", "Healing", isRate: false, r => r.Healed, NumberFormat.Abbreviate, MetricBreakdownSource.OutgoingHealing),
             new MetricDef("healstaken", "Healing Taken", "Healing", isRate: false, r => r.HealsTaken, NumberFormat.Abbreviate, MetricBreakdownSource.IncomingHealing),
             new MetricDef("powerheal", "Power Replenish", "Utility", isRate: false, r => r.PowerReplenish, NumberFormat.Abbreviate, MetricBreakdownSource.PowerReplenish),
+            new MetricDef("deaths", "Deaths", "Damage", isRate: false, select: null, format: null, breakdownSource: MetricBreakdownSource.Deaths, isEvent: true),
         };
 
         /// Null/unknown keys resolve to the DPS default — the forward-compat guard

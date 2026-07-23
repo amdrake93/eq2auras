@@ -15,12 +15,15 @@ namespace Eq2Auras.Core.Meter
         public double BarFraction { get; set; }      // vs. rank-1's value (0..1) — rank 1 = full bar
         public int FillArgb { get; set; }
         public List<SecondaryValue> Secondaries { get; set; }
+        public string Detail { get; set; }     // muted suffix after Name (Deaths: "(N) · killing blow + dmg"); null on normal rows
+        public string DrillKey { get; set; }   // per-row drill identity; null → drill by Name (Deaths: two rows can share a victim name)
     }
 
     public sealed class SecondaryValue
     {
         public string Key { get; set; }
         public string FormattedValue { get; set; }
+        public int? Argb { get; set; }         // optional column color (recap dmg=red/heals=green); null → subordinate grey
     }
 
     /// Everything a meter window renders for one poll: header + rows. No ACT/WPF types.

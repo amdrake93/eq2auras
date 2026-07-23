@@ -238,7 +238,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
         /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
         /// instead of the list (SPEC Part III §Row drill-down).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns)
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns, List<DeathRecord> deaths, List<RecapReading> recaps)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
@@ -249,13 +249,39 @@ namespace Eq2Auras.Plugin.Overlay
                 {
                     var config = pair.Key;
                     var window = pair.Value;
-                    var listFrame = _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
+                    var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
+                    // Deaths (the event metric) builds an event timeline from the death records, not Tick.
+                    var listFrame = metric != null && metric.IsEvent
+                        ? DeathsEngine.BuildList(deaths, duration)
+                        : _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
 
                     var target = window.DrillTarget;
-                    var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
                     if (target == null || metric == null)
                     {
                         window.Render(listFrame);
+                        continue;
+                    }
+
+                    // Deaths: drill into a specific death → its recap (SPEC §Death Recap). The death's row
+                    // in the rebuilt list is the auto-exit signal (gone → new encounter / cleared) and the
+                    // header total (its time-of-death).
+                    if (target.Source == MetricBreakdownSource.Deaths)
+                    {
+                        MeterRow deathRow = null;
+                        foreach (var row in listFrame.Rows)
+                            if (row.DrillKey == target.DeathKey) { deathRow = row; break; }
+                        if (deathRow == null)
+                        {
+                            window.ExitDrill();
+                            window.Render(listFrame);
+                            continue;
+                        }
+                        RecapReading recap = null;
+                        if (recaps != null)
+                            foreach (var r in recaps)
+                                if (r.DrillKey == target.DeathKey) { recap = r; break; }
+                        var recapRows = recap != null ? DeathRecapEngine.Build(recap) : new List<MeterRow>();
+                        window.RenderDrill(recapRows, deathRow.FormattedValue);   // total cell = time-of-death
                         continue;
                     }
 

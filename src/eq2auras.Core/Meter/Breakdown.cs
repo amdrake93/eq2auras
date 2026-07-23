@@ -26,5 +26,6 @@ namespace Eq2Auras.Core.Meter
     {
         public string CombatantName { get; set; }
         public MetricBreakdownSource Source { get; set; }
+        public string DeathKey { get; set; }   // set when Source == Deaths — which death (Victim#Ordinal) to recap; null otherwise
     }
 }
