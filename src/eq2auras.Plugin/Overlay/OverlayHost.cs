@@ -249,10 +249,13 @@ namespace Eq2Auras.Plugin.Overlay
                 {
                     var config = pair.Key;
                     var window = pair.Value;
-                    var listFrame = _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
+                    var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
+                    // Deaths (the event metric) builds an event timeline from the death records, not Tick.
+                    var listFrame = metric != null && metric.IsEvent
+                        ? DeathsEngine.BuildList(deaths, duration)
+                        : _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
 
                     var target = window.DrillTarget;
-                    var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
                     if (target == null || metric == null)
                     {
                         window.Render(listFrame);

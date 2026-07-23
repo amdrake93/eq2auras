@@ -1,6 +1,7 @@
 using System;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Documents;
 using System.Windows.Media;
 using System.Windows.Media.Animation;
 using Eq2Auras.Core.Meter;
@@ -80,7 +81,17 @@ namespace Eq2Auras.Plugin.Overlay
         public void Update(MeterRow row)
         {
             CurrentName = row.Name;
-            _bar.NameText.Text = row.Name;
+            if (!string.IsNullOrEmpty(row.Detail))
+            {
+                // Two-tone leading label (SPEC §Deaths): white victim name + subordinate-grey killing blow.
+                _bar.NameText.Inlines.Clear();
+                _bar.NameText.Inlines.Add(new Run(row.Name) { Foreground = new SolidColorBrush(OverlayTheme.Text) });
+                _bar.NameText.Inlines.Add(new Run(" " + row.Detail) { Foreground = Theme.TextLabel });
+            }
+            else
+            {
+                _bar.NameText.Text = row.Name;   // single white run (resets any prior inlines)
+            }
             _bar.TrailingText.Text = row.FormattedValue;
             _percent.Text = row.FormattedPercent;
 
