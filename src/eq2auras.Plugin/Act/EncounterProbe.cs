@@ -101,9 +101,9 @@ namespace Eq2Auras.Plugin.Act
                         foreach (var combatant in encounter.Items.Values)
                         {
                             if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
-                            int deaths = combatant.Deaths;                   // boolean-cached, cheap (verified ACT 3.8.5.288)
+                            int deathCount = combatant.Deaths;               // boolean-cached, cheap (verified ACT 3.8.5.288)
                             _deathsSeen.TryGetValue(combatant.Name, out int seen);
-                            if (deaths <= seen) continue;                    // no new death for this victim
+                            if (deathCount <= seen) continue;                // no new death for this victim
 
                             // The victim's Death swings live as the incoming "Killing" AttackType (AllInc);
                             // enumerate chronologically and record the un-seen ordinals.
@@ -113,7 +113,7 @@ namespace Eq2Auras.Plugin.Act
                                     if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
                             deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
 
-                            for (int ordinal = seen + 1; ordinal <= deaths && ordinal <= deathSwings.Count; ordinal++)
+                            for (int ordinal = seen + 1; ordinal <= deathCount && ordinal <= deathSwings.Count; ordinal++)
                             {
                                 var deathSwing = deathSwings[ordinal - 1];
                                 FindKillingBlow(combatant, deathSwing.TimeSorter, out string blowAbility, out double blowDamage);
@@ -127,7 +127,7 @@ namespace Eq2Auras.Plugin.Act
                                     DrillKey = combatant.Name + "#" + ordinal,
                                 });
                             }
-                            _deathsSeen[combatant.Name] = deaths;
+                            _deathsSeen[combatant.Name] = deathCount;
                         }
 
                         if (requests != null && requests.Count > 0)
