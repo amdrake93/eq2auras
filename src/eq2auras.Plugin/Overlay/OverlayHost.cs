@@ -262,6 +262,29 @@ namespace Eq2Auras.Plugin.Overlay
                         continue;
                     }
 
+                    // Deaths: drill into a specific death → its recap (SPEC §Death Recap). The death's row
+                    // in the rebuilt list is the auto-exit signal (gone → new encounter / cleared) and the
+                    // header total (its time-of-death).
+                    if (target.Source == MetricBreakdownSource.Deaths)
+                    {
+                        MeterRow deathRow = null;
+                        foreach (var row in listFrame.Rows)
+                            if (row.DrillKey == target.DeathKey) { deathRow = row; break; }
+                        if (deathRow == null)
+                        {
+                            window.ExitDrill();
+                            window.Render(listFrame);
+                            continue;
+                        }
+                        RecapReading recap = null;
+                        if (recaps != null)
+                            foreach (var r in recaps)
+                                if (r.DrillKey == target.DeathKey) { recap = r; break; }
+                        var recapRows = recap != null ? DeathRecapEngine.Build(recap) : new List<MeterRow>();
+                        window.RenderDrill(recapRows, deathRow.FormattedValue);   // total cell = time-of-death
+                        continue;
+                    }
+
                     // The drilled combatant's OWN row in the scope-filtered list is its total AND the
                     // auto-exit signal: gone from the list -> it left the scoped population (plan-watch #3).
                     MeterRow ownRow = null;
