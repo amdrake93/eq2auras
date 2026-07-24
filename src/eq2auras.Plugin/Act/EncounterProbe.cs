@@ -18,7 +18,8 @@ namespace Eq2Auras.Plugin.Act
 
         private readonly Func<bool> _enabled;
         private readonly Func<IReadOnlyList<DrillRequest>> _drillRequests;
-        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> _onSample;
+        private readonly Func<IReadOnlyList<string>> _hoverRequests;   // SPIKE (mouseover-spike): combatant names to deep-read damage-by-target
+        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>, List<BreakdownReading>> _onSample;
         private int _tick;
 
         // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan).
@@ -27,10 +28,12 @@ namespace Eq2Auras.Plugin.Act
         private DateTime _encounterStartKey = DateTime.MinValue;
 
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
-            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> onSample)
+            Func<IReadOnlyList<string>> hoverRequests,
+            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>, List<BreakdownReading>> onSample)
         {
             _enabled = enabled;
             _drillRequests = drillRequests;
+            _hoverRequests = hoverRequests;
             _onSample = onSample;
         }
 
@@ -44,7 +47,9 @@ namespace Eq2Auras.Plugin.Act
             var combatants = new List<CombatantReading>();
             var breakdowns = new List<BreakdownReading>();
             var recaps = new List<RecapReading>();
+            var hoverBreakdowns = new List<BreakdownReading>();   // SPIKE (mouseover-spike)
             var requests = _drillRequests?.Invoke();   // O(1) volatile read — before the lock
+            var hoverNames = _hoverRequests?.Invoke();   // SPIKE — same lock-free snapshot pattern
             try
             {
                 var form = ActGlobals.oFormActMain;
@@ -149,6 +154,19 @@ namespace Eq2Auras.Plugin.Act
                                     breakdowns.Add(new BreakdownReading { CombatantName = request.CombatantName, Source = request.Source, Entries = entries });
                             }
                         }
+
+                        // SPIKE (mouseover-spike): the by-target hover surface. One deep-read per hovered
+                        // combatant (never a fan-out), same on-hover-under-lock stance as the drill.
+                        if (hoverNames != null && hoverNames.Count > 0)
+                        {
+                            foreach (var name in hoverNames)
+                            {
+                                if (!encounter.Items.TryGetValue((name ?? "").ToUpper(), out var combatant)) continue;
+                                var entries = ReadByTarget(combatant);
+                                if (entries != null)
+                                    hoverBreakdowns.Add(new BreakdownReading { CombatantName = name, Source = MetricBreakdownSource.OutgoingDamage, Entries = entries });
+                            }
+                        }
                     }
                 }
             }
@@ -158,7 +176,33 @@ namespace Eq2Auras.Plugin.Act
             }
 
             var deaths = new List<DeathRecord>(_deathStore);       // snapshot for the WPF thread
-            _onSample(encounterReading, combatants, breakdowns, deaths, recaps);   // outside the lock — hold it briefly
+            _onSample(encounterReading, combatants, breakdowns, deaths, recaps, hoverBreakdowns);   // outside the lock — hold it briefly
+        }
+
+        /// SPIKE (mouseover-spike): one combatant's OUTGOING DAMAGE grouped by target (Victim),
+        /// read under the ACT lock. Sums positive Dnums over the category "All" AttackType's raw
+        /// swings — the "All" bucket is written unconditionally (robust to ActGlobals.restrictToAll;
+        /// ACT 3.8.5.288 CombatantData.AddCombatAction). Reuses BreakdownEntry; the real by-target
+        /// data pipe is a future brainstorm (docs/backlog.md), unbiased by this expedient read.
+        private static List<BreakdownEntry> ReadByTarget(CombatantData combatant)
+        {
+            if (!combatant.Items.TryGetValue(CombatantData.DamageTypeDataOutgoingDamage, out var outgoing)) return null;
+            string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+            if (!outgoing.Items.TryGetValue(allKey, out var allAttackType)) return null;
+
+            var byVictim = new Dictionary<string, double>();
+            foreach (var sw in allAttackType.Items)
+            {
+                long damage = (long)sw.Damage;
+                if (damage <= 0) continue;   // real damage only (skip misses/avoids/sentinels)
+                byVictim.TryGetValue(sw.Victim, out double accumulated);
+                byVictim[sw.Victim] = accumulated + damage;
+            }
+
+            var entries = new List<BreakdownEntry>();
+            foreach (var pair in byVictim)
+                entries.Add(new BreakdownEntry { Label = pair.Key, Value = pair.Value });
+            return entries;
         }
 
         /// The killing blow = the victim's last INCOMING DAMAGE swing at/before the death's TimeSorter

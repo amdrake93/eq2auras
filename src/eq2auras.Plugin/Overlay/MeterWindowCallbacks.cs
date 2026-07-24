@@ -21,5 +21,6 @@ namespace Eq2Auras.Plugin.Overlay
         public Action CloseWindow;
         public Func<bool> CanClose;
         public Action DrillChanged;   // window entered/left drill mode -> host rebuilds the drill-request snapshot
+        public Action HoverChanged;   // SPIKE (mouseover-spike): row hover in/out -> host rebuilds the hover-request snapshot
     }
 }

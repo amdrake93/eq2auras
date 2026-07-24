@@ -25,6 +25,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Dictionary<MeterWindowConfig, MeterWindow> _meterWindows =
             new Dictionary<MeterWindowConfig, MeterWindow>();
         private volatile IReadOnlyList<DrillRequest> _drillRequests = new List<DrillRequest>();
+        private volatile IReadOnlyList<string> _hoverRequests = new List<string>();   // SPIKE (mouseover-spike)
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -127,6 +128,7 @@ namespace Eq2Auras.Plugin.Overlay
                     CloseWindow = () => CloseMeterWindow(config),
                     CanClose = () => _meterWindows.Count > 1,
                     DrillChanged = RebuildDrillRequests,
+                    HoverChanged = RebuildHoverRequests,   // SPIKE (mouseover-spike)
                 });
             _meterWindows[config] = window;
             window.Show();
@@ -170,6 +172,7 @@ namespace Eq2Auras.Plugin.Overlay
             }
             SettingsStore.Update(_settings, () => _settings.Meter.Windows.Remove(config));
             RebuildDrillRequests();   // a closed window drops out of the drill-request set
+            RebuildHoverRequests();   // SPIKE (mouseover-spike): and the hover-request set
         }
 
         // Per-window style resolved from the config: zero row spacing (meter rows touch —
@@ -235,10 +238,26 @@ namespace Eq2Auras.Plugin.Overlay
         /// latest lock-free snapshot — the probe deep-reads each requested combatant under the lock.
         public IReadOnlyList<DrillRequest> CurrentDrillRequests() => _drillRequests;
 
+        /// SPIKE (mouseover-spike): recompute the hover-request set (distinct hovered combatants) from
+        /// every window's HoverTarget. Same lock-free reference-swap pattern as RebuildDrillRequests.
+        private void RebuildHoverRequests()
+        {
+            var list = new List<string>();
+            foreach (var window in _meterWindows.Values)
+            {
+                var target = window.HoverTarget;
+                if (target != null && !list.Contains(target)) list.Add(target);
+            }
+            _hoverRequests = list;
+        }
+
+        /// SPIKE (mouseover-spike): read by EncounterProbe each poll, like CurrentDrillRequests.
+        public IReadOnlyList<string> CurrentHoverRequests() => _hoverRequests;
+
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
         /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
         /// instead of the list (SPEC Part III §Row drill-down).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns, List<DeathRecord> deaths, List<RecapReading> recaps)
+        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns, List<DeathRecord> deaths, List<RecapReading> recaps, List<BreakdownReading> hoverBreakdowns)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
@@ -250,6 +269,23 @@ namespace Eq2Auras.Plugin.Overlay
                     var config = pair.Key;
                     var window = pair.Value;
                     var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
+
+                    // SPIKE (mouseover-spike): the by-target hover surface, handled first so the drill
+                    // routing's early continues below never skip hiding a stale popup.
+                    var hoverName = window.HoverTarget;
+                    if (hoverName == null || metric == null)
+                    {
+                        window.HideHover();
+                    }
+                    else
+                    {
+                        BreakdownReading hover = null;
+                        if (hoverBreakdowns != null)
+                            foreach (var h in hoverBreakdowns)
+                                if (h.CombatantName == hoverName) { hover = h; break; }
+                        if (hover != null)
+                            window.ShowHover(hoverName, BreakdownEngine.Build(hover.Entries, metric, duration));
+                    }
                     // Deaths (the event metric) builds an event timeline from the death records, not Tick.
                     var listFrame = metric != null && metric.IsEvent
                         ? DeathsEngine.BuildList(deaths, duration)

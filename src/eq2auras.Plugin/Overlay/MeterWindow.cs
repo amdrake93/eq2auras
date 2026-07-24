@@ -54,6 +54,8 @@ namespace Eq2Auras.Plugin.Overlay
         private string _drillMetricLabel;              // the framing metric's identity label (selection label), shown in the header
         private string _drillDeathKey;                 // set when drilled into a death (Deaths metric) — which death (Victim#Ordinal)
         private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
+        private string _hoverCombatant;                // SPIKE (mouseover-spike): list-mode row currently hovered, or null
+        private MeterHoverWindow _hover;               // SPIKE (mouseover-spike): the by-target hover surface
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
@@ -308,6 +310,10 @@ namespace Eq2Auras.Plugin.Overlay
                         e.Handled = true;
                     }
                 };
+                // SPIKE (mouseover-spike): list-mode + damage-metric rows only (POC #1 — by-target DPS).
+                // The hover surface is a separate click-through window, so these fire reliably.
+                slot.Root.MouseEnter += (s, e) => OnRowHoverEnter(slot.CurrentRow);
+                slot.Root.MouseLeave += (s, e) => OnRowHoverLeave();
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
@@ -395,6 +401,47 @@ namespace Eq2Auras.Plugin.Overlay
             _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, _currentRows.Count - _visibleRows));
             RenderSlots();
         }
+
+        // ─── SPIKE (mouseover-spike): the by-target hover surface (POC #1) ───────────────
+        // Throwaway UX probe. A parallel channel to drill: the host reads HoverTarget to build
+        // the probe's hover-request set, deep-reads that combatant's damage-by-target under the
+        // lock, and calls ShowHover with the ranked rows. The data pipe carries NO design weight
+        // — the real hover primitive is a later brainstorm (docs/backlog.md).
+
+        /// The combatant whose by-target breakdown the host should deep-read this poll, or null.
+        public string HoverTarget => _hoverCombatant;
+
+        private void OnRowHoverEnter(MeterRow row)
+        {
+            if (_drilledCombatant != null) return;   // list mode only (POC #1)
+            var metric = MetricRegistry.ResolvePrimary(_metricKey);
+            if (metric == null || metric.BreakdownSource != MetricBreakdownSource.OutgoingDamage) return;   // damage windows only
+            if (row == null || string.IsNullOrEmpty(row.Name)) return;
+            _hoverCombatant = row.Name;
+            _cb.HoverChanged?.Invoke();
+        }
+
+        private void OnRowHoverLeave()
+        {
+            if (_hoverCombatant == null) return;
+            _hoverCombatant = null;
+            HideHover();                     // instant — don't linger a poll after the cursor leaves
+            _cb.HoverChanged?.Invoke();
+        }
+
+        /// Show the by-target surface beside the window with the given rows (host, when a hover
+        /// reading arrives). Ignores a stale reading whose combatant is no longer hovered.
+        public void ShowHover(string combatant, List<MeterRow> rows)
+        {
+            if (_hoverCombatant == null || _hoverCombatant != combatant) return;
+            if (_hover == null) _hover = new MeterHoverWindow(_style, _opacity);
+            _hover.Update(combatant + " — by target", rows);
+            _hover.Left = Left + Width + 8;   // beside the window's right edge (POC — no edge-flip yet)
+            _hover.Top = Top;
+            if (!_hover.IsVisible) _hover.Show();
+        }
+
+        public void HideHover() => _hover?.Hide();
 
         /// The window reserves its configured row count as a persistent backdrop regardless of
         /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
@@ -584,6 +631,7 @@ namespace Eq2Auras.Plugin.Overlay
         protected override void OnClosed(EventArgs e)
         {
             _settings?.Close();
+            _hover?.Close();
             base.OnClosed(e);
         }
     }
