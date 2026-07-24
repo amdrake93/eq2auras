@@ -55,6 +55,7 @@ namespace Eq2Auras.Plugin.Overlay
         private string _drillDeathKey;                 // set when drilled into a death (Deaths metric) — which death (Victim#Ordinal)
         private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
         private string _hoverCombatant;                // SPIKE (mouseover-spike): list-mode row currently hovered, or null
+        private string _hoverShownFor;                 // SPIKE: the combatant the popup is CURRENTLY rendering (null = hidden)
         private MeterHoverWindow _hover;               // SPIKE (mouseover-spike): the by-target hover surface
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
@@ -417,7 +418,9 @@ namespace Eq2Auras.Plugin.Overlay
             var metric = MetricRegistry.ResolvePrimary(_metricKey);
             if (metric == null || metric.BreakdownSource != MetricBreakdownSource.OutgoingDamage) return;   // damage windows only
             if (row == null || string.IsNullOrEmpty(row.Name)) return;
+            if (row.Name == _hoverCombatant) return;                     // already the hovered row
             _hoverCombatant = row.Name;
+            if (_hoverShownFor != row.Name) HideHover();                 // never flash the prior combatant while the new read is in flight (~⅓s)
             _cb.HoverChanged?.Invoke();
         }
 
@@ -436,6 +439,7 @@ namespace Eq2Auras.Plugin.Overlay
             if (_hoverCombatant == null || _hoverCombatant != combatant) return;
             if (_hover == null) _hover = new MeterHoverWindow(_style, _opacity);
             _hover.Update(combatant + " — by target", rows);
+            _hoverShownFor = combatant;
             PositionHover(rows?.Count ?? 0);
             if (!_hover.IsVisible) _hover.Show();
         }
@@ -466,7 +470,11 @@ namespace Eq2Auras.Plugin.Overlay
             _hover.Top = y;
         }
 
-        public void HideHover() => _hover?.Hide();
+        public void HideHover()
+        {
+            _hover?.Hide();
+            _hoverShownFor = null;
+        }
 
         /// The window reserves its configured row count as a persistent backdrop regardless of
         /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
