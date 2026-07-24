@@ -436,9 +436,34 @@ namespace Eq2Auras.Plugin.Overlay
             if (_hoverCombatant == null || _hoverCombatant != combatant) return;
             if (_hover == null) _hover = new MeterHoverWindow(_style, _opacity);
             _hover.Update(combatant + " — by target", rows);
-            _hover.Left = Left + Width + 8;   // beside the window's right edge (POC — no edge-flip yet)
-            _hover.Top = Top;
+            PositionHover(rows?.Count ?? 0);
             if (!_hover.IsVisible) _hover.Show();
+        }
+
+        /// Screen-bounds-aware placement, borrowing the overlay's primary-screen edges — the same
+        /// SystemParameters the grid + meter clamps use. Prefer the window's RIGHT side; flip to the
+        /// LEFT when the popup would overflow the right edge (the lower-right-meter cutoff case);
+        /// clamp vertically so a tall popup stays on-screen.
+        private void PositionHover(int rowCount)
+        {
+            double screenW = SystemParameters.PrimaryScreenWidth;
+            double screenH = SystemParameters.PrimaryScreenHeight;
+            const double gap = 8;
+            double popupW = _style.RowWidth;
+
+            double rightX = Left + Width + gap;
+            double leftX = Left - gap - popupW;
+            double x = rightX + popupW <= screenW ? rightX     // fits on the right
+                     : leftX >= 0 ? leftX                       // else flip left if that fits
+                     : rightX;                                  // neither: keep right, clamp below
+            x = Math.Max(0, Math.Min(x, screenW - popupW));
+
+            int shown = Math.Min(rowCount, 15);                 // matches MeterHoverWindow's row cap
+            double estHeight = _style.RowHeight * (shown + 1) + 8;   // +1 ~ title band, +8 border/margins
+            double y = Math.Max(0, Math.Min(Top, screenH - estHeight));
+
+            _hover.Left = x;
+            _hover.Top = y;
         }
 
         public void HideHover() => _hover?.Hide();
