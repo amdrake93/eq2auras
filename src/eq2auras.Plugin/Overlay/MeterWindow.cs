@@ -470,9 +470,14 @@ namespace Eq2Auras.Plugin.Overlay
             _hover.Top = y;
         }
 
+        /// Close + drop the popup rather than Hide()+reuse: a hidden WPF window keeps its composited
+        /// visual and flashes that stale frame on the next Show() before Update() re-renders. Recreating
+        /// per appearance means the window only ever composites the current combatant's data (fresh bars
+        /// animate from 0). A live refresh of the SAME hovered combatant reuses the open window.
         public void HideHover()
         {
-            _hover?.Hide();
+            _hover?.Close();
+            _hover = null;
             _hoverShownFor = null;
         }
 
