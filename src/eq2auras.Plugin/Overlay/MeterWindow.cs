@@ -6,6 +6,7 @@ using System.Windows.Input;
 using System.Windows.Media;
 using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Meter;
+using Eq2Auras.Core.Overlay;
 
 namespace Eq2Auras.Plugin.Overlay
 {
@@ -54,6 +55,9 @@ namespace Eq2Auras.Plugin.Overlay
         private string _drillMetricLabel;              // the framing metric's identity label (selection label), shown in the header
         private string _drillDeathKey;                 // set when drilled into a death (Deaths metric) — which death (Victim#Ordinal)
         private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
+        private string _hoverCombatant;                // list-mode row currently hovered, or null
+        private MeterRowVisual _hoverSlot;             // the hovered slot — its screen rect anchors the card
+        private HoverCard _hover;                      // the by-row hover card (recreated per appearance)
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             MeterWindowCallbacks callbacks)
@@ -308,6 +312,8 @@ namespace Eq2Auras.Plugin.Overlay
                         e.Handled = true;
                     }
                 };
+                slot.Root.MouseEnter += (s, e) => OnRowHoverEnter(slot);
+                slot.Root.MouseLeave += (s, e) => OnRowHoverLeave();
                 _slots.Add(slot);
                 _rowsPanel.Children.Add(slot.Root);
                 slot.FadeIn();
@@ -395,6 +401,98 @@ namespace Eq2Auras.Plugin.Overlay
             _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, _currentRows.Count - _visibleRows));
             RenderSlots();
         }
+
+        // ─── The hover surface (SPEC Part I §The hover surface) ───────────────────────────
+        // List-mode row mouseover → a floating card beside the window, anchored to the row, placed
+        // by Core HoverPlacement. Fed PLACEHOLDER content — the real by-target data path is a later
+        // slice (SPEC §Reserved seams); it will replace PlaceholderRows() only.
+
+        private void OnRowHoverEnter(MeterRowVisual slot)
+        {
+            if (_drilledCombatant != null) return;          // list mode only
+            var row = slot?.CurrentRow;
+            if (row == null || string.IsNullOrEmpty(row.Name)) return;
+            if (row.Name == _hoverCombatant) return;        // already the hovered row
+            _hoverCombatant = row.Name;
+            _hoverSlot = slot;
+            ShowHoverCard(row.Name);
+        }
+
+        private void OnRowHoverLeave()
+        {
+            if (_hoverCombatant == null) return;
+            _hoverCombatant = null;
+            _hoverSlot = null;
+            HideHover();
+        }
+
+        /// Recreate the card fresh each appearance: a reused hidden WPF window flashes its stale
+        /// composited frame on the next show before Update() re-renders, so a fresh one only ever
+        /// composites the current content.
+        private void ShowHoverCard(string combatant)
+        {
+            HideHover();
+            _hover = new HoverCard(_style, _opacity);
+            _hover.Update(combatant + " — by target", PlaceholderRows());
+            _hover.ShowAt(HostRect(), AnchorRect());
+        }
+
+        public void HideHover()
+        {
+            _hover?.Close();
+            _hover = null;
+        }
+
+        private HoverRect HostRect()
+            => new HoverRect { Left = Left, Top = Top, Width = Width, Height = ActualHeight };
+
+        /// The hovered row's screen rect (DIPs). WindowStyle.None + AllowsTransparency ⇒ the window's
+        /// root visual origin == its screen top-left, so a point transformed into this window's space
+        /// plus Top is a screen DIP. Falls back to the meter's own bottom row band if the transform
+        /// isn't available yet.
+        private HoverRect AnchorRect()
+        {
+            double top = Top + ActualHeight - _style.RowHeight;
+            double height = _style.RowHeight;
+            var rowRoot = _hoverSlot?.Root as FrameworkElement;
+            if (rowRoot != null)
+            {
+                try
+                {
+                    var t = rowRoot.TransformToAncestor(this);
+                    top = Top + t.Transform(new Point(0, 0)).Y;
+                    height = rowRoot.ActualHeight;
+                }
+                catch { /* not in the tree yet — keep the fallback */ }
+            }
+            return new HoverRect { Left = Left, Top = top, Width = Width, Height = height };
+        }
+
+        /// Placeholder content while the real by-target data path is designed (SPEC §The hover
+        /// surface — "fed placeholder content"). Three sample rows in the window's family color,
+        /// enough to exercise width, bars, and placement.
+        private List<MeterRow> PlaceholderRows()
+        {
+            var metric = MetricRegistry.ResolvePrimary(_metricKey);
+            int fill = metric != null ? MeterFamilyColors.ArgbFor(metric.Category) : unchecked((int)0xFFE05A5A);
+            return new List<MeterRow>
+            {
+                PlaceholderRow("Sample target A", "2.66K", "54%", 1.00, fill),
+                PlaceholderRow("Sample target B", "1.33K", "27%", 0.50, fill),
+                PlaceholderRow("Sample target C", "935",   "19%", 0.35, fill),
+            };
+        }
+
+        private static MeterRow PlaceholderRow(string name, string value, string percent, double bar, int fill)
+            => new MeterRow
+            {
+                Name = name,
+                FormattedValue = value,
+                FormattedPercent = percent,
+                BarFraction = bar,
+                FillArgb = fill,
+                Secondaries = new List<SecondaryValue>(),
+            };
 
         /// The window reserves its configured row count as a persistent backdrop regardless of
         /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
@@ -584,6 +682,7 @@ namespace Eq2Auras.Plugin.Overlay
         protected override void OnClosed(EventArgs e)
         {
             _settings?.Close();
+            _hover?.Close();
             base.OnClosed(e);
         }
     }
