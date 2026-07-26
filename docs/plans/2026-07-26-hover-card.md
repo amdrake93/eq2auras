@@ -226,7 +226,7 @@ git commit -m "Hover surface: Core HoverPlacement — pure on-screen placement g
 - Create: `src/eq2auras.Plugin/Overlay/HoverCard.cs`
 
 **Interfaces:**
-- Consumes: `Eq2Auras.Core.Overlay.HoverPlacement.Compute(...)`, `HoverRect`; `Eq2Auras.Core.Config.VisualStyle`; `Eq2Auras.Core.Meter.MeterRow`; `MeterRowVisual`, `MeterColumns`, `Theme`, `ClickThrough` (Plugin).
+- Consumes: `Eq2Auras.Core.Overlay.HoverPlacement.Compute(...)`, `HoverRect`; `Eq2Auras.Core.Meter.MeterRow`; `Eq2Auras.Plugin.Overlay.VisualStyle`, `MeterRowVisual`, `MeterColumns`, `Theme`, `ClickThrough` (all Plugin, `HoverCard`'s own namespace — no `using`).
 - Produces:
   - `internal sealed class HoverCard : Window` with `HoverCard(VisualStyle style, double opacity)`, `void Update(string titleText, List<MeterRow> rows)`, `void ShowAt(HoverRect host, HoverRect anchor)`, and properties `double ContentTopInset`, `double ContentBottomInset`, `double MeasuredHeight`.
 
@@ -240,7 +240,6 @@ using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
-using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Meter;
 using Eq2Auras.Core.Overlay;
 
