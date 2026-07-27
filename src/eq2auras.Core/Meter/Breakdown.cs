@@ -2,6 +2,17 @@ using System.Collections.Generic;
 
 namespace Eq2Auras.Core.Meter
 {
+    /// Which data-grouping dimension a breakdown request/reading is keyed by — the drill's
+    /// by-ability breakdown vs. the hover's by-counterpart breakdown (SPEC Part III §Row
+    /// drill-down). One channel, two read shapes; a window is only ever drilling OR hovering,
+    /// so it issues at most one request. ByAbility = 0 keeps a request built without it on the
+    /// shipped drill path. Transient — never persisted.
+    public enum BreakdownGrouping
+    {
+        ByAbility = 0,
+        ByCounterpart,
+    }
+
     /// One by-ability entry the drill-down deep-read produces: an ability label and its
     /// RAW value (per-ability AttackType total — the Plugin reads it, Core divides by
     /// duration for rate metrics). No ACT types (SPEC Part III §The one data rule).
@@ -17,6 +28,7 @@ namespace Eq2Auras.Core.Meter
     {
         public string CombatantName { get; set; }
         public MetricBreakdownSource Source { get; set; }
+        public BreakdownGrouping Grouping { get; set; }
         public List<BreakdownEntry> Entries { get; set; }
     }
 
@@ -26,6 +38,7 @@ namespace Eq2Auras.Core.Meter
     {
         public string CombatantName { get; set; }
         public MetricBreakdownSource Source { get; set; }
+        public BreakdownGrouping Grouping { get; set; }   // ByAbility (default) = the drill; ByCounterpart = the hover
         public string DeathKey { get; set; }   // set when Source == Deaths — which death (Victim#Ordinal) to recap; null otherwise
     }
 }
