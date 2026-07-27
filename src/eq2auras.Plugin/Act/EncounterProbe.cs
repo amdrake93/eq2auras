@@ -144,9 +144,11 @@ namespace Eq2Auras.Plugin.Act
                                 }
                                 if (request.Source == MetricBreakdownSource.None) continue;
                                 if (!encounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
-                                var entries = ReadBreakdown(combatant, request.Source);
+                                var entries = request.Grouping == BreakdownGrouping.ByCounterpart
+                                    ? ReadByCounterpart(combatant, request.Source)
+                                    : ReadBreakdown(combatant, request.Source);
                                 if (entries != null)
-                                    breakdowns.Add(new BreakdownReading { CombatantName = request.CombatantName, Source = request.Source, Entries = entries });
+                                    breakdowns.Add(new BreakdownReading { CombatantName = request.CombatantName, Source = request.Source, Grouping = request.Grouping, Entries = entries });
                             }
                         }
                     }
@@ -273,6 +275,51 @@ namespace Eq2Auras.Plugin.Act
                 entries.Add(new BreakdownEntry { Label = pair.Key, Value = ReadValue(source, pair.Value) });
             }
             return entries;
+        }
+
+        /// One combatant's by-counterpart entries for a bucket, read under the ACT lock (SPEC
+        /// Part III §Row drill-down — the by-row mouseover). Iterates the bucket's raw MasterSwings
+        /// (skipping the aggregate "All" AttackType, docs/act-parse-engine.md:69-71) and folds them
+        /// by counterpart. Returns an EMPTY list (not null) when the bucket is absent, so a
+        /// zero-valued row still opens an honest empty card; null only for an unmapped source.
+        private static List<BreakdownEntry> ReadByCounterpart(CombatantData combatant, MetricBreakdownSource source)
+        {
+            var bucketName = BucketName(source);
+            if (bucketName == null) return null;
+            var entries = new List<BreakdownEntry>();
+            if (!combatant.Items.TryGetValue(bucketName, out var damageType)) return entries;
+
+            string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+            bool byAttacker = BreakdownDirection.IsIncoming(source);
+            bool countMode = source == MetricBreakdownSource.Cures;   // cures = a swing COUNT (CombatantData.CureDispels is a count)
+            var acc = new Dictionary<string, double>();
+            foreach (var pair in damageType.Items)
+            {
+                if (pair.Key == allKey) continue;
+                GroupByCounterpart(pair.Value.Items, byAttacker, countMode, acc);
+            }
+            foreach (var kv in acc)
+                entries.Add(new BreakdownEntry { Label = kv.Key, Value = kv.Value });
+            return entries;
+        }
+
+        /// Fold a swing list into a counterpart accumulator — the granularity-agnostic helper the
+        /// reserved recap-second per-source breakdown reuses (SPEC §Reserved seams), fed one second's
+        /// swings instead of a whole bucket. Value mode (damage/heal/power) sums positive Dnums only
+        /// (skips misses/avoids/sentinels). Count mode (cures) counts every swing — mirroring the
+        /// shipped drill's cures path (ReadValue reads at.Swings, a count); cure swings carry
+        /// damage=1 (docs/act-parse-engine.md:326), so a value-mode sum would coincide here, but
+        /// count mode keeps the count explicit and independent of that Dnum value.
+        private static void GroupByCounterpart(IEnumerable<MasterSwing> swings, bool byAttacker, bool countMode, Dictionary<string, double> acc)
+        {
+            foreach (var sw in swings)
+            {
+                long amt = (long)sw.Damage;
+                if (!countMode && amt <= 0) continue;
+                string counterpart = (byAttacker ? sw.Attacker : sw.Victim) ?? "";
+                acc.TryGetValue(counterpart, out double cur);
+                acc[counterpart] = cur + (countMode ? 1 : amt);
+            }
         }
     }
 }
