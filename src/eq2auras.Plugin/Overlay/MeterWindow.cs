@@ -423,8 +423,8 @@ namespace Eq2Auras.Plugin.Overlay
         // ─── The hover surface (SPEC Part I §The hover surface) ───────────────────────────
         // List-mode row mouseover → the by-counterpart breakdown in a floating card beside the window,
         // anchored to the row, placed by Core HoverPlacement (SPEC §Row drill-down — the by-row
-        // mouseover). Enter PUBLISHES a request (via DrillChanged); the card opens when its reading
-        // lands (RenderHover, host-driven) — no card is built synchronously, so no empty flash.
+        // mouseover). Enter reads SYNCHRONOUSLY for an instant first paint (ReadHoverNow) AND publishes
+        // a request (DrillChanged) so the per-poll path keeps the card live while hovered.
 
         private void OnRowHoverEnter(MeterRowVisual slot)
         {
@@ -434,10 +434,12 @@ namespace Eq2Auras.Plugin.Overlay
             var metric = MetricRegistry.ResolvePrimary(_metricKey);
             if (metric == null || metric.IsEvent) return;       // cleared primary / event metric (Deaths) → no hover
             if (row.Name == _hoverCombatant) return;            // already the hovered row
-            HideHover();                                        // clean switch: drop the prior card before the new reading lands
+            HideHover();                                        // clean switch: drop the prior card
             _hoverCombatant = row.Name;
             _hoverSlot = slot;
-            _cb.DrillChanged?.Invoke();                         // publish the request; the card appears when its reading lands
+            _cb.DrillChanged?.Invoke();                         // publish the request → keeps the card live at the poll rate
+            var rows = _cb.ReadHoverNow?.Invoke(HoverTarget);   // instant first paint: synchronous read of this one combatant
+            if (rows != null) RenderHover(rows);
         }
 
         private void OnRowHoverLeave()

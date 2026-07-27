@@ -321,5 +321,46 @@ namespace Eq2Auras.Plugin.Act
                 acc[counterpart] = cur + (countMode ? 1 : amt);
             }
         }
+
+        /// Synchronous one-shot breakdown read for the hover card's INSTANT first paint (SPEC Part
+        /// III §Row drill-down — the by-row mouseover). Runs on the CALLER's thread (the overlay
+        /// thread) but takes the same AfterCombatActionDataLock, so it serializes against ACT's
+        /// writes rather than racing them — one combatant, never a fan-out. Returns false (and the
+        /// per-poll path fills the card a beat later) when there's no encounter or the combatant is
+        /// absent; the duration matches OnTick's live/frozen policy so rate metrics read identically.
+        public static bool TryReadNow(DrillRequest request, out List<BreakdownEntry> entries, out double durationSeconds)
+        {
+            entries = null;
+            durationSeconds = 0;
+            if (request == null
+                || request.Source == MetricBreakdownSource.None
+                || request.Source == MetricBreakdownSource.Deaths) return false;
+            try
+            {
+                var form = ActGlobals.oFormActMain;
+                lock (form.AfterCombatActionDataLock)
+                {
+                    var encounter = form.ActiveZone?.ActiveEncounter;
+                    if (encounter == null) return false;
+                    bool active = encounter.Active;
+                    durationSeconds = MeterEngine.DurationSeconds(new EncounterReading
+                    {
+                        Exists = true,
+                        Active = active,
+                        LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,
+                        FinalDurationSeconds = active ? 0 : encounter.Duration.TotalSeconds,
+                    });
+                    if (!encounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) return false;
+                    entries = request.Grouping == BreakdownGrouping.ByCounterpart
+                        ? ReadByCounterpart(combatant, request.Source)
+                        : ReadBreakdown(combatant, request.Source);
+                }
+            }
+            catch
+            {
+                return false;
+            }
+            return entries != null;
+        }
     }
 }

@@ -6,6 +6,7 @@ using System.Windows.Threading;
 using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Meter;
 using Eq2Auras.Core.Timers;
+using Eq2Auras.Plugin.Act;
 using Eq2Auras.Plugin.SelfUpdate;
 
 namespace Eq2Auras.Plugin.Overlay
@@ -127,6 +128,7 @@ namespace Eq2Auras.Plugin.Overlay
                     CloseWindow = () => CloseMeterWindow(config),
                     CanClose = () => _meterWindows.Count > 1,
                     DrillChanged = RebuildDrillRequests,
+                    ReadHoverNow = request => ReadHoverRowsNow(config, request),
                 });
             _meterWindows[config] = window;
             window.Show();
@@ -237,6 +239,19 @@ namespace Eq2Auras.Plugin.Overlay
         /// latest lock-free snapshot — the probe deep-reads each requested combatant under the lock.
         public IReadOnlyList<DrillRequest> CurrentDrillRequests() => _drillRequests;
 
+        /// The hover card's synchronous first paint (SPEC §Row drill-down — the by-row mouseover):
+        /// on mouse-enter, read the hovered combatant's by-counterpart entries NOW (adapter, under the
+        /// lock — one combatant) and rank them, so the card opens instantly instead of a poll later.
+        /// Null → the per-poll path fills it a beat on. Runs on the overlay thread; the request the
+        /// window also publishes keeps the card live thereafter.
+        private List<MeterRow> ReadHoverRowsNow(MeterWindowConfig config, DrillRequest request)
+        {
+            var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
+            if (metric == null) return null;
+            if (!EncounterProbe.TryReadNow(request, out var entries, out double duration)) return null;
+            return BreakdownEngine.Build(entries, metric, duration);
+        }
+
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
         /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
         /// instead of the list (SPEC Part III §Row drill-down).
@@ -262,21 +277,32 @@ namespace Eq2Auras.Plugin.Overlay
                     {
                         window.Render(listFrame);
 
-                        // Hover (list mode, real metric): route the by-counterpart reading to the card.
-                        // A present reading (even empty) → show/update the card; none yet (first poll
-                        // after enter, or the combatant left) → hide it. metric == null (cleared) has no
-                        // HoverTarget, so nothing to show.
+                        // Hover (list mode, real metric): keep the card (opened instantly by the
+                        // synchronous on-enter read, §Row drill-down) live. Refresh it when this poll's
+                        // by-counterpart reading is present; if the reading is momentarily absent (the
+                        // request was just published — a one-tick race) leave the sync-painted card as
+                        // is, NOT hide it (hiding here flickered the instant card). Hide only when the
+                        // hovered combatant has genuinely left the list (encounter reset / dropped
+                        // scope), the auto-exit analog to drill.
                         var hover = window.HoverTarget;
                         if (hover != null)
                         {
-                            BreakdownReading hoverReading = null;
-                            if (breakdowns != null)
-                                foreach (var b in breakdowns)
-                                    if (b.Grouping == BreakdownGrouping.ByCounterpart && b.CombatantName == hover.CombatantName && b.Source == hover.Source) { hoverReading = b; break; }
-                            if (hoverReading != null)
-                                window.RenderHover(BreakdownEngine.Build(hoverReading.Entries, metric, duration));
-                            else
+                            bool stillListed = false;
+                            foreach (var r in listFrame.Rows)
+                                if (r.Name == hover.CombatantName) { stillListed = true; break; }
+                            if (!stillListed)
+                            {
                                 window.HideHover();
+                            }
+                            else if (breakdowns != null)
+                            {
+                                foreach (var b in breakdowns)
+                                    if (b.Grouping == BreakdownGrouping.ByCounterpart && b.CombatantName == hover.CombatantName && b.Source == hover.Source)
+                                    {
+                                        window.RenderHover(BreakdownEngine.Build(b.Entries, metric, duration));
+                                        break;
+                                    }
+                            }
                         }
                         continue;
                     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using Eq2Auras.Core.Meter;
 
 namespace Eq2Auras.Plugin.Overlay
@@ -20,6 +21,7 @@ namespace Eq2Auras.Plugin.Overlay
         public Action NewWindow;
         public Action CloseWindow;
         public Func<bool> CanClose;
-        public Action DrillChanged;   // window entered/left drill mode -> host rebuilds the drill-request snapshot
+        public Action DrillChanged;   // window entered/left drill (or hover) mode -> host rebuilds the request snapshot
+        public Func<DrillRequest, List<MeterRow>> ReadHoverNow;   // synchronous hover first-paint: host reads + ranks the combatant's by-counterpart rows now (instant), null if unavailable
     }
 }
