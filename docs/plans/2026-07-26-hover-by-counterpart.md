@@ -218,8 +218,10 @@ Add both methods next to `ReadBreakdown` (after `:276`). `ReadByCounterpart` ret
         /// Fold a swing list into a counterpart accumulator — the granularity-agnostic helper the
         /// reserved recap-second per-source breakdown reuses (SPEC §Reserved seams), fed one second's
         /// swings instead of a whole bucket. Value mode (damage/heal/power) sums positive Dnums only
-        /// (skips misses/avoids/sentinels); count mode (cures) counts every swing (a cure carries no
-        /// damage number, so a positive-Dnum filter would drop them all).
+        /// (skips misses/avoids/sentinels). Count mode (cures) counts every swing — mirroring the
+        /// shipped drill's cures path (ReadValue reads at.Swings, a count); cure swings carry
+        /// damage=1 (docs/act-parse-engine.md:326), so a value-mode sum would coincide here, but
+        /// count mode keeps the count explicit and independent of that Dnum value.
         private static void GroupByCounterpart(IEnumerable<MasterSwing> swings, bool byAttacker, bool countMode, Dictionary<string, double> acc)
         {
             foreach (var sw in swings)
@@ -456,7 +458,7 @@ Expected: **Run Core unit tests** ✓ (282) and **Build the plugin (MSBuild)** �
 
 - [ ] **Fix any compile errors** surfaced by CI (transcribe fixes only), re-push, re-watch until green.
 
-- [ ] **On-box field script** (the SPEC §Testing strategy (Parse Meter — hover by-counterpart data) merge-gate). Hover a **DPS** ally → the card lists whom they hit, each with its share of that ally's own total and a bar vs. the top target; **Damage Taken** → who hit them; **HPS / Total Healing** → whom they healed; **Cures** → whom they cured; **Power Replenish** → whom they fed power; **Healing Taken** → who healed them; an **Enemy Damage Taken** enemy row → which allies hit that mob; an **Enemy Healing Done** enemy row → whom that enemy healed. The card **updates live** through the fight and **freezes** at end; moving between rows re-anchors with **no stale flash**; a **0-value** row (a healer on a DPS window) opens an **empty** card, no crash; a **Deaths** window's rows open **no** card; left/right-click still land on the row underneath (click-through preserved). Light timer sanity check (this slice re-extracts nothing from the shared substrate).
+- [ ] **On-box field script** (the SPEC §Testing strategy (Parse Meter — hover by-counterpart data) merge-gate). Hover a **DPS** ally → the card lists whom they hit, each with its share of that ally's own total and a bar vs. the top target; **Damage Taken** → who hit them; **HPS / Total Healing** → whom they healed; **Cures** → whom they cured; **Power Replenish** → whom they fed power; **Healing Taken** → who healed them; an **Enemy Damage Taken** enemy row → which allies hit that mob; an **Enemy Healing Done** enemy row → whom that enemy healed (the sole enemy-scope outgoing/by-victim case). The card **updates live** through the fight and **freezes** at end; moving between rows re-anchors with **no stale flash**; a **0-value** row (a healer on a DPS window) opens an **empty** card, no crash; a **Deaths** window's rows open **no** card; left/right-click still land on the row underneath (click-through preserved). Light timer sanity check (this slice re-extracts nothing from the shared substrate).
 
 - [ ] **Present ready-for-review at the owner's merge gate.** Do NOT push `main` — the owner's sequence ends at implement; the dev release + promote are his calls.
 
