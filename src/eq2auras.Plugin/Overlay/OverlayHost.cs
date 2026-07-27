@@ -227,6 +227,8 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 var target = window.DrillTarget;
                 if (target != null) list.Add(target);
+                var hover = window.HoverTarget;
+                if (hover != null) list.Add(hover);
             }
             _drillRequests = list;
         }
@@ -259,6 +261,23 @@ namespace Eq2Auras.Plugin.Overlay
                     if (target == null || metric == null)
                     {
                         window.Render(listFrame);
+
+                        // Hover (list mode, real metric): route the by-counterpart reading to the card.
+                        // A present reading (even empty) → show/update the card; none yet (first poll
+                        // after enter, or the combatant left) → hide it. metric == null (cleared) has no
+                        // HoverTarget, so nothing to show.
+                        var hover = window.HoverTarget;
+                        if (hover != null)
+                        {
+                            BreakdownReading hoverReading = null;
+                            if (breakdowns != null)
+                                foreach (var b in breakdowns)
+                                    if (b.Grouping == BreakdownGrouping.ByCounterpart && b.CombatantName == hover.CombatantName && b.Source == hover.Source) { hoverReading = b; break; }
+                            if (hoverReading != null)
+                                window.RenderHover(BreakdownEngine.Build(hoverReading.Entries, metric, duration));
+                            else
+                                window.HideHover();
+                        }
                         continue;
                     }
 
@@ -300,7 +319,7 @@ namespace Eq2Auras.Plugin.Overlay
                     BreakdownReading breakdown = null;
                     if (breakdowns != null)
                         foreach (var b in breakdowns)
-                            if (b.CombatantName == target.CombatantName && b.Source == target.Source) { breakdown = b; break; }
+                            if (b.Grouping == BreakdownGrouping.ByAbility && b.CombatantName == target.CombatantName && b.Source == target.Source) { breakdown = b; break; }
 
                     // Header total is the combatant's own list value (ready immediately); the body fills
                     // when the breakdown arrives (one poll later than the click).
