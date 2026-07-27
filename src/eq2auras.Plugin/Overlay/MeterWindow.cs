@@ -337,6 +337,21 @@ namespace Eq2Auras.Plugin.Overlay
             ? null
             : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource, DeathKey = _drillDeathKey };
 
+        /// The window's current hover request, or null when drilled / not hovering / the primary is
+        /// cleared or an event metric (Deaths — no by-counterpart hover). The host reads this to build
+        /// the probe's request set and to route the card's reading (SPEC §Row drill-down — the by-row
+        /// mouseover). Grouping = ByCounterpart distinguishes it from the by-ability DrillTarget.
+        public DrillRequest HoverTarget
+        {
+            get
+            {
+                if (_drilledCombatant != null || _hoverCombatant == null) return null;
+                var metric = MetricRegistry.ResolvePrimary(_metricKey);
+                if (metric == null || metric.IsEvent) return null;
+                return new DrillRequest { CombatantName = _hoverCombatant, Source = metric.BreakdownSource, Grouping = BreakdownGrouping.ByCounterpart };
+            }
+        }
+
         /// Enter drill mode for a combatant (left-click a row). Resolves the framing metric, swaps
         /// the header's left identity to "‹ Name — metric" (back-hint chevron; SPEC §Header while
         /// drilled), hides the secondary-label cell, clears the body until the next poll's breakdown,
@@ -378,6 +393,9 @@ namespace Eq2Auras.Plugin.Overlay
             _currentRows = new List<MeterRow>();
             _scrollOffset = 0;
             RenderSlots();
+            _hoverCombatant = null;
+            _hoverSlot = null;
+            HideHover();                        // a live hover card must not linger over the drilled body
             _cb.DrillChanged?.Invoke();
         }
 
@@ -403,19 +421,23 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         // ─── The hover surface (SPEC Part I §The hover surface) ───────────────────────────
-        // List-mode row mouseover → a floating card beside the window, anchored to the row, placed
-        // by Core HoverPlacement. Fed PLACEHOLDER content — the real by-target data path is a later
-        // slice (SPEC §Reserved seams); it will replace PlaceholderRows() only.
+        // List-mode row mouseover → the by-counterpart breakdown in a floating card beside the window,
+        // anchored to the row, placed by Core HoverPlacement (SPEC §Row drill-down — the by-row
+        // mouseover). Enter PUBLISHES a request (via DrillChanged); the card opens when its reading
+        // lands (RenderHover, host-driven) — no card is built synchronously, so no empty flash.
 
         private void OnRowHoverEnter(MeterRowVisual slot)
         {
-            if (_drilledCombatant != null) return;          // list mode only
+            if (_drilledCombatant != null) return;              // list mode only
             var row = slot?.CurrentRow;
             if (row == null || string.IsNullOrEmpty(row.Name)) return;
-            if (row.Name == _hoverCombatant) return;        // already the hovered row
+            var metric = MetricRegistry.ResolvePrimary(_metricKey);
+            if (metric == null || metric.IsEvent) return;       // cleared primary / event metric (Deaths) → no hover
+            if (row.Name == _hoverCombatant) return;            // already the hovered row
+            HideHover();                                        // clean switch: drop the prior card before the new reading lands
             _hoverCombatant = row.Name;
             _hoverSlot = slot;
-            ShowHoverCard(row.Name);
+            _cb.DrillChanged?.Invoke();                         // publish the request; the card appears when its reading lands
         }
 
         private void OnRowHoverLeave()
@@ -424,16 +446,22 @@ namespace Eq2Auras.Plugin.Overlay
             _hoverCombatant = null;
             _hoverSlot = null;
             HideHover();
+            _cb.DrillChanged?.Invoke();                         // drop the hover request
         }
 
-        /// Recreate the card fresh each appearance: a reused hidden WPF window flashes its stale
-        /// composited frame on the next show before Update() re-renders, so a fresh one only ever
-        /// composites the current content.
-        private void ShowHoverCard(string combatant)
+        /// Render the hovered combatant's by-counterpart breakdown into the card (host, each poll while
+        /// hovered). Creates the card fresh on the first reading of an appearance — a reused hidden WPF
+        /// window flashes its stale composited frame on re-show, so a fresh one only composites current
+        /// content — then updates in place across polls. Title: "by source" for incoming metrics (who
+        /// hit/healed me), "by target" otherwise (SPEC §Row drill-down — the by-row mouseover).
+        public void RenderHover(List<MeterRow> rows)
         {
-            HideHover();
-            _hover = new HoverCard(_style, _opacity);
-            _hover.Update(combatant + " — by target", PlaceholderRows());
+            if (_hoverCombatant == null) return;                 // left already
+            var metric = MetricRegistry.ResolvePrimary(_metricKey);
+            if (metric == null) return;
+            if (_hover == null) _hover = new HoverCard(_style, _opacity);
+            string suffix = BreakdownDirection.IsIncoming(metric.BreakdownSource) ? " — by source" : " — by target";
+            _hover.Update(_hoverCombatant + suffix, rows ?? new List<MeterRow>());
             _hover.ShowAt(HostRect(), AnchorRect());
         }
 
@@ -467,32 +495,6 @@ namespace Eq2Auras.Plugin.Overlay
             }
             return new HoverRect { Left = Left, Top = top, Width = Width, Height = height };
         }
-
-        /// Placeholder content while the real by-target data path is designed (SPEC §The hover
-        /// surface — "fed placeholder content"). Three sample rows in the window's family color,
-        /// enough to exercise width, bars, and placement.
-        private List<MeterRow> PlaceholderRows()
-        {
-            var metric = MetricRegistry.ResolvePrimary(_metricKey);
-            int fill = metric != null ? MeterFamilyColors.ArgbFor(metric.Category) : unchecked((int)0xFFE05A5A);
-            return new List<MeterRow>
-            {
-                PlaceholderRow("Sample target A", "2.66K", "54%", 1.00, fill),
-                PlaceholderRow("Sample target B", "1.33K", "27%", 0.50, fill),
-                PlaceholderRow("Sample target C", "935",   "19%", 0.35, fill),
-            };
-        }
-
-        private static MeterRow PlaceholderRow(string name, string value, string percent, double bar, int fill)
-            => new MeterRow
-            {
-                Name = name,
-                FormattedValue = value,
-                FormattedPercent = percent,
-                BarFraction = bar,
-                FillArgb = fill,
-                Secondaries = new List<SecondaryValue>(),
-            };
 
         /// The window reserves its configured row count as a persistent backdrop regardless of
         /// how many allies are present (SPEC §Configuration): the dark region is always this tall,
