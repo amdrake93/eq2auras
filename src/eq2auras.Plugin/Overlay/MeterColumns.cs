@@ -6,12 +6,16 @@ namespace Eq2Auras.Plugin.Overlay
 {
     /// Fixed row-column widths, measured from the window's current font (SPEC Part III
     /// §Rows) — no hardcoded pixels, so a font/size change just re-measures. Number
-    /// columns (value + secondary) reserve the wider of the sig-figs cap and a five-digit
-    /// count so a rate column and a count column reserve identically; the percent reserves
-    /// "100%". A value wider than its reserve clips in its cell (the row never widens).
+    /// columns (value + secondary) reserve the wider of the SIGNED sig-figs cap and a
+    /// five-digit count so a rate column and a count column reserve identically; the percent
+    /// reserves "100%". A value wider than its reserve clips in its cell (the row never widens).
     internal static class MeterColumns
     {
-        private const string RateCap = "9.99M";    // three-sig-figs worst case
+        // Signed: number columns also hold signed abbreviations — the Death Recap's dmg/heal
+        // columns and the recap-second hover's event rows (SPEC §Deaths) show "-1.06K"/"+1.2K",
+        // one char wider than an unsigned "9.99M". Reserving the sign keeps the trailing K/M/B
+        // from clipping; an unsigned value just leaves the sign's width unused.
+        private const string RateCap = "-9.99M";   // signed three-sig-figs worst case
         private const string CountCap = "99999";   // five-digit count worst case
         private const string PercentCap = "100%";
 
