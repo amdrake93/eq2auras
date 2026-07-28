@@ -11,6 +11,7 @@ namespace Eq2Auras.Core.Meter
     {
         ByAbility = 0,
         ByCounterpart,
+        RecapSecond,   // the recap-second hover — a per-event log, read via the ReadHoverNow seam (SPEC §Deaths)
     }
 
     /// One by-ability entry the drill-down deep-read produces: an ability label and its
@@ -40,5 +41,6 @@ namespace Eq2Auras.Core.Meter
         public MetricBreakdownSource Source { get; set; }
         public BreakdownGrouping Grouping { get; set; }   // ByAbility (default) = the drill; ByCounterpart = the hover
         public string DeathKey { get; set; }   // set when Source == Deaths — which death (Victim#Ordinal) to recap; null otherwise
+        public int Second { get; set; }   // RecapSecond grouping: which recap second (0..9) to read; else unused
     }
 }

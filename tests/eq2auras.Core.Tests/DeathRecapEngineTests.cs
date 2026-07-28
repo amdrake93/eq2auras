@@ -86,4 +86,19 @@ public class DeathRecapEngineTests
         });
         foreach (var r in rows) Assert.Equal(r.Percent, r.BarFraction, 3);
     }
+
+    [Fact]
+    public void Each_recap_row_is_tagged_with_its_second_offset()
+    {
+        var reading = new RecapReading
+        {
+            MaxHealthEstimate = 10000,
+            Events = new List<RecapEvent> { Dmg(0, 5000), Dmg(2, 3000) },   // death second + -2s (second 1 absent)
+        };
+        var rows = DeathRecapEngine.Build(reading);   // oldest first, 0s last
+        Assert.Equal("-2s", rows[0].Name);
+        Assert.Equal("2", rows[0].DrillKey);
+        Assert.Equal("0s", rows[1].Name);
+        Assert.Equal("0", rows[1].DrillKey);
+    }
 }

@@ -246,6 +246,11 @@ namespace Eq2Auras.Plugin.Overlay
         /// window also publishes keeps the card live thereafter.
         private List<MeterRow> ReadHoverRowsNow(MeterWindowConfig config, DrillRequest request)
         {
+            if (request != null && request.Grouping == BreakdownGrouping.RecapSecond)
+            {
+                if (!EncounterProbe.TryReadRecapSecondNow(request, out var events)) return null;
+                return RecapSecondEngine.Build(events);
+            }
             var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
             if (metric == null) return null;
             if (!EncounterProbe.TryReadNow(request, out var entries, out double duration)) return null;
