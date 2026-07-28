@@ -56,6 +56,7 @@ namespace Eq2Auras.Plugin.Overlay
         private string _drillDeathKey;                 // set when drilled into a death (Deaths metric) — which death (Victim#Ordinal)
         private List<MeterRow> _currentRows;           // the rows the slots currently render — list OR breakdown
         private string _hoverCombatant;                // list-mode row currently hovered, or null
+        private string _hoverRecapSecond;              // recap-drill: the hovered second-row's tag (DrillKey), or null
         private MeterRowVisual _hoverSlot;             // the hovered slot — its screen rect anchors the card
         private HoverCard _hover;                      // the by-row hover card (recreated per appearance)
 
@@ -405,6 +406,9 @@ namespace Eq2Auras.Plugin.Overlay
         {
             if (_drilledCombatant == null) return;
             _drilledCombatant = null;
+            _hoverRecapSecond = null;
+            _hoverSlot = null;
+            HideHover();                        // a recap-second hover card must not linger past the recap
             _cb.DrillChanged?.Invoke();
         }
 
@@ -428,7 +432,11 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void OnRowHoverEnter(MeterRowVisual slot)
         {
-            if (_drilledCombatant != null) return;              // list mode only
+            if (_drilledCombatant != null)
+            {
+                if (_drillDeathKey != null) OnRecapSecondHoverEnter(slot);   // recap drill → per-second hover
+                return;                                                       // by-ability drill → no hover (deferred seam)
+            }
             var row = slot?.CurrentRow;
             if (row == null || string.IsNullOrEmpty(row.Name)) return;
             var metric = MetricRegistry.ResolvePrimary(_metricKey);
@@ -442,13 +450,30 @@ namespace Eq2Auras.Plugin.Overlay
             if (rows != null) RenderHover(rows);
         }
 
+        /// Recap-drill row mouseover → that second's event log, synchronous + static (a past second's
+        /// events are historical, so no poll request/refresh — SPEC §Deaths — the recap-second hover).
+        private void OnRecapSecondHoverEnter(MeterRowVisual slot)
+        {
+            var row = slot?.CurrentRow;
+            if (row == null || string.IsNullOrEmpty(row.DrillKey)) return;   // needs the second tag
+            if (row.DrillKey == _hoverRecapSecond) return;                   // already this second
+            if (!int.TryParse(row.DrillKey, out int second)) return;
+            HideHover();
+            _hoverRecapSecond = row.DrillKey;
+            _hoverSlot = slot;
+            var request = new DrillRequest { DeathKey = _drillDeathKey, Second = second, Grouping = BreakdownGrouping.RecapSecond };
+            var rows = _cb.ReadHoverNow?.Invoke(request);
+            if (rows != null) ShowHoverRows(_drilledCombatant + " · " + row.Name, rows);
+        }
+
         private void OnRowHoverLeave()
         {
-            if (_hoverCombatant == null) return;
+            if (_hoverSlot == null) return;
             _hoverCombatant = null;
+            _hoverRecapSecond = null;
             _hoverSlot = null;
             HideHover();
-            _cb.DrillChanged?.Invoke();                         // drop the hover request
+            _cb.DrillChanged?.Invoke();   // drops the by-counterpart poll request; a no-op for the sync-only recap-second
         }
 
         /// Render the hovered combatant's by-counterpart breakdown into the card (host, each poll while
@@ -461,9 +486,17 @@ namespace Eq2Auras.Plugin.Overlay
             if (_hoverCombatant == null) return;                 // left already
             var metric = MetricRegistry.ResolvePrimary(_metricKey);
             if (metric == null) return;
-            if (_hover == null) _hover = new HoverCard(_style, _opacity);
             string suffix = BreakdownDirection.IsIncoming(metric.BreakdownSource) ? " — by source" : " — by target";
-            _hover.Update(_hoverCombatant + suffix, rows ?? new List<MeterRow>());
+            ShowHoverRows(_hoverCombatant + suffix, rows ?? new List<MeterRow>());
+        }
+
+        /// Create the card fresh per appearance (a reused hidden WPF window flashes its stale composited
+        /// frame on re-show), then Update in place; place via Core HoverPlacement. Shared by the
+        /// by-counterpart hover (live) and the recap-second hover (static).
+        private void ShowHoverRows(string title, List<MeterRow> rows)
+        {
+            if (_hover == null) _hover = new HoverCard(_style, _opacity);
+            _hover.Update(title, rows ?? new List<MeterRow>());
             _hover.ShowAt(HostRect(), AnchorRect());
         }
 
