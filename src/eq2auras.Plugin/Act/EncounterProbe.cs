@@ -235,6 +235,74 @@ namespace Eq2Auras.Plugin.Act
             }
         }
 
+        /// Synchronous one-second per-event read for the recap-second hover (SPEC §Deaths — the
+        /// recap-second hover). Runs on the overlay thread under the same AfterCombatActionDataLock —
+        /// one victim, one second, never a fan-out. Mirrors ReadRecap's death lookup; emits one detail
+        /// per incoming damage/heal swing in the hovered second, keeping its source + ability. Returns
+        /// false (card stays absent) when the encounter/death is gone or the DeathKey is malformed.
+        public static bool TryReadRecapSecondNow(DrillRequest request, out List<RecapEventDetail> events)
+        {
+            events = null;
+            if (request == null || string.IsNullOrEmpty(request.DeathKey)) return false;
+            try
+            {
+                var form = ActGlobals.oFormActMain;
+                lock (form.AfterCombatActionDataLock)
+                {
+                    var encounter = form.ActiveZone?.ActiveEncounter;
+                    if (encounter == null) return false;
+
+                    int hash = request.DeathKey.LastIndexOf('#');
+                    if (hash < 0) return false;
+                    string victimName = request.DeathKey.Substring(0, hash);
+                    if (!int.TryParse(request.DeathKey.Substring(hash + 1), out int ordinal)) return false;
+                    if (!encounter.Items.TryGetValue(victimName.ToUpper(), out var victim)) return false;
+
+                    string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
+                    var deathSwings = new List<MasterSwing>();
+                    if (victim.AllInc.TryGetValue(killingKey, out var killingAt))
+                        foreach (var sw in killingAt.Items)
+                            if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
+                    deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
+                    if (ordinal < 1 || ordinal > deathSwings.Count) return false;
+                    var death = deathSwings[ordinal - 1];
+
+                    string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+                    var list = new List<RecapEventDetail>();
+                    CollectRecapSecond(victim, CombatantData.DamageTypeDataIncomingDamage, isHeal: false, death, allKey, request.Second, list);
+                    CollectRecapSecond(victim, CombatantData.DamageTypeDataIncomingHealing, isHeal: true, death, allKey, request.Second, list);
+                    events = list;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+            return events != null;
+        }
+
+        /// One bucket's incoming swings in a single recap second → per-event details (SPEC §Deaths).
+        /// Same window/positive-only filter as CollectRecap, narrowed to the hovered second, keeping
+        /// each swing's Attacker (source) + AttackType (ability) + TimeSorter (order).
+        private static void CollectRecapSecond(CombatantData victim, string bucketName, bool isHeal,
+            MasterSwing death, string allKey, int second, List<RecapEventDetail> details)
+        {
+            if (!victim.Items.TryGetValue(bucketName, out var bucket)) return;
+            foreach (var pair in bucket.Items)
+            {
+                if (pair.Key == allKey) continue;
+                foreach (var sw in pair.Value.Items)
+                {
+                    double secondsBefore = (death.Time - sw.Time).TotalSeconds;
+                    if (sw.TimeSorter > death.TimeSorter || secondsBefore < 0 || secondsBefore >= 10) continue;
+                    if ((int)System.Math.Floor(secondsBefore) != second) continue;   // only the hovered second
+                    long amt = (long)sw.Damage;
+                    if (amt <= 0) continue;   // real damage/heal only
+                    details.Add(new RecapEventDetail { Source = sw.Attacker, Ability = sw.AttackType, Amount = amt, IsHeal = isHeal, Order = sw.TimeSorter });
+                }
+            }
+        }
+
         /// Enum → ACT bucket alias-static. The statics are set at the EQ2 parser's init
         /// (ThirdParty/ACT_English_Parser.cs:2082-2088), so read them at call time, not at type init.
         private static string BucketName(MetricBreakdownSource source)
