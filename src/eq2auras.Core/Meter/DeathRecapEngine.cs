@@ -43,6 +43,7 @@ namespace Eq2Auras.Core.Meter
                     rows.Add(new MeterRow
                     {
                         Name = s == 0 ? "0s" : "-" + s + "s",
+                        DrillKey = s.ToString(),   // the second offset — the recap-second hover's identifier (SPEC §Deaths)
                         Value = clamped,
                         // No raw health K-number: the reconstruction is inflated by the killing blow's
                         // overkill (EQ2 logs none), so the absolute reads as false precision. The bar + hp%
