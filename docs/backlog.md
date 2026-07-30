@@ -2,6 +2,11 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-07-30
+
+### 🎨 IN PROGRESS — class colors, data arc COMPLETE (spike) → next: the inference/coloring pipeline
+Two finished **inputs** for the class-colors feature, both a **spike** (zero design weight — the engine design starts fresh): (1) the **12-subclass palette** LOCKED (see `docs/plans/2026-07-27-class-colors-palette.md` + the 2026-07-27 entry below); (2) a **24-class ability-signature catalog**, ground-truth-pruned 1-by-1 with Alex from 3 raid nights (34 labeled players, all 24 classes) and **census-validated** under the names-only union model, in `spike-data/2026-07-27/` (`signatures.md` = the catalog + a method playbook; `census_index.tsv` = 1,955 abilities; `RESUME.md`, pull scripts). Story + why-chains: `docs/sessions/2026-07-30_class-colors-palette-and-signature-dig.md`. Key rules that will drive the engine: signatures are **log ability-NAMES → subclass** (logs carry no spell IDs, so a name is a signature iff all its census variants stay within one subclass); **class-unique every-cast procs** (Lich's Siphoning, Reaver's Mania, Mystic/Defiler pet-procs) are the ideal live tells; premium-proc/AA/pet handling documented. **NEXT PHASE (Alex-owned, not started):** infer a combatant's class from log names against the catalog → store `name→class` durably → feed the row-color resolver (successor to `MeterFamilyColors`, `MeterEngine.cs:101`). Own brainstorm → spec → plan.
+
 ## From Alex — 2026-07-27
 
 ### 🐛 BUGS (Alex, 2026-07-27, observed — investigate)
