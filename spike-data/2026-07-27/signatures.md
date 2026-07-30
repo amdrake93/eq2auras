@@ -91,26 +91,24 @@ Brawler NOTE:        No PURE Monk in data (Vicious played both) → could isolat
 # - Fixed/own-class pets are GOOD signatures (Necro undead + scout pet, Conjuror elementals — class-unique spells; pet NAMES are tells). Charm/CLONE pets (Coercer) adopt other classes' abilities → exclude.
 # - Cooldowns/filler demoted or cut: strong signatures are spammed every fight, so marginal ones aren't needed. (A frequency/timing pass would auto-surface the premiums like Lich's Siphoning.)
 
+
 ## Census cross-reference (2026-07-30 — DBG census, s:eq2i, given_by=class)
-Authoritative class-uniqueness check vs the census `classes` field. Index: spike-data/census_index.tsv (1955 abilities).
-Recipe: census.daybreakgames.com/s:eq2i/get/eq2/spell?classes.<class>.id=<id>&given_by=class&c:show=name,classes  (class-id map in RESUME.md).
+PURPOSE: confirm which SUBCLASS a log ability-NAME points to. Logs give NAMES ONLY (no spell IDs — Alex's key point), so the name is all the plugin ever has.
+RIGHT TEST: pull a name's full census class-set (UNION across all same-named variants) → does it stay within ONE subclass? yes = signature; spans subclasses = cut.
+GOTCHA: EQ2 reuses ability NAMES across distinct spells (a Brigand-only 'Gouge' AND a Brigand+Swashbuckler 'Gouge'). We can't tell them apart by name — so we treat the union. Harmless because the union almost always stays within one subclass.
 
-CORRECTIONS APPLIED (were tagged class-specific → census says SHARED, so they can't discriminate the final class — moved to subclass SHARED):
-  Warrior   += Taunting Blow, Bash, Knee Break
-  Rogue     += Backstab, Gouge
-  Brawler   += Shoulder Charge, Devastation Fist   (Devastation Fist: Alex-confirmed shared, census monk+bruiser)
-  Crusader  += Power Cleave, Demonstration of Faith
-  Enchanter += Ego Shock, Overwhelming Silence
-  Druid     += Regrowth
-  Bard      += Singing Shot
-  Predator  += Impale   (census assassin+ranger — was Assassin STRONG)
-CUT (broader than a subclass — all 7 scouts can train): Ambush, Sneak Attack
-CUT from Conjuror: Blaze — census wizard/warlock (Sorcerer), NOT a Conjuror ability; leaked onto Sprok (pet/merc/proc). I nearly dismissed this census flag as a collision; Alex confirmed census was right. LESSON: verify census disagreements, don't hand-wave them.
+MOVED to subclass-SHARED (name can't discriminate the two finals, but resolves to the right subclass — all color needs):
+  Taunting Blow, Bash, Knee Break → Warrior · Backstab, Gouge → Rogue · Shoulder Charge, Devastation Fist → Brawler
+  Power Cleave, Demonstration of Faith → Crusader · Ego Shock, Overwhelming Silence → Enchanter · Regrowth → Druid · Singing Shot → Bard · Impale → Predator
+CUT (name's variants span MULTIPLE subclasses → ambiguous): Ambush, Sneak Attack (assassin + an all-7-scouts variant → Predator/Rogue/Bard/Beastlord).
+CUT from Conjuror: Blaze — genuinely Sorcerer (wizard/warlock), leaked onto Sprok. Census was right; I nearly hand-waved it.
 
-CAVEAT: procs/pets/AAs are NOT in the census spell collection by log-name — the ★premium procs (Lich's Siphoning, Reaver's Mania, Lunar Attendant, Spiritual Circle) and pet names stay LOG-confirmed via ground truth. Census = 'can-train' (superset); logs = 'actually-casts' (frequency). Both needed.
+CAVEAT: procs/pets/AAs aren't in the census spell collection by log-name — ★premium procs (Lich's Siphoning, Reaver's Mania, Lunar Attendant, Spiritual Circle) + pet names stay LOG-confirmed via ground truth.
 
-THIN-CLASS FIRM-UP — census-confirmed class-ONLY abilities (reliable signatures the logs under-sampled):
-  Ranger (40 shown): Archer'S Fury, Archer'S Fury Xii, Arrow Rip, Bloody Reminder, Bloody Reminder Xii, Bloody Reminder Xiii, Coverage, Crippling Arrow, Crippling Arrow Xii, Emberstrike, Emberstrike Xii, Emberstrike Xiii, Emberstrike Xiv, Ensnare Xii, Ensnare Xiii, Focus Aim, Hawk Attack, Hidden Shot, Hidden Shot Xii, Hunter'S Instinct Xii, Hunter'S Instinct Xiii, Huntmaster, Immobilizing Lunge, Immobilizing Lunge Xii, Immobilizing Lunge Xiii, Killing Instinct, Lightning Strike, Lightning Strike Xii, Lightning Strike Xiii, Lightning Strike Xiv, Makeshift Arrows, Makeshift Arrows Xii, Miracle Shot, Natural Selection, Natural Selection Xii, Point Blank, Primal Reflexes, Ranger'S Blade, Ranger'S Blade Xii, Ranger'S Blade Xiii
-  Warlock (40 shown): Absolution, Absolution Xii, Acid, Acid Storm, Acid Xii, Acid Xiii, Acid Xiv, Apocalypse, Aspect Of Darkness, Aspect Of Darkness Xii, Aspect Of Darkness Xiii, Aura Of Void, Boon Of The Damned, Boon Of The Damned Xii, Cataclysm, Cataclysm Xii, Cataclysm Xiii, Cataclysm Xiv, Curse Of Darkness, Curse Of Darkness Xii, Curse Of Void, Curse Of Void Xii, Dark Infestation, Dark Nebula, Dark Nebula Xii, Dark Nebula Xiii, Dark Pact, Dark Pact Xii, Dark Pact Xiii, Dark Pyre, Dark Pyre Xii, Dark Pyre Xiii, Dark Siphoning, Dark Siphoning Xii, Decimation, Dissolve, Dissolve Xii, Dissolve Xiii, Dissolve Xiv, Dissolve Xv
-  Guardian (40 shown): Armored, Armored Xii, Armored Xiii, Assault, Assault Xii, Assault Xiii, Bash Xii, Bash Xiii, Bash Xiv, Battle Cry, Battle Cry Xii, Battle Cry Xiii, Battle Tactics Xii, Call Of Shielding, Call Of Shielding Xii, Call To Arms Xii, Call To Arms Xiii, Champion'S Resolve, Concussion Xii, Decimate, Dissociate Limbs, Focused Offensive, Forward Charge, Forward Charge Xii, Forward Charge Xiii, Guardian Sphere, Gut Kick, Gut Kick Xii, Gut Kick Xiii, Hold The Line Xii, Hold The Line Xiii, Hunker Down Xii, Hunker Down Xiii, Iron Will, Iron Will Xii, Moderate, Never Surrender, Overpower, Overpower Xii, Overpower Xiii
-  Berserker (40 shown): Abandoned Fury, Abandoned Fury Xii, Abandoned Fury Xiii, Adrenaline, Aggressive Defense, Aggressive Defense Xii, Aggressive Defense Xiii, Annihilate, Battlemaster'S Resolve, Berserk Rage, Berserk Rage Xii, Berserk Rage Xiii, Berserk Rage Xiv, Berserker Onslaught, Berserker Onslaught Xii, Blood Rage, Bloodbath, Bloodbath Xii, Bloodbath Xiii, Bloodlust, Bloodlust Xii, Bloodlust Xiii, Body Check, Body Check Xii, Body Check Xiii, Body Check Xiv, Chaos, Chaos Xii, Chaos Xiii, Controlled Rage, Controlled Rage Xii, Demolish, Destructive Rage, Destructive Rage Xii, Dismember, Enrage, Enrage Xii, Enrage Xiii, Frenzy, Head Crush
+THIN-CLASS FIRM-UP: census-confirmed class-ONLY names for the log-thin classes (full lists: census_index.tsv, filter classes=={class}):
+  Ranger (~37): Archer's Fury, Arrow Rip, Bloody Reminder, Coverage, Crippling Arrow, Emberstrike, Ensnare, Focus Aim, Hawk Attack …
+  Warlock (~37): Absolution, Acid, Acid Storm, Apocalypse, Aspect Of Darkness, Aura Of Void, Boon Of The Damned, Cataclysm, Curse Of Darkness …
+  Guardian (~38): Armored, Assault, Bash, Battle Cry, Battle Tactics, Call Of Shielding, Call To Arms, Champion's Resolve, Concussion …
+  Berserker (~37): Abandoned Fury, Adrenaline, Aggressive Defense, Annihilate, Battlemaster's Resolve, Berserk Rage, Berserker Onslaught, Blood Rage, Bloodbath …
+
+METHOD LESSON: for a NAME→subclass signature, test 'do ALL census variants of the name stay within one subclass?' — NOT 'is the name single-class?'. Union-by-name is correct *because* logs are name-only. (Nearly over-corrected this until Alex flagged the names-only reality.)
