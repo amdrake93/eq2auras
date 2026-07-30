@@ -43,7 +43,46 @@ Inquisitor SPEC (still inq-unique — melee versions of base spells): Writhing S
 Cleric SHARED:       Bolt of Power, Smite Corruption, Divine Demonstration, Skull Crack, Divine Castigation
 Cleric CUT:          Cleanse (unsure, not needed); Templar low-count: Fate of Healing, Restoration, Battle's Reprieve
 
+## Shaman  ✓ (Mystic ×1, Defiler ×1)
+Mystic STRONG:       Lunar Attendant's Oracle's Blessing [★pet-proc], Ancestral Ward, Umbral Warding, Runic Armor, Torpor, Prophetic Ward, Oberon  (primary ward-heals — always cast when present, class-unique)
+Defiler STRONG:      Spiritual Circle [★pet-proc], Shroud of Armor, Carrion Warding, Ancient Shroud  (primary ward-heals)
+Shaman SHARED:       Aura of Warding, Leg Bleed, Eidolic Ward
+Shaman NOTE:         non-ward dmg/debuff (Mystic: Bear Claws/Glacial Strike/Rabies…; Defiler: Defile/Soul Cannibalize/Putrefy…) left unresolved (single-sample). Wards+pet-proc sufficient; Defile/Soul Cannibalize obvious Defiler if more wanted.
+
+## Crusader  ✓ (Shadowknight ×1, Paladin ×1)
+Shadowknight STRONG: Reaver's Mania [★PREMIUM — lifetap proc, fires EVERY cast, as good as Lich's], Pestilence, Grim Strike, Mana Sieve, Insidious Whisper, Grave Sacrament, Devour Vitae, Malice, Life Draw, Cleave Flesh, Soulrend, Dreadful Wrath, Hateful Slam, Piercing Feedback, Harm Touch
+Paladin STRONG:      Consecration, Holy Strike, Divine Vengeance, Power Cleave, Ancient Wrath, Decree, Prayer of Healing, Shock of Conviction, Heroic Dash, Glorious Strike, Penitent Kick, Judgment, Faith Strike, Holy Circle, Demonstration of Faith, Refusal of Atonement, Castigate
+Crusader SHARED:     Aura of Leadership, Swift Attack, Doom Judgment, Hammer Ground, Lance
+
+## Warrior  ✓ (Guardian ×1, Berserker ×1) — THIN DATA (low-attendance samples; reference DB should firm this up)
+Guardian STRONG:     Taunting Blow, Taunting Assault (taunts — role-tell), Gut Kick, Slam, Decimate, Precise Strike, Bash
+Berserker STRONG:    Rampaging Blow, Berserker Onslaught, Frenzy, Bloodbath, Raging Blow, Adrenal Flow, Open Wounds, Provoking Counterattack (taunt), Maul, Insolent Assault, Body Check, Dragoon Spin, Knee Break, Head Crush, Demolish, Rupture, Stunning Roar, Mutilate
+Warrior SHARED:      Acceleration Strike
+Warrior CUT:         Magic Feedback (vague — likely gear proc)
+
+## Sorcerer  ✓ (Wizard ×1, Warlock ×1 — Warlock thin, ref-DB candidate)
+Wizard STRONG:       Flame Surge, Immolation, Glacial Wind, Storming Tempest, Ball of Fire, Frost Spikes, Firestorm, Ice Comet, Magma Chamber, Fusion, Ice Spears, Manaburn, Frost Ward; pets: protoflame (Protofire), Furnace of Ro
+Warlock STRONG:      Cataclysm, Apocalypse, Dark Pyre, Rift, Aftershocks, Distortion, Encase, Aura of Pain, Acid, Absolution, Static Discharge, Abhorrence, Dissolve, Dark Infestation, Nether Void
+Sorcerer SHARED:     Flames of Velious, Magi's Shielding (shared buff), Ambidexterous Casting (shared AA)
+
+## Predator  ✓ (Assassin ×1, Ranger trace — ref-DB firm-up)
+Assassin STRONG:     Impale, Gushing Wound, Agonizing Pain, Eviscerate, Mortal Blade, Death Blow, Ambush, Paralyzing Strike, Crippling Strike, Improvised Weapon, Deadly Shot, Spine Shot, Head Shot  ("Shot" = assassin ranged)
+Ranger STRONG (trace): Quick Shot, Searing Shot, Makeshift Arrow, Trick Shot, Storm of Arrows, Bloody Reminder (bow); Sneak Attack, Immobilizing Lunge (uncertain)
+Predator SHARED:     Poison Combination, Stalk V, Noxious Venom, Bladed Opening (AA a ranger could take)
+Predator CUT:        Hilt Strike (shared among several scouts), Swipe (vague/unknown), Shadow of Purity (unknown), Caustic Poison (generic 4-class poison)
+
+## Brawler  ✓ (Monk ×1 [Vicious, betrayed], Bruiser ×2 [Skynet, Defileds])
+Monk STRONG:         Dragonfire, Five Rings, Rising Dragon, Waking Dragon, Crescent Strike, Roundhouse Kick, Pressure Point, Arctic Talon, Rising Phoenix, Frozen Palm, Silent Palm, Striking Cobra, Charging Tiger, Jolting Strike, Combination
+Bruiser STRONG:      Shifty Dodge, One Hundred Hand Punch, Blaze Kick, Thunder Fist, Savage Assault, Shove, Engulf, Roundhouse, Roughhousing, Pummel, Beatdown, Merciless Stomp, Meteor Fist, Shoulder Charge, Uppercut, Eye Gouge, Sucker Punch, Devastation Fist, Baton Flurry, Shimmering Strike
+Brawler SHARED (AAs): Crane Twirl, Crane Sweep, Mantis Bolt, Mantis Star
+Brawler CUT:         Chilling Darkness (weapon proc); Skynet's Unholy Strike / Sacred Vengeance / Strike of Faith (gear procs)
+Brawler NOTE:        No PURE Monk in data (Vicious played both) → could isolate Monk (Vicious minus the Bruisers) but NOT split Bruiser-from-shared (Vicious's Bruiser-era casts masquerade as shared). Alex's knowledge resolved it: only the 4 Crane/Mantis AAs are truly both-subclass shared. All → Brawler color regardless.
+
 # METHOD NOTES (learned during pruning)
+# - Betrayed player as the sole sample for one final: you CAN isolate the OTHER final's uniques (Monk = Vicious minus pure-Bruisers) but CANNOT split that final from subclass-shared (their cross-era casts look shared). Needs a pure single-class sample or ground-truth knowledge.
+# - Some abilities are optionally shared across a HANDFUL of classes (Hilt Strike among scouts, Caustic Poison across 4 classes) — cut like any cross-class ability (broader than one subclass = not a signature).
+# - ★PREMIUM every-cast procs are the emerging gold-standard per class: Lich's Siphoning (Necro), Reaver's Mania (SK), Lunar Attendant's Oracle's Blessing (Mystic), Spiritual Circle (Defiler). Class-unique + fires constantly. A frequency/timing pass would auto-rank these #1.
+# - ROLE-defining abilities are reliable signatures: a healer always casts their primary heal (Shaman wards), a tank its taunts. The role compels the cast → guaranteed to appear + class-unique.
 # - Spec variants can be class-UNIQUE (Inquisitor melee "Strike of X" versions of base spells) OR subclass-SHARED (Druid spec). Depends on which subclasses can take it — check, don't assume.
 # - High-precision / low-recall signatures exist: definitive-if-seen but not always present (Troub symphony shields = spec-dependent). Use as a confirming LOCK, not a primary detector.
 # - SPEC/AA abilities: optional choices both subclasses CAN take (Druid: Infusive Wrath/Feral Pulse/Thunderspike) → subclass-SHARED, but not universal.
