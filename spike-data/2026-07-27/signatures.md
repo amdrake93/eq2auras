@@ -103,7 +103,7 @@ MOVED to subclass-SHARED (name can't discriminate the two finals, but resolves t
 CUT (name's variants span MULTIPLE subclasses → ambiguous): Ambush, Sneak Attack (assassin + an all-7-scouts variant → Predator/Rogue/Bard/Beastlord).
 CUT from Conjuror: Blaze — genuinely Sorcerer (wizard/warlock), leaked onto Sprok. Census was right; I nearly hand-waved it.
 
-CAVEAT: procs/pets/AAs aren't in the census spell collection by log-name — ★premium procs (Lich's Siphoning, Reaver's Mania, Lunar Attendant, Spiritual Circle) + pet names stay LOG-confirmed via ground truth.
+CAVEAT: procs/pets/AAs aren't standalone spell records by log-name, but two paths recover them: (a) CLASS-ability procs are confirmable by DESCRIPTION-MINING the granting ability — e.g. 'Lich's Siphoning' traces to the Necro 'Lich' form ability (census: necromancer). (b) AA procs (Reaver's Mania — census count 0, confirmed SK AA) + pet-procs (Lunar Attendant=Mystic pet, Spiritual Circle=Defiler pet) stay ground-truth confirmed. All ★premium procs are class-unique (Alex-confirmed; Lich's also census-confirmed).
 
 THIN-CLASS FIRM-UP: census-confirmed class-ONLY names for the log-thin classes (full lists: census_index.tsv, filter classes=={class}):
   Ranger (~37): Archer's Fury, Arrow Rip, Bloody Reminder, Coverage, Crippling Arrow, Emberstrike, Ensnare, Focus Aim, Hawk Attack …
