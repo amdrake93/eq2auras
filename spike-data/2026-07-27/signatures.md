@@ -19,7 +19,7 @@ Enchanter SHARED:    Nullifying Staff, Counterblade, Spellblade's Counter, Daydr
 Enchanter CUT:       Shock of Mana + Linked Pain (unknown, not needed), Firesong (weapon proc), Assault + Sentry Watch Guard (Coercer CLONE-PET abilities — pet adopts other classes' spells → taint)
 
 ## Summoner  ✓ (Conjuror ×1, Necromancer ×2)
-Conjuror STRONG (conjuror-only): Fiery Annihilation, Force of the Elements, Aery Whip, Seed of Fire, Blaze, Flameshield, Shattered Earth, Crystal Blast, Winds of Velious, Thunderous Attack, Furystorm, Earthquake, Wisp Blade, Storm Surge; pets: aqueous swarm, roaring flames
+Conjuror STRONG (conjuror-only): Fiery Annihilation, Force of the Elements, Aery Whip, Seed of Fire, Flameshield, Shattered Earth, Crystal Blast, Winds of Velious, Thunderous Attack, Furystorm, Earthquake, Wisp Blade, Storm Surge; pets: aqueous swarm, roaring flames
 Necromancer STRONG: Lich's Siphoning [★PREMIUM — necro-only proc, fires on EVERY spell cast, most prevalent necro event], Soulrot, Grim Embrace, Bloodcoil, Grim Wave, Consume, Pandemic, Grim Devastation, Lifetap, Grim Bolt, Grim Lifetap, Lifeburn; pets: blighted horde, undead horde, awaken grave; scout-pet (necro-unique): Throat Gash, Poisoned Spike
 Summoner SHARED:     Vampire Bats, Theurgist's Detonation, Animated Dagger
 
@@ -90,3 +90,27 @@ Brawler NOTE:        No PURE Monk in data (Vicious played both) → could isolat
 # - Class-UNIQUE procs are the BEST signatures (Lich's Siphoning = necro-only, procs every cast). Opposite of CROSS-class procs (Vampiric Requiem, Fae Fires) which are noise. Distinguish by how many classes cast it.
 # - Fixed/own-class pets are GOOD signatures (Necro undead + scout pet, Conjuror elementals — class-unique spells; pet NAMES are tells). Charm/CLONE pets (Coercer) adopt other classes' abilities → exclude.
 # - Cooldowns/filler demoted or cut: strong signatures are spammed every fight, so marginal ones aren't needed. (A frequency/timing pass would auto-surface the premiums like Lich's Siphoning.)
+
+## Census cross-reference (2026-07-30 — DBG census, s:eq2i, given_by=class)
+Authoritative class-uniqueness check vs the census `classes` field. Index: spike-data/census_index.tsv (1955 abilities).
+Recipe: census.daybreakgames.com/s:eq2i/get/eq2/spell?classes.<class>.id=<id>&given_by=class&c:show=name,classes  (class-id map in RESUME.md).
+
+CORRECTIONS APPLIED (were tagged class-specific → census says SHARED, so they can't discriminate the final class — moved to subclass SHARED):
+  Warrior   += Taunting Blow, Bash, Knee Break
+  Rogue     += Backstab, Gouge
+  Brawler   += Shoulder Charge, Devastation Fist   (Devastation Fist: Alex-confirmed shared, census monk+bruiser)
+  Crusader  += Power Cleave, Demonstration of Faith
+  Enchanter += Ego Shock, Overwhelming Silence
+  Druid     += Regrowth
+  Bard      += Singing Shot
+  Predator  += Impale   (census assassin+ranger — was Assassin STRONG)
+CUT (broader than a subclass — all 7 scouts can train): Ambush, Sneak Attack
+CUT from Conjuror: Blaze — census wizard/warlock (Sorcerer), NOT a Conjuror ability; leaked onto Sprok (pet/merc/proc). I nearly dismissed this census flag as a collision; Alex confirmed census was right. LESSON: verify census disagreements, don't hand-wave them.
+
+CAVEAT: procs/pets/AAs are NOT in the census spell collection by log-name — the ★premium procs (Lich's Siphoning, Reaver's Mania, Lunar Attendant, Spiritual Circle) and pet names stay LOG-confirmed via ground truth. Census = 'can-train' (superset); logs = 'actually-casts' (frequency). Both needed.
+
+THIN-CLASS FIRM-UP — census-confirmed class-ONLY abilities (reliable signatures the logs under-sampled):
+  Ranger (40 shown): Archer'S Fury, Archer'S Fury Xii, Arrow Rip, Bloody Reminder, Bloody Reminder Xii, Bloody Reminder Xiii, Coverage, Crippling Arrow, Crippling Arrow Xii, Emberstrike, Emberstrike Xii, Emberstrike Xiii, Emberstrike Xiv, Ensnare Xii, Ensnare Xiii, Focus Aim, Hawk Attack, Hidden Shot, Hidden Shot Xii, Hunter'S Instinct Xii, Hunter'S Instinct Xiii, Huntmaster, Immobilizing Lunge, Immobilizing Lunge Xii, Immobilizing Lunge Xiii, Killing Instinct, Lightning Strike, Lightning Strike Xii, Lightning Strike Xiii, Lightning Strike Xiv, Makeshift Arrows, Makeshift Arrows Xii, Miracle Shot, Natural Selection, Natural Selection Xii, Point Blank, Primal Reflexes, Ranger'S Blade, Ranger'S Blade Xii, Ranger'S Blade Xiii
+  Warlock (40 shown): Absolution, Absolution Xii, Acid, Acid Storm, Acid Xii, Acid Xiii, Acid Xiv, Apocalypse, Aspect Of Darkness, Aspect Of Darkness Xii, Aspect Of Darkness Xiii, Aura Of Void, Boon Of The Damned, Boon Of The Damned Xii, Cataclysm, Cataclysm Xii, Cataclysm Xiii, Cataclysm Xiv, Curse Of Darkness, Curse Of Darkness Xii, Curse Of Void, Curse Of Void Xii, Dark Infestation, Dark Nebula, Dark Nebula Xii, Dark Nebula Xiii, Dark Pact, Dark Pact Xii, Dark Pact Xiii, Dark Pyre, Dark Pyre Xii, Dark Pyre Xiii, Dark Siphoning, Dark Siphoning Xii, Decimation, Dissolve, Dissolve Xii, Dissolve Xiii, Dissolve Xiv, Dissolve Xv
+  Guardian (40 shown): Armored, Armored Xii, Armored Xiii, Assault, Assault Xii, Assault Xiii, Bash Xii, Bash Xiii, Bash Xiv, Battle Cry, Battle Cry Xii, Battle Cry Xiii, Battle Tactics Xii, Call Of Shielding, Call Of Shielding Xii, Call To Arms Xii, Call To Arms Xiii, Champion'S Resolve, Concussion Xii, Decimate, Dissociate Limbs, Focused Offensive, Forward Charge, Forward Charge Xii, Forward Charge Xiii, Guardian Sphere, Gut Kick, Gut Kick Xii, Gut Kick Xiii, Hold The Line Xii, Hold The Line Xiii, Hunker Down Xii, Hunker Down Xiii, Iron Will, Iron Will Xii, Moderate, Never Surrender, Overpower, Overpower Xii, Overpower Xiii
+  Berserker (40 shown): Abandoned Fury, Abandoned Fury Xii, Abandoned Fury Xiii, Adrenaline, Aggressive Defense, Aggressive Defense Xii, Aggressive Defense Xiii, Annihilate, Battlemaster'S Resolve, Berserk Rage, Berserk Rage Xii, Berserk Rage Xiii, Berserk Rage Xiv, Berserker Onslaught, Berserker Onslaught Xii, Blood Rage, Bloodbath, Bloodbath Xii, Bloodbath Xiii, Bloodlust, Bloodlust Xii, Bloodlust Xiii, Body Check, Body Check Xii, Body Check Xiii, Body Check Xiv, Chaos, Chaos Xii, Chaos Xiii, Controlled Rage, Controlled Rage Xii, Demolish, Destructive Rage, Destructive Rage Xii, Dismember, Enrage, Enrage Xii, Enrage Xiii, Frenzy, Head Crush
