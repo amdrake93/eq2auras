@@ -1,8 +1,12 @@
+using System.Linq;
 using Eq2Auras.Core.Meter;
 using Xunit;
 
 public class ClassInferenceEngineTests
 {
+    private static FinalClass FinalOf(ClassInferenceEngine e, string name)
+        => e.Export().Single(x => x.Name == name).Final;
+
     private static readonly int Grey = SubclassColors.Grey;
 
     [Fact]
@@ -99,5 +103,26 @@ public class ClassInferenceEngineTests
         e.ResetEncounter();                                    // Bob relogs as another class between fights
         e.Observe("Bob", new[] { "Chromatic Shower" });        // Illusionist → Enchanter
         Assert.Equal(SubclassColors.ArgbFor(Subclass.Enchanter), e.ColorForName("Bob"));
+    }
+
+    [Fact]
+    public void Betrayal_within_subclass_corrects_the_stored_final()
+    {
+        var e = new ClassInferenceEngine();
+        e.Observe("Bob", new[] { "Evade Blame" });             // Swashbuckler (Rogue)
+        Assert.Equal(FinalClass.Swashbuckler, FinalOf(e, "Bob"));
+        e.ResetEncounter();
+        e.Observe("Bob", new[] { "Dispatch" });                // Brigand (Rogue) — betrayal within Rogue
+        Assert.Equal(FinalClass.Brigand, FinalOf(e, "Bob"));   // corrected, not stuck on Swashbuckler
+    }
+
+    [Fact]
+    public void Shared_reread_does_not_downgrade_a_known_final()
+    {
+        var e = new ClassInferenceEngine();
+        e.Observe("Bob", new[] { "Dispatch" });                // Brigand (final known)
+        e.ResetEncounter();
+        e.Observe("Bob", new[] { "Interrupt" });               // Rogue SHARED (final Unknown)
+        Assert.Equal(FinalClass.Brigand, FinalOf(e, "Bob"));   // still Brigand — a SHARED tell never downgrades
     }
 }

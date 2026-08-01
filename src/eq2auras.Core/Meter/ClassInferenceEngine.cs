@@ -76,7 +76,11 @@ namespace Eq2Auras.Core.Meter
                 _confirmedThisEncounter.Add(name);   // confirmed this encounter → skip the rest of this fight
                 if (_map.TryGetValue(name, out var existing) && existing.Subclass == subclass)
                 {
-                    if (existing.Final == FinalClass.Unknown && final != FinalClass.Unknown)
+                    // Same subclass: correct the enrichment final when a final-specific tell gives a NEW one —
+                    // Unknown → known, OR a within-subclass betrayal (Swashbuckler → Brigand). A SHARED re-read
+                    // (final Unknown) never downgrades a known final (SPEC §Class colors — the override corrects
+                    // final drift).
+                    if (final != FinalClass.Unknown && final != existing.Final)
                     {
                         _map[name] = new Record { Subclass = subclass, Final = final };
                         _dirty.Add(name);

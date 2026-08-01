@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
 
@@ -8,10 +9,10 @@ namespace Eq2Auras.Core.Meter
     /// The persisted learned name→class store (SPEC Part III §Class colors, §Settings): its own DCJS
     /// file, eager-loaded at init, flushed with confident diffs at encounter end. `ClassCacheEntry`
     /// is the per-record shape. A missing/corrupt file parses to an empty cache (self-heals).
-    [System.Runtime.Serialization.DataContract]
+    [DataContract]
     public sealed class ClassCache
     {
-        [System.Runtime.Serialization.DataMember] public List<ClassCacheEntry> Entries { get; set; } = new List<ClassCacheEntry>();
+        [DataMember] public List<ClassCacheEntry> Entries { get; set; } = new List<ClassCacheEntry>();
 
         public static ClassCache Parse(string json)
         {
