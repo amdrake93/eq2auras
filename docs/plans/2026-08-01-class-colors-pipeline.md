@@ -23,7 +23,12 @@ Copied verbatim from the spec / repo CLAUDE.md — every task implicitly include
 
 ## Source of truth for the catalog
 
-`spike-data/2026-07-27/signatures.md` — the ground-truth-pruned, census-validated catalog. Transcription rule (Task 3): a line's **STRONG** and **WEAK** names go under their **final** class; **SHARED** names go under their **subclass**; **CUT** names are excluded; `LOCK-IF-SEEN` / `SPEC` final-specific names are treated as STRONG (final-level). Premium every-cast procs are flagged (Task 4 `IsPremium`).
+`spike-data/2026-07-27/signatures.md` — the ground-truth-pruned, census-validated catalog. Transcription rule (Task 3):
+
+- A line's **STRONG** and **WEAK** names go under their **final** class; **SHARED** names go under their **subclass**; **CUT** names are excluded; `LOCK-IF-SEEN` / `SPEC` final-specific names are treated as STRONG (final-level). Premium every-cast procs are flagged (Task 4 `IsPremium`).
+- **The census cross-reference (`signatures.md:95-114`) is the FINAL authority and overrides the tier lines above it.** The 15 names it **MOVED to subclass-SHARED** — `Backstab, Gouge → Rogue` · `Taunting Blow, Bash, Knee Break → Warrior` · `Shoulder Charge, Devastation Fist → Brawler` · `Power Cleave, Demonstration of Faith → Crusader` · `Ego Shock, Overwhelming Silence → Enchanter` · `Regrowth → Druid` · `Singing Shot → Bard` · `Impale → Predator` — are transcribed under their **subclass** (final `Unknown`), **not** the final their tier line sits under. The names it **CUT** — `Ambush`, `Sneak Attack`, and `Blaze` (from Conjuror) — are **excluded** even though they appear in a final's STRONG list.
+- **Thin-class firm-ups (`signatures.md:108-112`):** the four log-thin classes (Ranger / Warlock / Guardian / Berserker) show truncated `…` lists. Recover the **full census-confirmed class-only name lists from `spike-data/2026-07-27/census_index.tsv`** (filter rows where `classes == {class}`) and transcribe each under its final class. (These are single-class per census → final-level.)
+- **Pet sublists (`pets:` lines) and pet ability names are SKIPPED** — a pet is a separate combatant, not the player, so its names never appear in the player's *outgoing* read; pet→owner attribution is deferred (see §Scoping decisions). **Strip parenthetical annotations** (`(taunts — role-tell)`, `(bow)`); for variant forms keep the base cast name as it appears in a log line (`thug's Assault`, `Ring of Fire`).
 
 ## File structure
 
@@ -290,7 +295,7 @@ public class ClassSignaturesTests
     [InlineData("Reaver's Mania", Subclass.Crusader, FinalClass.Shadowknight)]
     [InlineData("Consecration", Subclass.Crusader, FinalClass.Paladin)]
     [InlineData("Evade Blame", Subclass.Rogue, FinalClass.Swashbuckler)]
-    [InlineData("Backstab", Subclass.Rogue, FinalClass.Brigand)]
+    [InlineData("Dispatch", Subclass.Rogue, FinalClass.Brigand)]   // Backstab moved to SHARED (census); Dispatch is Brigand-specific
     [InlineData("Fiery Annihilation", Subclass.Summoner, FinalClass.Conjuror)]
     [InlineData("Darksong Blade", Subclass.Bard, FinalClass.Dirge)]
     [InlineData("Chaos Anthem", Subclass.Bard, FinalClass.Troubador)]
@@ -305,6 +310,7 @@ public class ClassSignaturesTests
     // SHARED tells → subclass only, final Unknown.
     [InlineData("Interrupt", Subclass.Rogue)]
     [InlineData("Aura of Warding", Subclass.Shaman)]
+    [InlineData("Backstab", Subclass.Rogue)]   // census-MOVED to SHARED — the name can't split Swashbuckler/Brigand
     public void Shared_tells_resolve_subclass_only(string name, Subclass sc)
     {
         Assert.True(ClassSignatures.TryResolve(name, out var gotSc, out var gotFc));
@@ -376,9 +382,9 @@ namespace Eq2Auras.Core.Meter
                 "Evade Blame", "Flurry of Blades", "Snap of the Wrist", "Kidney Stab", "Flash of Steel",
                 "Hamstring", "Lucky Gambit", "Dashing Swathe", "Razor Edge", "Viscerate", "Lung Puncture",
                 "Storm of Steel", "Flamboyant Strike", "Daring Attack", "Arctic Blast" } },
-            { FinalClass.Brigand, new[] {
-                "Backstab", "Shank", "Baffle", "Puncture", "Battery and Assault", "Bum Rush",
-                "Barroom Negotiation", "Desperate Thrust", "Stunning Blow", "Gouge", "Black Jack",
+            { FinalClass.Brigand, new[] {   // NB: "Backstab" and "Gouge" are census-MOVED to Rogue SHARED (below), NOT Brigand
+                "Shank", "Baffle", "Puncture", "Battery and Assault", "Bum Rush",
+                "Barroom Negotiation", "Desperate Thrust", "Stunning Blow", "Black Jack",
                 "Dispatch", "Murderous Rake", "Double Blast", "Debilitate" } },
             // … transcribe the remaining 22 finals identically (Necromancer incl. "Lich's Siphoning";
             // Shadowknight incl. "Reaver's Mania"; Conjuror, Paladin, Troubador, Dirge, Monk, Bruiser,
@@ -391,8 +397,12 @@ namespace Eq2Auras.Core.Meter
         {
             { Subclass.Rogue, new[] {
                 "Interrupt", "Pirate Stab", "Traumatic Swipe", "Walk the Plank", "Shadow Slip",
-                "Boot Dagger", "Torporous Strike" } },
-            // … transcribe the remaining 11 subclass SHARED lists identically.
+                "Boot Dagger", "Torporous Strike",
+                "Backstab", "Gouge" } },   // census-MOVED from Brigand STRONG → Rogue SHARED (signatures.md:101)
+            // … transcribe the remaining 11 subclass SHARED lists identically, folding in the census MOVED names
+            //   (Taunting Blow/Bash/Knee Break → Warrior; Shoulder Charge/Devastation Fist → Brawler;
+            //    Power Cleave/Demonstration of Faith → Crusader; Ego Shock/Overwhelming Silence → Enchanter;
+            //    Regrowth → Druid; Singing Shot → Bard; Impale → Predator).
         };
 
         // ★PREMIUM every-cast procs — class-unique, fire constantly (signatures.md METHOD NOTES).
@@ -403,10 +413,10 @@ namespace Eq2Auras.Core.Meter
 
         private struct Record { public Subclass Subclass; public FinalClass Final; }
 
-        private static readonly Dictionary<string, Record> Lookup = BuildLookup(out _crossSubclassCollisions);
-        private static readonly List<string> _crossSubclassCollisions;
+        private static readonly Dictionary<string, Record> Lookup = BuildLookup(out CrossSubclassCollisions);
+        private static readonly List<string> CrossSubclassCollisions;
 
-        public static IReadOnlyList<string> FindCrossSubclassCollisions() => _crossSubclassCollisions;
+        public static IReadOnlyList<string> FindCrossSubclassCollisions() => CrossSubclassCollisions;
         public static IEnumerable<string> AllNames => Lookup.Keys;
 
         public static bool IsPremium(string abilityName)
@@ -826,7 +836,7 @@ namespace Eq2Auras.Core.Meter
 }
 ```
 
-- [ ] **Step 4: Run — expect PASS** (and re-run Task 4's tests — now `ClassCacheEntry` resolves).
+- [ ] **Step 4: Run — expect PASS.**
 - [ ] **Step 5: Commit** — `git add src/eq2auras.Core/Meter/ClassCache.cs tests/eq2auras.Core.Tests/ClassCacheTests.cs && git commit -m "Class colors: ClassCache DCJS persistence type"`
 
 ---
@@ -1160,17 +1170,16 @@ combatants.Add(reading);
 - [ ] **Step 3:** Add the keys-only reader (a static helper on `EncounterProbe`), modeled on `ReadBreakdown` (`EncounterProbe.cs:332-346`) but taking only outgoing buckets' keys and skipping `ReadValue`:
 
 ```csharp
-private static readonly string[] OutgoingBuckets =
-{
-    CombatantData.DamageTypeDataOutgoingDamage,
-    CombatantData.DamageTypeDataOutgoingHealing,
-};
-
 private static List<string> ReadOutgoingAbilityNames(CombatantData combatant)
 {
+    // Read the alias statics at CALL time — the EQ2 parser reassigns them at ITS init and plugin order
+    // is user-controlled, so a static array would freeze stale/default values and silently read nothing
+    // all session (the trap EncounterProbe.cs:306-307 documents; BucketName reads them per call for the
+    // same reason).
+    var buckets = new[] { CombatantData.DamageTypeDataOutgoingDamage, CombatantData.DamageTypeDataOutgoingHealing };
     string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
     var names = new List<string>();
-    foreach (var bucketName in OutgoingBuckets)
+    foreach (var bucketName in buckets)
     {
         if (!combatant.Items.TryGetValue(bucketName, out var damageType)) continue;
         foreach (var key in damageType.Items.Keys)   // keys-only — does NOT trigger the lazy metric folds
@@ -1180,7 +1189,7 @@ private static List<string> ReadOutgoingAbilityNames(CombatantData combatant)
 }
 ```
 
-*Note (plan-watch #1): outgoing buckets only — a combatant's own casts. Incoming buckets hold the attacker's/healer's ability names and would misattribute their class. Pet-proc → owner attribution (the pet is a separate combatant) is deferred; shamans/etc. still resolve via their own outgoing wards. If a field signature is missed, broaden `OutgoingBuckets` to the other outgoing category aliases.*
+*Note (plan-watch #1): outgoing buckets only — a combatant's own casts. Incoming buckets hold the attacker's/healer's ability names and would misattribute their class. Pet-proc → owner attribution (the pet is a separate combatant) is deferred; shamans/etc. still resolve via their own outgoing wards. If a field signature is missed, broaden the `buckets` list to the other outgoing category aliases (`…OutgoingCures`, `…OutgoingPowerReplenish`) — still read at call time.*
 
 - [ ] **Step 4: Compile check** — push the branch, `gh run watch <id> --exit-status` (verify-only CI: Core tests + WPF compile). Expect green.
 - [ ] **Step 5: Commit** — `git add src/eq2auras.Plugin/Act/EncounterProbe.cs && git commit -m "Class colors: EncounterProbe gathers uncommitted allies' outgoing ability names"`
@@ -1190,7 +1199,7 @@ private static List<string> ReadOutgoingAbilityNames(CombatantData combatant)
 ### Task 12: Inference wiring — `OverlayHost` + `Eq2AurasPlugin`
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Overlay/OverlayHost.cs` (new `ClassInferenceEngine` field; `Observe` in `UpdateMeterSample`; pass `ColorForName` into the four engine calls at `:252/257/277/278/307/333/358`; expose `IsClassCommitted`)
+- Modify: `src/eq2auras.Plugin/Overlay/OverlayHost.cs` (new `ClassInferenceEngine` field; `Observe` + encounter-lifecycle in `UpdateMeterSample`; pass the resolver into the **six** row-fill calls at `:257/277/278/307/333/358` — explicitly **not** `:252` `RecapSecondEngine.Build(events)`, the recap-second hover, which stays red/green event-colored; expose `IsClassCommitted`)
 - Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (pass `_overlay.IsClassCommitted` into the `EncounterProbe` ctor)
 
 **Interfaces:**
@@ -1321,25 +1330,41 @@ Place this at the top of the dispatched body (it reads only `encounter` + infere
 - Modify: `src/eq2auras.Plugin/Overlay/BarRowVisual.cs` (name `Effect`; a background layer behind `_fill`; the min-alpha floor in `SetFillColor`)
 - Modify: `src/eq2auras.Plugin/Overlay/MeterRowVisual.cs` (drive the background layer from `MeterRow.BackgroundArgb`)
 
-- [ ] **Step 1: Global name text-outline.** In `BarRowVisual` where `_name` is built (~line 71-78), add a dark drop-shadow so light class fills stay legible (Cleric-white / Rogue-yellow):
+- [ ] **Step 1: Name text-outline — a meter-only ctor param.** Per SPEC §Meter display defaults ("meter-motivated looks in the shared primitive are *parameterized … never a blanket change* that would regress the timer's field-tuned appearance"), the outline is a construction param like `spark`/`fillAlpha`, not an unconditional ctor edit. Add `bool nameOutline = false` to the `BarRowVisual` ctor (`BarRowVisual.cs:55`) and, after `style.ApplyFont(_name, style.RowText);` (~line 78), apply the dark drop-shadow only when set:
 ```csharp
-_name.Effect = new System.Windows.Media.Effects.DropShadowEffect
+public BarRowVisual(VisualStyle style, bool spark, byte fillAlpha = 90, bool nameOutline = false)
 {
-    Color = System.Windows.Media.Colors.Black,
-    ShadowDepth = 0,
-    BlurRadius = 2,
-    Opacity = 0.9,
-};
+    // … existing body …
+    // (immediately after: style.ApplyFont(_name, style.RowText);)
+    if (nameOutline)
+        _name.Effect = new System.Windows.Media.Effects.DropShadowEffect
+        {
+            Color = System.Windows.Media.Colors.Black, ShadowDepth = 0, BlurRadius = 2, Opacity = 0.9,
+        };
+}
 ```
-(`Effect` sits on the `TextBlock` element, so it survives `MeterRowVisual.Update`'s inline-`Run` replacement.)
+Then in `MeterRowVisual`'s ctor (`MeterRowVisual.cs:45`) pass it:
+```csharp
+_bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha, nameOutline: true);
+```
+(The `Effect` sits on the `_name` element, so it survives `Update`'s inline-`Run` replacement. Timer rows construct with the default `false` → untouched.)
 
-- [ ] **Step 2: Two-tone background layer.** In `BarRowVisual`, add a background `Border` (`_background`) into the same `Grid` as `_fill`, **behind** it (add it to `grid.Children` before `_fill`, ~line 97-100), full-width, initially transparent:
+- [ ] **Step 2: Two-tone background layer + its opacity hook.** In `BarRowVisual`, add a full-width background `Border` field `_background`, create it in the ctor, and insert it **first** in the `Grid` (behind `_fill`), at `BarRowVisual.cs:97-100`:
 ```csharp
-_background = new Border { Background = System.Windows.Media.Brushes.Transparent };
-grid.Children.Add(_background);   // before _fill so the fill draws on top
+private readonly Border _background;   // field, alongside _fill
+// … in the ctor, before building the grid:
+_background = new Border { HorizontalAlignment = HorizontalAlignment.Stretch, Background = System.Windows.Media.Brushes.Transparent };
+// … the grid (was: Add(_fill); Add(_name); Add(_trailingPanel);):
+var grid = new Grid();
+grid.Children.Add(_background);   // behind the fill — the two-tone class ground (transparent unless set)
+grid.Children.Add(_fill);
+grid.Children.Add(_name);
+grid.Children.Add(_trailingPanel);
 ```
-Add a setter:
+Add the setter and — so the opacity knob reaches this new painted layer (§Meter display defaults' compound opacity) — a `BackgroundOpacity` property mirroring `FillOpacity`:
 ```csharp
+public double BackgroundOpacity { get => _background.Opacity; set => _background.Opacity = value; }
+
 public void SetBackgroundColor(int? argb)
 {
     if (argb == null) { _background.Background = System.Windows.Media.Brushes.Transparent; return; }
@@ -1348,17 +1373,18 @@ public void SetBackgroundColor(int? argb)
 }
 ```
 
-- [ ] **Step 3: Min-alpha fill floor.** In `SetFillColor` (~line 115-120), clamp the effective alpha so a low fill-opacity knob can't dissolve class identity into the backplate:
+- [ ] **Step 3: Min-fill-opacity floor — in the meter's opacity path (not `SetFillColor`).** The fill-opacity knob is *element* opacity (`_fill.Opacity` via `BarRowVisual.FillOpacity`), scaled by `MeterRowVisual.SetOpacity` (`MeterRowVisual.cs:139-143`); `_fillAlpha` is a construction constant (200 meter / 90 timer) no knob touches, so flooring *it* is a no-op. Floor the **element opacity** here so a low window-opacity can't dissolve class identity (§Class colors, Render rules), and floor the two-tone background with it (Step 2's layer), while the backplate still recedes freely (the "faint backdrop, vivid bars" of §The backdrop). Replace the body of `SetOpacity`:
 ```csharp
-public void SetFillColor(int argb)
+private const double MinFillOpacity = 0.35;   // class-identity floor; tune on-box
+
+public void SetOpacity(double opacity)
 {
-    var color = OverlayTheme.FromArgbInt(argb);
-    byte alpha = _fillAlpha < MinFillAlpha ? MinFillAlpha : _fillAlpha;   // const byte MinFillAlpha = 90;
-    _fill.Background = new SolidColorBrush(Color.FromArgb(alpha, color.R, color.G, color.B));
-    if (_spark) _fill.BorderBrush = new SolidColorBrush(OverlayTheme.Spark(color));
+    double fill = opacity < MinFillOpacity ? MinFillOpacity : opacity;
+    _bar.FillOpacity = fill;
+    _bar.BackgroundOpacity = fill;   // the class-color ground is identity — floored with the fill
+    _backplate.Opacity = opacity;    // backplate recedes freely
 }
 ```
-(Add `private const byte MinFillAlpha = 90;`. Tune on-box.)
 
 - [ ] **Step 4: Drive the background from the row.** In `MeterRowVisual.Update` where `SetFillColor(row.FillArgb)` is called (~line 132), add:
 ```csharp
@@ -1375,8 +1401,8 @@ So recap rows (BackgroundArgb set) render the class-color ground with the dark c
 Mirrors SPEC §Testing strategy (Parse Meter — class colors). Phase 1 = Core xUnit (the guard test, commit/override, tree/colors, cache round-trip) — all green on the Mac. Phase 2 = branch CI compile + Alex's on-box merge-gate script:
 
 - Each ally row **snaps** grey → class color within a second or two of engaging; a mob stays grey; an enemy-scoped window is all-grey.
-- A raider seen a prior session is **already** colored on first resolving cast (warm-start via `learned-classes.json`).
-- A **persona swap** (log out → back in as another class) re-colors within seconds.
+- A raider seen a prior session is colored **immediately** (before casting — warm-start via `learned-classes.json`), and is re-read this session until confirmed.
+- A **persona swap** between fights (log out → back in as another class) re-colors at the **next** fight within seconds of the new class's first resolving cast.
 - **Drill** an ally → every ability row in that ally's color; **hover** a by-counterpart card → each row its counterpart's color; **Death Recap** → victim's color ground with the dark current-HP bar shrinking to full color at the killing blow; the **recap-second hover** stays **red/green** (event-colored, unchanged).
 - **Headers + popup family columns unchanged.** Names legible over Cleric-white / Rogue-yellow (outline); identity survives a low fill-opacity (min-alpha floor).
 - Learned colors **persist across a plugin reload**.
