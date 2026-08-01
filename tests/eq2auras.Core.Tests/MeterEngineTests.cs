@@ -130,27 +130,23 @@ public class MeterEngineTests
     }
 
     [Fact]
-    public void All_rows_take_the_primary_metric_family_color()
+    public void Row_fill_comes_from_the_class_resolver()
     {
-        var allies = new List<CombatantReading>
-            { Ally("A", damage: 300), Ally("B", damage: 200), Ally("C", damage: 100) };
+        var allies = new List<CombatantReading> { Ally("Bob", damage: 100) };
+        int purple = SubclassColors.ArgbFor(Subclass.Summoner);
 
-        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");   // DPS -> Damage family
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps", null, MeterScope.Allies,
+            name => name == "Bob" ? purple : SubclassColors.Grey);
 
-        var red = MeterFamilyColors.ArgbFor("Damage");
-        Assert.All(frame.Rows, r => Assert.Equal(red, r.FillArgb));
+        Assert.Equal(purple, frame.Rows[0].FillArgb);
     }
 
     [Fact]
-    public void The_fill_color_follows_the_metric_family_not_the_ally()
+    public void Row_fill_falls_back_to_grey_with_no_resolver()
     {
-        var allies = new List<CombatantReading> { Ally("A", damage: 300, healed: 500) };
-
-        var dps = new MeterEngine().Tick(Live(10), allies, "encdps");
-        var hps = new MeterEngine().Tick(Live(10), allies, "enchps");
-
-        Assert.Equal(MeterFamilyColors.ArgbFor("Damage"), dps.Rows[0].FillArgb);
-        Assert.Equal(MeterFamilyColors.ArgbFor("Healing"), hps.Rows[0].FillArgb);
+        var allies = new List<CombatantReading> { Ally("Bob", damage: 100) };
+        var frame = new MeterEngine().Tick(Live(10), allies, "encdps");
+        Assert.Equal(SubclassColors.Grey, frame.Rows[0].FillArgb);
     }
 
     [Fact]
