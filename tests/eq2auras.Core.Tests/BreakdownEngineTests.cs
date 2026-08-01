@@ -90,11 +90,29 @@ public class BreakdownEngineTests
     }
 
     [Fact]
-    public void Every_row_takes_the_metrics_family_color()
+    public void Rows_carry_no_secondary_and_default_to_grey_without_a_resolver()
     {
         var rows = BreakdownEngine.Build(Entries(("A", 1)), Dps, durationSeconds: 1);
-        Assert.Equal(MeterFamilyColors.ArgbFor(Dps.Category), rows[0].FillArgb);
+        Assert.Equal(SubclassColors.Grey, rows[0].FillArgb);
         Assert.Empty(rows[0].Secondaries);   // breakdown rows carry no secondary
+    }
+
+    [Fact]
+    public void Each_row_fill_comes_from_color_for_label()
+    {
+        int red = 111, blue = 222;
+        var rows = BreakdownEngine.Build(Entries(("Alice", 10), ("Bob", 5)), Dps, 1.0,
+            label => label == "Alice" ? red : blue);
+        Assert.Equal(red, rows.Find(r => r.Name == "Alice").FillArgb);
+        Assert.Equal(blue, rows.Find(r => r.Name == "Bob").FillArgb);
+    }
+
+    [Fact]
+    public void Constant_resolver_paints_every_drill_row_one_color()
+    {
+        int purple = SubclassColors.ArgbFor(Subclass.Sorcerer);
+        var rows = BreakdownEngine.Build(Entries(("Fireball", 10), ("Ice", 5)), Dps, 1.0, _ => purple);
+        Assert.All(rows, r => Assert.Equal(purple, r.FillArgb));
     }
 
     [Fact]
