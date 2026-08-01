@@ -2,7 +2,10 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
-## From Alex — 2026-07-30
+## From Alex — 2026-08-01
+
+### 🎨 NITPICK (UI polish) — meter header's rounded bottom corners gap against the square-cornered body
+The meter **header** `Border` rounds **all four** corners (`MeterWindow.cs:160` — `CornerRadius = new CornerRadius(4 * hr)`), so its **bottom** corners curve inward and leave weird little gaps where the header meets the body box beneath it — which has **square** corners (only the *rows* inside that box are individually rounded, via `BarRowVisual` `_root`). **Likely fix:** round only the header's **top** corners so its bottom edge sits flush against the body — `new CornerRadius(4 * hr, 4 * hr, 0, 0)` (TL, TR, BR, BL). Low priority / cosmetic. (Field-noticed on `dev-latest 1.2.35`.)
 
 ### ✅ MERGED to `main` → dev-latest (2026-08-01) — class colors: the inference/coloring pipeline — awaiting on-box field test
 **Merged 2026-08-01** (merge commit, branch `class-colors-pipeline`). **All three artifacts — spec, plan, code — third-party-reviewed to closure (Fable 5 reviewer, 2 rounds each).** Code review r1 caught one Important — betrayal never corrected the stored `final` (the same-subclass branch upgraded only from `Unknown`, contradicting the spec's override-corrects-final-drift pillar) → fixed + 2 tests → r2 closure. **Publishing to dev-latest on the main push. Field test pending** — visual/interaction correctness is Alex's on-box gate (SPEC §Testing strategy — class colors); **stable promotion waits on his call.** **✅ IMPLEMENTED (all 14 tasks, inline strict-TDD).** Core **370 green** (+80: enums/tree/palette, the census-corrected catalog + collision guard, the inference engine, the DCJS cache, the 4-site resolver threading, betrayal-final correction). Plugin transcribe-only (the keys-only outgoing ability-name read, `OverlayHost` inference wiring + 6 resolver sites, `ClassCacheStore` warm-start + encounter-end flush, `BarRowVisual` name-outline/two-tone/min-fill-floor). Verify-CI + code-review both GREEN.
