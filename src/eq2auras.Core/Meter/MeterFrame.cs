@@ -14,6 +14,7 @@ namespace Eq2Auras.Core.Meter
         public string FormattedPercent { get; set; }
         public double BarFraction { get; set; }      // vs. rank-1's value (0..1) — rank 1 = full bar
         public int FillArgb { get; set; }
+        public int? BackgroundArgb { get; set; }   // null → single-tone fill; set → two-tone (Death Recap: class-color ground behind the current-HP bar, SPEC §Class colors)
         public List<SecondaryValue> Secondaries { get; set; }
         public string Detail { get; set; }     // muted suffix after Name (Deaths: "(N) · killing blow + dmg"); null on normal rows
         public string DrillKey { get; set; }   // per-row drill identity; null → drill by Name (Deaths: two rows can share a victim name)

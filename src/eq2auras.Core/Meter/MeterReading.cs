@@ -14,6 +14,7 @@ namespace Eq2Auras.Core.Meter
         public long HealsTaken { get; set; }
         public long PowerReplenish { get; set; }   // power restored to others (ACT swing type 13)
         public bool IsAlly { get; set; }      // was this combatant in ACT's GetAllies()? — drives the mini-parse ShowOnlyAllies filter
+        public System.Collections.Generic.List<string> AbilityNames { get; set; }   // unconfirmed allies only; the class-inference read (SPEC §Class colors); null otherwise
     }
 
     /// The current segment's per-poll identity/duration. Both duration branches
