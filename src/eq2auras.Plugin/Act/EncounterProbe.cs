@@ -19,6 +19,7 @@ namespace Eq2Auras.Plugin.Act
         private readonly Func<bool> _enabled;
         private readonly Func<IReadOnlyList<DrillRequest>> _drillRequests;
         private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> _onSample;
+        private readonly Func<string, bool> _isClassCommitted;   // skip the ability-name read for allies confirmed this encounter (SPEC §Class colors)
         private int _tick;
 
         // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan).
@@ -27,11 +28,13 @@ namespace Eq2Auras.Plugin.Act
         private DateTime _encounterStartKey = DateTime.MinValue;
 
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
-            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> onSample)
+            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> onSample,
+            Func<string, bool> isClassCommitted = null)
         {
             _enabled = enabled;
             _drillRequests = drillRequests;
             _onSample = onSample;
+            _isClassCommitted = isClassCommitted ?? (_ => false);
         }
 
         /// Called once per TimerProbe poll tick, on ACT's UI thread.
@@ -77,7 +80,7 @@ namespace Eq2Auras.Plugin.Act
                         var allySet = new HashSet<CombatantData>(encounter.GetAllies());
                         foreach (var combatant in encounter.Items.Values)
                         {
-                            combatants.Add(new CombatantReading
+                            var reading = new CombatantReading
                             {
                                 Name = combatant.Name,
                                 Damage = combatant.Damage,
@@ -87,7 +90,12 @@ namespace Eq2Auras.Plugin.Act
                                 HealsTaken = combatant.HealsTaken,
                                 PowerReplenish = combatant.PowerReplenish,
                                 IsAlly = allySet.Contains(combatant),
-                            });
+                            };
+                            // Class inference (SPEC §Class colors): the outgoing ability NAMES, keys-only,
+                            // for allies not yet confirmed this encounter — cheap, shrinks as they confirm.
+                            if (reading.IsAlly && !_isClassCommitted(reading.Name))
+                                reading.AbilityNames = ReadOutgoingAbilityNames(combatant);
+                            combatants.Add(reading);
                         }
 
                         // Deaths capture (SPEC §Deaths): poll-only count-delta → bounded killing-blow scan.
@@ -343,6 +351,26 @@ namespace Eq2Auras.Plugin.Act
                 entries.Add(new BreakdownEntry { Label = pair.Key, Value = ReadValue(source, pair.Value) });
             }
             return entries;
+        }
+
+        /// A combatant's own cast ability NAMES for class inference (SPEC §Class colors): the KEYS of
+        /// its outgoing buckets only — the player's own casts (incoming would misattribute the attacker's
+        /// class). Keys-only, so it does NOT trigger the lazy per-ability metric folds. Read the bucket
+        /// alias-statics at CALL time — the EQ2 parser reassigns them at ITS init and plugin order is
+        /// user-controlled (as BucketName does, above), so a type-init static array would freeze stale
+        /// values and silently read nothing all session.
+        private static List<string> ReadOutgoingAbilityNames(CombatantData combatant)
+        {
+            var buckets = new[] { CombatantData.DamageTypeDataOutgoingDamage, CombatantData.DamageTypeDataOutgoingHealing };
+            string allKey = ActGlobals.ActLocalization.LocalizationStrings["attackTypeTerm-all"].DisplayedText;
+            var names = new List<string>();
+            foreach (var bucketName in buckets)
+            {
+                if (!combatant.Items.TryGetValue(bucketName, out var damageType)) continue;
+                foreach (var key in damageType.Items.Keys)
+                    if (key != allKey) names.Add(key);
+            }
+            return names;
         }
 
         /// One combatant's by-counterpart entries for a bucket, read under the ACT lock (SPEC
