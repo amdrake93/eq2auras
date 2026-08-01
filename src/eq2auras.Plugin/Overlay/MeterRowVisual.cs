@@ -42,7 +42,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public MeterRowVisual(VisualStyle style, double opacity)
         {
-            _bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha);
+            _bar = new BarRowVisual(style, spark: false, fillAlpha: FillAlpha, nameOutline: true);
             _backplate = new SolidColorBrush(OverlayTheme.MeterBackplate);
             _bar.RootBorder.Background = _backplate;
             _bar.RootBorder.BorderBrush = new SolidColorBrush(OverlayTheme.CalmBorder);
@@ -130,16 +130,21 @@ namespace Eq2Auras.Plugin.Overlay
             }
 
             _bar.SetFillColor(row.FillArgb);
+            _bar.SetBackgroundColor(row.BackgroundArgb);   // two-tone recap ground (null → transparent, SPEC §Class colors)
             _bar.AnimateToFraction(row.BarFraction);
         }
 
         /// One knob scales the fill and the backplate together (SPEC Part III
         /// §Meter display defaults). Element/brush opacity multiplies the baked alphas,
         /// so 1.0 = today's look; text is left at full opacity, always readable.
+        private const double MinFillOpacity = 0.35;   // class-identity floor (SPEC §Class colors); tune on-box
+
         public void SetOpacity(double opacity)
         {
-            _bar.FillOpacity = opacity;
-            _backplate.Opacity = opacity;
+            double fill = opacity < MinFillOpacity ? MinFillOpacity : opacity;
+            _bar.FillOpacity = fill;
+            _bar.BackgroundOpacity = fill;   // the class-color ground is identity — floored with the fill
+            _backplate.Opacity = opacity;    // backplate recedes freely
         }
 
         /// Live row-height (SPEC Part III §Configuration): resize the retained row in place
