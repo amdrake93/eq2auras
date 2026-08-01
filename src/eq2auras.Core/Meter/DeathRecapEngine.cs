@@ -11,9 +11,9 @@ namespace Eq2Auras.Core.Meter
         public const int DmgArgb = unchecked((int)0xFFF2A0A0);   // red
         public const int HealArgb = unchecked((int)0xFF2FBF8F);  // green
         private const int WindowSeconds = 10;
-        private static readonly int FillArgb = MeterFamilyColors.ArgbFor("Damage");
+        public const int CurrentHpArgb = unchecked((int)0xFF2B2F3A);   // dark current-HP bar over the class-color ground (SPEC §Class colors)
 
-        public static List<MeterRow> Build(RecapReading reading)
+        public static List<MeterRow> Build(RecapReading reading, int classArgb)
         {
             var rows = new List<MeterRow>();
             if (reading?.Events == null) return rows;
@@ -52,7 +52,8 @@ namespace Eq2Auras.Core.Meter
                         Percent = pct,
                         FormattedPercent = Math.Round(pct * 100) + "%",
                         BarFraction = pct,
-                        FillArgb = FillArgb,
+                        FillArgb = CurrentHpArgb,
+                        BackgroundArgb = classArgb,
                         Secondaries = BuildSecondaries(dmg[s], heal[s]),
                     });
                 }

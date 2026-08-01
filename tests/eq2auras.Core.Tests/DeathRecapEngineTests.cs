@@ -14,7 +14,7 @@ public class DeathRecapEngineTests
         {
             MaxHealthEstimate = 8000,
             Events = new List<RecapEvent> { Dmg(0.4, 5000), Dmg(1.2, 3000) },
-        });
+        }, SubclassColors.Grey);
 
         Assert.Equal(2, rows.Count);
         Assert.Equal("-1s", rows[0].Name);        // oldest first
@@ -31,7 +31,7 @@ public class DeathRecapEngineTests
         {
             MaxHealthEstimate = 10000,
             Events = new List<RecapEvent> { Dmg(0.5, 5000), Dmg(1.5, 1000), Heal(2.5, 2000) },
-        });
+        }, SubclassColors.Grey);
         Assert.Equal(new[] { "-2s", "-1s", "0s" }, rows.ConvertAll(r => r.Name).ToArray());
         Assert.Equal(0.60, rows[0].Percent, 3);
         Assert.Equal(0.50, rows[1].Percent, 3);
@@ -45,7 +45,7 @@ public class DeathRecapEngineTests
         {
             MaxHealthEstimate = 4000,
             Events = new List<RecapEvent> { Dmg(0.5, 5000), Dmg(1.5, 3000) },  // cumulative to top = 5000 > 4000
-        });
+        }, SubclassColors.Grey);
         Assert.Equal(1.0, rows[0].Percent, 3);                 // pinned at 100% (the bar/% carry the clamp)
         Assert.Equal("100%", rows[0].FormattedPercent);
         Assert.Equal("", rows[0].FormattedValue);              // raw health K-number dropped (SPEC §Death Recap)
@@ -58,7 +58,7 @@ public class DeathRecapEngineTests
         {
             MaxHealthEstimate = 10000,
             Events = new List<RecapEvent> { Dmg(0.5, 5000), Heal(0.7, 1000), Dmg(4.5, 2000) },
-        });
+        }, SubclassColors.Grey);
         // seconds present: 0 (dmg 5000 + heal 1000) and 4 (dmg 2000); seconds 1,2,3 skipped.
         Assert.Equal(new[] { "-4s", "0s" }, rows.ConvertAll(r => r.Name).ToArray());
         var deathRow = rows[1];
@@ -83,7 +83,7 @@ public class DeathRecapEngineTests
         {
             MaxHealthEstimate = 10000,
             Events = new List<RecapEvent> { Dmg(0.5, 5000), Dmg(1.5, 5000) },
-        });
+        }, SubclassColors.Grey);
         foreach (var r in rows) Assert.Equal(r.Percent, r.BarFraction, 3);
     }
 
@@ -95,7 +95,7 @@ public class DeathRecapEngineTests
             MaxHealthEstimate = 10000,
             Events = new List<RecapEvent> { Dmg(0, 5000), Dmg(2, 3000) },   // death second + -2s (second 1 absent)
         };
-        var rows = DeathRecapEngine.Build(reading);   // oldest first, 0s last
+        var rows = DeathRecapEngine.Build(reading, SubclassColors.Grey);   // oldest first, 0s last
         Assert.Equal("-2s", rows[0].Name);
         Assert.Equal("2", rows[0].DrillKey);
         Assert.Equal("0s", rows[1].Name);
