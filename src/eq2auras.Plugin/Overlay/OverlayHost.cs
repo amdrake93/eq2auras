@@ -23,6 +23,8 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly List<CenterZoneWindow> _centerWindows = new List<CenterZoneWindow>();
         private GridOverlayWindow _grid;
         private readonly MeterEngine _meterEngine = new MeterEngine();
+        private readonly ClassInferenceEngine _inference = new ClassInferenceEngine();
+        private bool _wasEncounterActive;   // encounter start/end edge for class-inference reset/flush (SPEC §Class colors)
         private readonly Dictionary<MeterWindowConfig, MeterWindow> _meterWindows =
             new Dictionary<MeterWindowConfig, MeterWindow>();
         private volatile IReadOnlyList<DrillRequest> _drillRequests = new List<DrillRequest>();
@@ -32,6 +34,7 @@ namespace Eq2Auras.Plugin.Overlay
         public OverlayHost(Settings settings)
         {
             _settings = settings;
+            _inference.Import(ClassCacheStore.Load().Entries);   // warm-start the learned colors (SPEC §Class colors)
         }
 
         public void Start()
@@ -239,6 +242,10 @@ namespace Eq2Auras.Plugin.Overlay
         /// latest lock-free snapshot — the probe deep-reads each requested combatant under the lock.
         public IReadOnlyList<DrillRequest> CurrentDrillRequests() => _drillRequests;
 
+        /// Read by EncounterProbe on ACT's UI thread (SPEC §Class colors): skip the ability-name read for
+        /// allies confirmed this encounter. Thread-safe via the inference engine's internal lock.
+        public bool IsClassCommitted(string name) => _inference.IsCommitted(name);
+
         /// The hover card's synchronous first paint (SPEC §Row drill-down — the by-row mouseover):
         /// on mouse-enter, read the hovered combatant's by-counterpart entries NOW (adapter, under the
         /// lock — one combatant) and rank them, so the card opens instantly instead of a poll later.
@@ -254,7 +261,7 @@ namespace Eq2Auras.Plugin.Overlay
             var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
             if (metric == null) return null;
             if (!EncounterProbe.TryReadNow(request, out var entries, out double duration)) return null;
-            return BreakdownEngine.Build(entries, metric, duration);
+            return BreakdownEngine.Build(entries, metric, duration, _inference.ColorForName);   // by-counterpart hover — each row its counterpart's color
         }
 
         /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
@@ -267,6 +274,22 @@ namespace Eq2Auras.Plugin.Overlay
             dispatcher.BeginInvoke((Action)(() =>
             {
                 double duration = MeterEngine.DurationSeconds(encounter);
+
+                // Class inference (SPEC §Class colors), on the dispatcher after the lock released: reset
+                // confirmations at each encounter start (re-read everyone → catch a between-fight persona
+                // swap), observe this poll's gathered ability-names, flush confident diffs at encounter end.
+                bool encounterActive = encounter != null && encounter.Active;
+                if (encounterActive && !_wasEncounterActive) _inference.ResetEncounter();
+                if (combatants != null)
+                    foreach (var c in combatants)
+                        if (c.AbilityNames != null) _inference.Observe(c.Name, c.AbilityNames);
+                if (_wasEncounterActive && !encounterActive && _inference.HasDirty)
+                {
+                    ClassCacheStore.Save(new ClassCache { Entries = new List<ClassCacheEntry>(_inference.Export()) });
+                    _inference.ClearDirty();
+                }
+                _wasEncounterActive = encounterActive;
+
                 foreach (var pair in _meterWindows)
                 {
                     var config = pair.Key;
@@ -274,8 +297,8 @@ namespace Eq2Auras.Plugin.Overlay
                     var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
                     // Deaths (the event metric) builds an event timeline from the death records, not Tick.
                     var listFrame = metric != null && metric.IsEvent
-                        ? DeathsEngine.BuildList(deaths, duration)
-                        : _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope);
+                        ? DeathsEngine.BuildList(deaths, duration, _inference.ColorForName)
+                        : _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope, _inference.ColorForName);
 
                     var target = window.DrillTarget;
                     if (target == null || metric == null)
@@ -304,7 +327,7 @@ namespace Eq2Auras.Plugin.Overlay
                                 foreach (var b in breakdowns)
                                     if (b.Grouping == BreakdownGrouping.ByCounterpart && b.CombatantName == hover.CombatantName && b.Source == hover.Source)
                                     {
-                                        window.RenderHover(BreakdownEngine.Build(b.Entries, metric, duration));
+                                        window.RenderHover(BreakdownEngine.Build(b.Entries, metric, duration, _inference.ColorForName));
                                         break;
                                     }
                             }
@@ -330,7 +353,7 @@ namespace Eq2Auras.Plugin.Overlay
                         if (recaps != null)
                             foreach (var r in recaps)
                                 if (r.DrillKey == target.DeathKey) { recap = r; break; }
-                        var recapRows = recap != null ? DeathRecapEngine.Build(recap) : new List<MeterRow>();
+                        var recapRows = recap != null ? DeathRecapEngine.Build(recap, _inference.ColorForName(deathRow.Name)) : new List<MeterRow>();   // victim's color as the two-tone ground
                         window.RenderDrill(recapRows, deathRow.FormattedValue);   // total cell = time-of-death
                         continue;
                     }
@@ -355,7 +378,7 @@ namespace Eq2Auras.Plugin.Overlay
                     // Header total is the combatant's own list value (ready immediately); the body fills
                     // when the breakdown arrives (one poll later than the click).
                     var rows = breakdown != null
-                        ? BreakdownEngine.Build(breakdown.Entries, metric, duration)
+                        ? BreakdownEngine.Build(breakdown.Entries, metric, duration, _ => _inference.ColorForName(target.CombatantName))   // drill: every ability row the drilled combatant's color
                         : new List<MeterRow>();
                     window.RenderDrill(rows, ownRow.FormattedValue);
                 }

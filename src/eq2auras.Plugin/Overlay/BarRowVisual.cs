@@ -21,6 +21,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly byte _fillAlpha;
         private readonly Border _root;
         private readonly Border _fill;
+        private readonly Border _background;   // full-width class-color ground behind the fill (two-tone recap rows); transparent otherwise
         private readonly TextBlock _name;
         private readonly TextBlock _trailing;
         private readonly StackPanel _trailingPanel;
@@ -38,6 +39,7 @@ namespace Eq2Auras.Plugin.Overlay
         // (not the brush) so it survives SetFillColor's per-poll brush rebuild and never
         // touches the text. The timer never sets it (stays 1.0).
         public double FillOpacity { get => _fill.Opacity; set => _fill.Opacity = value; }
+        public double BackgroundOpacity { get => _background.Opacity; set => _background.Opacity = value; }
 
         // Meter-only, same floor-bracket as FillOpacity: the width lives here, so a
         // consumer that resizes it does so through the primitive. UsableWidth reads
@@ -52,7 +54,7 @@ namespace Eq2Auras.Plugin.Overlay
         // higher, vivid value for at-a-glance readability (SPEC Part III §Meter display
         // defaults). A construction parameter, not a blanket change — the timer is
         // untouched by the default.
-        public BarRowVisual(VisualStyle style, bool spark, byte fillAlpha = 90)
+        public BarRowVisual(VisualStyle style, bool spark, byte fillAlpha = 90, bool nameOutline = false)
         {
             _rowWidth = style.RowWidth;
             _spark = spark;
@@ -76,6 +78,11 @@ namespace Eq2Auras.Plugin.Overlay
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
             style.ApplyFont(_name, style.RowText);
+            if (nameOutline)   // meter-only (SPEC §Meter display defaults — parameterized, not a blanket timer change): keeps names legible over light class fills
+                _name.Effect = new System.Windows.Media.Effects.DropShadowEffect
+                {
+                    Color = Colors.Black, ShadowDepth = 0, BlurRadius = 2, Opacity = 0.9,
+                };
             _trailing = new TextBlock
             {
                 // Readable-light default: the meter relies on it; the timer overrides
@@ -94,7 +101,10 @@ namespace Eq2Auras.Plugin.Overlay
             };
             _trailingPanel.Children.Add(_trailing);
 
+            _background = new Border { HorizontalAlignment = HorizontalAlignment.Stretch, Background = Brushes.Transparent };
+
             var grid = new Grid();
+            grid.Children.Add(_background);   // behind the fill — the two-tone class ground (transparent unless set)
             grid.Children.Add(_fill);
             grid.Children.Add(_name);
             grid.Children.Add(_trailingPanel);
@@ -117,6 +127,15 @@ namespace Eq2Auras.Plugin.Overlay
             var color = OverlayTheme.FromArgbInt(argb);
             _fill.Background = new SolidColorBrush(Color.FromArgb(_fillAlpha, color.R, color.G, color.B));
             if (_spark) _fill.BorderBrush = new SolidColorBrush(OverlayTheme.Spark(color));
+        }
+
+        /// The two-tone ground behind the fill (SPEC §Class colors — Death Recap): null → transparent
+        /// (ordinary single-tone rows), set → the victim's class color under the dark current-HP bar.
+        public void SetBackgroundColor(int? argb)
+        {
+            if (argb == null) { _background.Background = Brushes.Transparent; return; }
+            var c = OverlayTheme.FromArgbInt(argb.Value);
+            _background.Background = new SolidColorBrush(Color.FromArgb(_fillAlpha, c.R, c.G, c.B));
         }
 
         /// Timer target model: one linear drain to zero over the remaining seconds.

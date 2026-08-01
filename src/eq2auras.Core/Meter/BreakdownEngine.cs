@@ -10,7 +10,7 @@ namespace Eq2Auras.Core.Meter
     /// combatant's own total; percent = share of THAT sum (duration cancels for rates).
     public static class BreakdownEngine
     {
-        public static List<MeterRow> Build(IReadOnlyList<BreakdownEntry> entries, MetricDef metric, double durationSeconds)
+        public static List<MeterRow> Build(IReadOnlyList<BreakdownEntry> entries, MetricDef metric, double durationSeconds, System.Func<string, int> colorForLabel = null)
         {
             var rows = new List<MeterRow>();
             if (entries == null || metric == null) return rows;
@@ -41,7 +41,7 @@ namespace Eq2Auras.Core.Meter
                 row.FormattedPercent = Math.Round(row.Percent * 100) + "%";
                 row.BarFraction = top > 0 ? row.Value / top : 0;
                 row.FormattedValue = metric.Format(row.Value);
-                row.FillArgb = MeterFamilyColors.ArgbFor(metric.Category);
+                row.FillArgb = colorForLabel != null ? colorForLabel(row.Name) : SubclassColors.Grey;
             }
             return rows;
         }

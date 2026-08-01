@@ -11,7 +11,8 @@ namespace Eq2Auras.Core.Meter
     public sealed class MeterEngine
     {
         public MeterFrame Tick(EncounterReading encounter, List<CombatantReading> combatants,
-            string metricKey, string secondaryKey = null, MeterScope scope = MeterScope.Allies)
+            string metricKey, string secondaryKey = null, MeterScope scope = MeterScope.Allies,
+            System.Func<string, int> classColorForName = null)
         {
             var metric = MetricRegistry.ResolvePrimary(metricKey);
             if (metric == null)
@@ -98,7 +99,7 @@ namespace Eq2Auras.Core.Meter
                 row.FormattedPercent = Math.Round(row.Percent * 100) + "%";
                 row.BarFraction = top > 0 ? row.Value / top : 0;     // rank 1 = full bar
                 row.FormattedValue = metric.Format(row.Value);
-                row.FillArgb = MeterFamilyColors.ArgbFor(metric.Category);
+                row.FillArgb = classColorForName != null ? classColorForName(row.Name) : SubclassColors.Grey;
             }
 
             return new MeterFrame

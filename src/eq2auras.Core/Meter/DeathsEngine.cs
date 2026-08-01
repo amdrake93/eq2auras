@@ -9,12 +9,9 @@ namespace Eq2Auras.Core.Meter
     /// are events (value = time-of-death), not ranked combatants.
     public static class DeathsEngine
     {
-        private const string Category = "Damage";   // red family color, SPEC §Deaths
-
-        public static MeterFrame BuildList(IReadOnlyList<DeathRecord> deaths, double durationSeconds)
+        public static MeterFrame BuildList(IReadOnlyList<DeathRecord> deaths, double durationSeconds, System.Func<string, int> colorForName = null)
         {
             var rows = new List<MeterRow>();
-            int fill = MeterFamilyColors.ArgbFor(Category);
 
             if (deaths != null)
             {
@@ -39,7 +36,7 @@ namespace Eq2Auras.Core.Meter
                         Percent = frac,
                         FormattedPercent = Math.Round(frac * 100) + "%",
                         BarFraction = frac,   // proportional — how far into the fight the death fell (the timeline)
-                        FillArgb = fill,
+                        FillArgb = colorForName != null ? colorForName(d.Victim) : SubclassColors.Grey,
                         Secondaries = new List<SecondaryValue>(),
                     });
                 }
