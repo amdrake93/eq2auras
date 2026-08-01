@@ -34,6 +34,7 @@ namespace Eq2Auras.Plugin.Overlay
         public OverlayHost(Settings settings)
         {
             _settings = settings;
+            _inference.Import(ClassCacheStore.Load().Entries);   // warm-start the learned colors (SPEC §Class colors)
         }
 
         public void Start()
@@ -274,11 +275,20 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 double duration = MeterEngine.DurationSeconds(encounter);
 
-                // Class inference (SPEC §Class colors): observe this poll's gathered ability-names (allies
-                // still unconfirmed this encounter carry them). Runs on the dispatcher, after the lock released.
+                // Class inference (SPEC §Class colors), on the dispatcher after the lock released: reset
+                // confirmations at each encounter start (re-read everyone → catch a between-fight persona
+                // swap), observe this poll's gathered ability-names, flush confident diffs at encounter end.
+                bool encounterActive = encounter != null && encounter.Active;
+                if (encounterActive && !_wasEncounterActive) _inference.ResetEncounter();
                 if (combatants != null)
                     foreach (var c in combatants)
                         if (c.AbilityNames != null) _inference.Observe(c.Name, c.AbilityNames);
+                if (_wasEncounterActive && !encounterActive && _inference.HasDirty)
+                {
+                    ClassCacheStore.Save(new ClassCache { Entries = new List<ClassCacheEntry>(_inference.Export()) });
+                    _inference.ClearDirty();
+                }
+                _wasEncounterActive = encounterActive;
 
                 foreach (var pair in _meterWindows)
                 {
