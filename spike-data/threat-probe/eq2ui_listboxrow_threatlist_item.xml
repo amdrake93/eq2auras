@@ -1,8 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <Page Name="Template" PackSize="absolute, fixed" ScrollExtent="200,36" Size="200,36" DarqUI="3.003">
-    <Text Font="/TextStyles.Small.SmallStyle" Location="0,0" Name="FieldProbe" ScrollExtent="200,18" Size="200,18" TextColor="#00FFFF" TextAlignment="Left">ctl:$zzznotreal$ thr:$threat$ pos:$position$ sec:$secondarythreat$</Text>
-    <Text Font="/TextStyles.Normal.NormalStyle" Location="0,0" Margin="3,0,0,0" MaxLines="1" Name="TargetName" PackSize="a,f" ScrollExtent="175,18" ShadowStyle="/ShadowStylesNew.Outline.style" Size="175,18" TextAlignment="Left" TextColor="#EFDFAA" TruncateElipsis="true">$dispname$</Text>
-    <Text Font="/TextStyles.Normal.NormalStyle" Location="0,18" Margin="3,0,0,0" Name="Health" OnTextChanged="Parent.Bar.Progress=($health$ / 100)" PackSize="a,f" ScrollExtent="175,18" ShadowStyle="/ShadowStylesNew.Outline.style" Size="175,18" TextAlignment="Left" TextColor="#$health_color$">$health$%</Text>
-    <Image Location="175,9" Name="CurrentTarget" PackLocation="right,top" ScrollExtent="18,18" Size="18,18" SourceRect="245,490,262,507" SourceResource="/images/mugshots_female.dds" Visible="$target$" />
-	<Progressbar Color="#$health_color$" Location="35,19" Name="Bar" PackSize="absolute,absolute" Progress="0.500" ScrollExtent="140,13" Size="140,13" Style="progdata.bar.bar_style" />
+    <Text Font="/TextStyles.Small.SmallStyle" Location="0,0" Name="ProbeRow1" ScrollExtent="200,18" Size="200,18" TextColor="#00FFFF" TextAlignment="Left">ctl:$zzznotreal$ rank:$rank$ pct:$pct$ perc:$percent$</Text>
+    <Text Font="/TextStyles.Small.SmallStyle" Location="0,18" Name="ProbeRow2" ScrollExtent="200,18" Size="200,18" TextColor="#FFAA00" TextAlignment="Left">hate:$hate$ aggro:$aggro$ sec:$secondary$ tpct:$threatpct$</Text>
 </Page>
