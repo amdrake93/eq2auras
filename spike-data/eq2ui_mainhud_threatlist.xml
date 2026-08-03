@@ -1,0 +1,86 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Page Activated="true" AllowCloseOnTop="false" eq2usescomwndcontrols="true" Location="25,25" MaximumSize="309,450" MinimumSize="140,250" Name="ThreatList" OnHideEffector="FadeOutEffector" OnHoverIn="ToggleSize.Opacity=1.000" OnHoverOut="ToggleSize.Opacity=0.000" OnShow="SingleLine.Visible=S0.0 SetVis.Visible=true" ScrollExtent="209,280" Size="209,280" UserMovable="true" UserResizable="true" UserScrollable="false" DarqUI="3.011" Visible="false">
+	<include>POI/darquiv3_threatlist.xml</include>
+	<Page Name="Vars">
+		<Data Name="0" Tag="InitialSingleLineGrid" Value="false" />
+		<Data Name="1" Tag="CombatOnly" Value="false" />
+	</Page>
+	<Page Name="S0" />
+	<Text Name="CharName" LastChar="CharName" OnTextChanged="COND1=(Text=='CharName')&#xD;&#xA;COND2=(Text==LastChar)&#xD;&#xA;COND3=(Text=='')&#xD;&#xA;COND=(COND1 || COND2 || COND3)&#xD;&#xA;Parent.Init.Visible=COND ? false : true&#xD;&#xA;LastChar=Text" />
+	<Text DynamicData="/GameData.Self.Name" Name="SelfName" OnTextChanged="Parent.CharName.Text=LocalText">CharName</Text>
+	<Page Name="Init" OnShow="
+		Parent.Ret.Params=('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.')##(Parent.CharName.Text)&#xD;&#xA;Parent.Ret.OnShow=('Value=')##(Parent.Ret.Params)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;COND=(Parent.Ret.Value==true)&#xD;&#xA;Parent.LoadDefaults.Visible=COND ? false : true&#xD;&#xA;
+		Parent.LoadFromReg.Visible=true
+		Parent.SingleLine.Visible=Parent.S0.0
+		Parent.SetVis.Visible=true
+		Visible=false" Visible="false" />
+	<Page Name="Ret" Value=" " Params=" " Visible="false" />
+	<Page Name="M" OnShow=" " Visible="false" />
+	<Page Blank=" " Name="LoadDefaults" OnShow="
+		Parent.Ret.Params=('Parent.POI.')##(Parent.CharName.Text)##('_0.0.PoiDescription')&#xD;&#xA;Parent.Ret.OnShow=('Value=')##(Parent.Ret.Params)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;COND=(Parent.Ret.Value==Parent.Ret.Params)&#xD;&#xA;M0=COND ? Parent.Vars.0.Value : Parent.Ret.Value&#xD;&#xA;Parent.M.OnShow=('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.0.')##(Parent.CharName.Text)##('=&quot;')##(M0)##('&quot;')&#xD;&#xA;Parent.M.Visible=true&#xD;&#xA;Parent.M.Visible=false&#xD;&#xA;
+		Parent.Ret.Params=('Parent.POI.')##(Parent.CharName.Text)##('_0.1.PoiDescription')&#xD;&#xA;Parent.Ret.OnShow=('Value=')##(Parent.Ret.Params)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;COND=(Parent.Ret.Value==Parent.Ret.Params)&#xD;&#xA;M0=COND ? Parent.Vars.1.Value : Parent.Ret.Value&#xD;&#xA;Parent.M.OnShow=('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.1.')##(Parent.CharName.Text)##('=&quot;')##(M0)##('&quot;')&#xD;&#xA;Parent.M.Visible=true&#xD;&#xA;Parent.M.Visible=false&#xD;&#xA;
+		Parent.Ret.Params=('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.')##(Parent.CharName.Text)##('=true')&#xD;&#xA;Parent.Ret.OnShow=(Parent.Ret.Params)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;
+		Visible=false" Visible="false" />
+	<Page Name="LoadFromReg" OnShow="
+		Parent.Ret.OnShow=('Parent.S0.0=')##('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.0.')##(Parent.CharName.Text)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;
+		Parent.Ret.OnShow=('Parent.S0.1=')##('Parent.Parent.Parent.MainHUD.WindowManager.DarqUI.')##(Parent.Name)##('.1.')##(Parent.CharName.Text)&#xD;&#xA;Parent.Ret.Visible=true&#xD;&#xA;Parent.Ret.Visible=false&#xD;&#xA;
+		Visible=false" Visible="false" />
+	<Page Name="SetVis" OnShow="
+		Parent.SetCombat.Visible=(Parent.S0.1==true)
+		Visible=false" Visible="false" />
+	<Page Name="SetCombat" OnShow="
+		Parent.DoShow.Visible=Parent.IsHated.Visible
+		Parent.DoHide.Visible='!'Parent.IsHated.Visible
+		Visible=false" Visible="false" />
+	<Page Name="DoHide" OnShow="Parent.Visible=false Visible=false" Visible="false" />
+	<Page Name="DoShow" OnShow="Parent.Visible=true Visible=false" Visible="false" />
+	<OpacityEffector Name="FadeOutEffector" Speed="1.600" />
+	<Image DynamicData="/GameData.Self.IsHated" Name="IsHated" OnHide="Parent.SetVis.Visible=true" OnShow="Parent.SetVis.Visible=true" SourceRect="272,125,291,144" SourceResource="images/window_elements_specific.dds" Visible="false" />
+	<DataSource Name="ThreatListDS" />
+	<Checkbox Activated="true" BackgroundOpacity="1.000" Checked="true" Location="0,21" Name="ToggleSize" OnSet="Parent.FullList.Composite.Visible=true Parent.FullList.Composite2.Visible=false" OnUnset="Parent.FullList.Composite2.Visible=true Parent.FullList.Composite.Visible=false" Opacity="0.000" ScrollExtent="22,18" Size="22,18" Style="/CommonElements.CollapseCheckbox.data.normal_style" TextColor="#EFDFAA" Tooltip="Toggle grid size" />
+	<Page Name="SingleLine" OnShow="Parent.FullList.Composite.Visible=false&#xD;&#xA;Parent.FullList.Composite2.Visible=true&#xD;&#xA;Parent.ToggleSize.Checked=false&#xD;&#xA;Visible=false" Visible="false" />
+	<Page AbsorbsInput="false" Location="0,20" Name="FullList" PackSize="a,a" ScrollExtent="200,260" Size="200,260">
+		<Namespace Name="fulllistdata">
+			<ImageStyle Name="selected_bkg">
+				<ImageFrame Source="images/window_elements_specific.dds" SourceRect="40,293,162,305" />
+			</ImageStyle>
+			<ImageStyle Name="spacer">
+				<ImageFrame Source="images/windowelements.dds" SourceRect="19,532,339,534" />
+			</ImageStyle>
+			<Template Name="row_template" Size="175,36">eq2ui_listboxrow_threatlist_item.xml</Template>
+			<Template Name="row_template2" Size="175,20">eq2ui_listboxrow_threatlist_item_S.xml</Template>
+			<GridStyle Name="grid_style" Normal.Background="normal_bkg" Normal.HBackground=" " Normal.Junction=" " Normal.VEndCap="spacer" Selected.Background="selected_bkg" />
+			<ImageStyle Name="normal_bkg">
+				<ImageFrame Source="images/window_elements_specific.dds" SourceRect="40,275,162,287" />
+			</ImageStyle>
+			<ListboxStyle GridStyle="grid_style" Name="listbox_style" />
+		</Namespace>
+		<Composite AbsorbsInput="false" Location="12,11" Name="Composite" Orientation="Horizontal" PackSize="a,a" ScrollExtent="190,230" Size="190,230" SpacingType="Fill" UserScrollable="false">
+			<Listbox AbsorbsInput="false" BackgroundColor="#FFFFFF" DataSource="ThreatListDS" Margin="10,10,10,10" Name="ThreatListBox" PackSize="absolute,absolute" RowTemplate="fulllistdata.row_template" ScrollExtent="190,230" Size="190,230" Style="fulllistdata.listbox_style" UserScrollable="false" />
+			<Scrollbar ArrowPressSound="sounds/button" Control="ThreatListBox" HideIfUnnecessary="true" Location="279,0" MaximumSize="22,16384" MinimumSize="22,60" Name="Scroll" PackSize="f,a" ScrollExtent="22,230" Size="22,230" Style="/CommonElements.ScrollbarVertical.data.style" Visible="false" />
+		</Composite>
+		<Composite AbsorbsInput="false" Location="12,11" Name="Composite2" Orientation="Horizontal" PackSize="a,a" ScrollExtent="190,230" Size="190,230" SpacingType="Fill" Visible="false" UserScrollable="false">
+			<Listbox AbsorbsInput="false" BackgroundColor="#FFFFFF" DataSource="ThreatListDS" Margin="10,10,10,10" Name="ThreatListBox" OnSelect="Parent.Parent.Composite.ThreatListBox.SelectedItemIndex=SelectedItemIndex" PackSize="absolute,absolute" RowTemplate="fulllistdata.row_template2" ScrollExtent="190,230" Size="190,230" Style="fulllistdata.listbox_style" UserScrollable="false" />
+			<Scrollbar ArrowPressSound="sounds/button" Control="ThreatListBox" HideIfUnnecessary="true" Location="279,0" MaximumSize="22,16384" MinimumSize="22,60" Name="Scroll" PackSize="f,a" ScrollExtent="22,230" Size="22,230" Style="/CommonElements.ScrollbarVertical.data.style" Visible="false" />
+		</Composite>
+	</Page>
+	<Namespace Name="progdata">
+		<Namespace Name="bar">
+			<ProgressbarStyle Bar.Background="image_style" Name="bar_style" />
+			<ImageStyle Filter="true" Name="image_style">
+				<ImageFrame Name="image" Source="/images/specialelements.dds" SourceRect="194,177,195,178" />
+			</ImageStyle>
+		</Namespace>
+	</Namespace>
+	<Page AbsorbsInput="false" Name="WindowFrame" PackSize="absolute,absolute" ScrollExtent="209,272" Size="209,272">
+		<Icon Color="#44DDFF" framecontrol="true" IconStyle="/MainHUD.WindowManager.dui" Location="151,6" Name="WindowManager" OnPress="Parent.Parent.Parent.Parent.MainHUD.WindowManager.Init.Caller=Parent.Parent.Name&#xD;&#xA;show_window MainHUD.WindowManager" PackLocation="right,top" ScrollExtent="14,14" Size="14,14" Tooltip="DarqUI Settings" TreatAsButton="true" />
+        <Button Location="167,5" Name="Settings" OnHide="Parent.WindowManager.Visible=Visible" OnShow="Parent.WindowManager.Visible=Visible" PackLocation="right,top" ScrollExtent="18,18" Size="18,18" Style="/WindowElements.MiniWindowFrame.data.settings.style" Tooltip=":cf6d745aec278586:Window Settings" UserMovable="true" />
+		<Button Location="185,5" Name="Close" PackLocation="right,top" ScrollExtent="18,18" Size="18,18" Style="/WindowElements.MiniWindowFrame.data.close.style" Tooltip=":cf6d745a2d3f513f_1:Close" UserMovable="true" />
+		<Page AbsorbsInput="false" BackgroundOpacity="1.000" Location="167,0" Name="RightGrouper" PackLocation="right,top" RStyleDefault="/WindowElements.MiniWindowFrame.data.right_grouper.rect" ScrollExtent="40,21" Size="40,21" />
+		<Page AbsorbsInput="false" BackgroundOpacity="1.000" Location="3,0" Name="LeftGrouper" PackSize="a,f" RStyleDefault="/WindowElements.MiniWindowFrame.data.left_grouper.rect" ScrollExtent="165,21" Size="165,21">
+			<Text AbsorbsInput="false" Font="/TextStyles.Normal.NormalStyle" Location="18,2" MaxLines="1" Name="Title" PackSize="absolute,fixed" ScrollExtent="137,20" ShadowStyle="/ShadowStylesNew.Outline.style" Size="137,20" TextAlignmentVertical="Center" TextColor="#F0D080">:x:Enemies</Text>
+		</Page>
+		<Page AbsorbsInput="false" BackgroundOpacity="1.000" Location="0,21" Name="Frame" PackLocation="left,top" PackSize="absolute,absolute" RStyleDefault="/WindowElements.MiniWindowFrame.data.frame.rect" ScrollExtent="209,251" Size="209,251" />
+		<Page AbsorbsInput="false" BackgroundOpacity="1.000" Location="0,22" Name="Bkg" PackLocation="left,top" PackSize="absolute,absolute" RStyleDefault="/WindowElements.DesktopWindowFrame.data.bkg.rect" ScrollExtent="209,250" Size="209,250" />
+	</Page>
+</Page>
