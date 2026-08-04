@@ -39,14 +39,17 @@ namespace Eq2Auras.Plugin.Overlay
         public double HeightRatio => RowHeight / DefaultRowHeight;
         public double RadialRatio => RadialSize / DefaultRadialSize;
 
-        public void ApplyFont(TextBlock text, double size)
+        public void ApplyFont(TextBlock text, double size) => ApplyFont(text, size, FontWeights.Normal);
+
+        /// `accent` = the element's intrinsic weight (SemiBold value text, Bold pie-seconds / LATE tag).
+        /// The user's Bold wins; otherwise the accent applies. Always set from these stable inputs — never
+        /// read the element's mutated weight — so a live Bold→Normal revert resets cleanly instead of
+        /// leaving stale-Bold text. Italic always applies (no visual sets FontStyle in its initializer).
+        public void ApplyFont(TextBlock text, double size, FontWeight accent)
         {
             if (Font != null) text.FontFamily = Font;
             text.FontSize = size;
-            // Only override the weight when the user actually picked Bold — a Normal style must NOT clobber
-            // a visual's own accent (timer pie/LATE Bold, meter value SemiBold), which the initializer set
-            // before this call. Italic is always safe (no visual sets FontStyle in its initializer).
-            if (FontWeight != FontWeights.Normal) text.FontWeight = FontWeight;
+            text.FontWeight = FontWeight == FontWeights.Bold ? FontWeights.Bold : accent;
             text.FontStyle = FontStyle;
         }
     }

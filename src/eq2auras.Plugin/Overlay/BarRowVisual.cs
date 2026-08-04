@@ -93,7 +93,7 @@ namespace Eq2Auras.Plugin.Overlay
                 FontWeight = FontWeights.SemiBold,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            style.ApplyFont(_trailing, style.RowText);
+            style.ApplyFont(_trailing, style.RowText, FontWeights.SemiBold);   // value column accent
             _trailingPanel = new StackPanel
             {
                 Orientation = Orientation.Horizontal,
