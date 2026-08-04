@@ -43,7 +43,8 @@ namespace Eq2Auras.Plugin
             _encounterProbe = new EncounterProbe(
                 () => _settings.Meter.Enabled,
                 () => _overlay.CurrentDrillRequests(),
-                (encounter, combatants, breakdowns, deaths, recaps) => _overlay.UpdateMeterSample(encounter, combatants, breakdowns, deaths, recaps),
+                () => _overlay.CurrentSegmentRequests(),
+                (set, breakdowns, recaps) => _overlay.UpdateMeterSample(set, breakdowns, recaps),
                 _overlay.IsClassCommitted);
             _probe = new TimerProbe(_log,
                 () => _settings.DebugLogging,

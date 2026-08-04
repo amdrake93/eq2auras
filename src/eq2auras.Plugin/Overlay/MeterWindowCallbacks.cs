@@ -23,5 +23,9 @@ namespace Eq2Auras.Plugin.Overlay
         public Func<bool> CanClose;
         public Action DrillChanged;   // window entered/left drill (or hover) mode -> host rebuilds the request snapshot
         public Func<DrillRequest, List<MeterRow>> ReadHoverNow;   // synchronous hover first-paint: host reads + ranks the combatant's by-counterpart rows now (instant), null if unavailable
+        public Action<SegmentMode> SegmentModeChanged;   // persist the live segment mode (Current/Zonewide); a historical pick is runtime-only
+        public Action<bool> PinnedChanged;               // persist the inverted knob (PinnedToSegment)
+        public Func<SegmentListing> EnumerateSegments;   // on flyout open: snapshot ZoneList -> the listing
+        public Action SegmentChanged;                    // the window's live selection changed -> host rebuilds the segment + drill request sets
     }
 }

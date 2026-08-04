@@ -28,6 +28,8 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Dictionary<MeterWindowConfig, MeterWindow> _meterWindows =
             new Dictionary<MeterWindowConfig, MeterWindow>();
         private volatile IReadOnlyList<DrillRequest> _drillRequests = new List<DrillRequest>();
+        private volatile IReadOnlyList<SegmentSelection> _segmentRequests = new List<SegmentSelection>();
+        private long _lastCurrentStartTicks;   // the new-combat edge signal (SPEC §Segments — Return to Current)
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -116,6 +118,8 @@ namespace Eq2Auras.Plugin.Overlay
                 config.Opacity ?? MeterSettings.DefaultOpacity,
                 config.BackdropOpacity ?? MeterSettings.DefaultBackdropOpacity,
                 config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
+                config.SegmentMode,
+                config.PinnedToSegment,
                 new MeterWindowCallbacks
                 {
                     PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
@@ -132,10 +136,30 @@ namespace Eq2Auras.Plugin.Overlay
                     CanClose = () => _meterWindows.Count > 1,
                     DrillChanged = RebuildDrillRequests,
                     ReadHoverNow = request => ReadHoverRowsNow(config, request),
+                    SegmentModeChanged = mode => SettingsStore.Update(_settings, () => config.SegmentMode = mode),
+                    PinnedChanged = pinned => SettingsStore.Update(_settings, () => config.PinnedToSegment = pinned),
+                    EnumerateSegments = () => SegmentResolver.Enumerate(Advanced_Combat_Tracker.ActGlobals.oFormActMain),
+                    SegmentChanged = () => { RebuildSegmentRequests(); RebuildDrillRequests(); },
                 });
             _meterWindows[config] = window;
+            RebuildSegmentRequests();
             window.Show();
         }
+
+        /// Recompute the per-window segment-selection set the probe resolves each poll. Runs on the
+        /// STA thread; the assignment is a lock-free reference swap read via CurrentSegmentRequests().
+        /// (Task 10 upgrades the per-window read to the window's live selection; here it derives from
+        /// the persisted mode, so windows request their persisted segment.)
+        private void RebuildSegmentRequests()
+        {
+            var list = new List<SegmentSelection>();
+            foreach (var window in _meterWindows.Values) list.Add(window.CurrentSelection);
+            _segmentRequests = list;
+        }
+
+        /// Read by EncounterProbe on ACT's UI thread each poll (SPEC §Segments): the latest lock-free
+        /// snapshot of every window's segment selection; the probe dedups + resolves them under the lock.
+        public IReadOnlyList<SegmentSelection> CurrentSegmentRequests() => _segmentRequests;
 
         /// New meter window: inherits the source's **appearance** (row height, font, opacity
         /// — the settings-window knobs, a personal preference held constant across windows;
@@ -175,6 +199,7 @@ namespace Eq2Auras.Plugin.Overlay
             }
             SettingsStore.Update(_settings, () => _settings.Meter.Windows.Remove(config));
             RebuildDrillRequests();   // a closed window drops out of the drill-request set
+            RebuildSegmentRequests();
         }
 
         // Per-window style resolved from the config: zero row spacing (meter rows touch —
@@ -219,6 +244,7 @@ namespace Eq2Auras.Plugin.Overlay
                     foreach (var window in _meterWindows.Values) window.Close();
                     _meterWindows.Clear();   // configs persist in Meter.Windows for the next enable
                 }
+                RebuildSegmentRequests();
             }));
         }
 
@@ -264,24 +290,26 @@ namespace Eq2Auras.Plugin.Overlay
             return BreakdownEngine.Build(entries, metric, duration, _inference.ColorForName);   // by-counterpart hover — each row its counterpart's color
         }
 
-        /// Callable from any thread (the sample runs on ACT's UI thread). Fans the one shared
-        /// snapshot to each window; a drilled window renders its combatant's by-ability breakdown
-        /// instead of the list (SPEC Part III §Row drill-down).
-        public void UpdateMeterSample(EncounterReading encounter, List<CombatantReading> combatants, List<BreakdownReading> breakdowns, List<DeathRecord> deaths, List<RecapReading> recaps)
+        /// Callable from any thread (the sample runs on ACT's UI thread). Each window renders from
+        /// the snapshot of ITS resolved segment (SPEC §Segments — every read follows the window's
+        /// segment); a drilled window renders its combatant's by-ability breakdown instead of the list.
+        public void UpdateMeterSample(SegmentSampleSet set, List<BreakdownReading> breakdowns, List<RecapReading> recaps)
         {
             var dispatcher = _dispatcher;
             if (dispatcher == null) return;
             dispatcher.BeginInvoke((Action)(() =>
             {
-                double duration = MeterEngine.DurationSeconds(encounter);
+                var byKey = new Dictionary<string, SegmentSample>();
+                if (set?.Samples != null)
+                    foreach (var s in set.Samples) byKey[s.Key] = s;
+                byKey.TryGetValue("C", out var currentSample);
 
-                // Class inference (SPEC §Class colors), on the dispatcher after the lock released: reset
-                // confirmations at each encounter start (re-read everyone → catch a between-fight persona
-                // swap), observe this poll's gathered ability-names, flush confident diffs at encounter end.
-                bool encounterActive = encounter != null && encounter.Active;
+                // Class inference (SPEC §Class colors) rides the CURRENT sample only — it learns who is
+                // what class independent of what any window displays; the color LOOKUP follows the rows.
+                bool encounterActive = currentSample?.Encounter != null && currentSample.Encounter.Active;
                 if (encounterActive && !_wasEncounterActive) _inference.ResetEncounter();
-                if (combatants != null)
-                    foreach (var c in combatants)
+                if (currentSample?.Combatants != null)
+                    foreach (var c in currentSample.Combatants)
                         if (c.AbilityNames != null) _inference.Observe(c.Name, c.AbilityNames);
                 if (_wasEncounterActive && !encounterActive && _inference.HasDirty)
                 {
@@ -290,15 +318,43 @@ namespace Eq2Auras.Plugin.Overlay
                 }
                 _wasEncounterActive = encounterActive;
 
+                string currentZoneKey = set?.CurrentZoneKey;
+
+                // New-combat edge (SPEC §Segments — Return to Current): a new active current encounter
+                // snaps every non-pinned window's selection back to Current.
+                long curTicks = (currentSample != null && currentSample.Encounter != null && currentSample.Encounter.Active) ? currentSample.EncounterStartTicks : 0;
+                bool newCombat = curTicks != 0 && curTicks != _lastCurrentStartTicks;
+                if (curTicks != 0) _lastCurrentStartTicks = curTicks;
+
                 foreach (var pair in _meterWindows)
                 {
                     var config = pair.Key;
                     var window = pair.Value;
+
+                    if (newCombat && !config.PinnedToSegment)
+                    {
+                        var snapped = SegmentRules.OnNewCombat(window.CurrentSelection, pinned: false);
+                        if (!snapped.Equals(window.CurrentSelection)) window.ApplySelection(snapped, "Current");
+                    }
+
+                    var key = SegmentKeys.Of(window.CurrentSelection, currentZoneKey);
+                    if (!byKey.TryGetValue(key, out var sample))
+                    {
+                        // The window's segment produced no sample — a culled historical handle → Current (the
+                        // never-outlive-the-data discipline, the drill's auto-exit analog, SPEC §Segments).
+                        var fallback = SegmentKeys.FallbackOnMissing(window.CurrentSelection, resolved: false);
+                        if (!fallback.Equals(window.CurrentSelection)) window.ApplySelection(fallback, "Current");
+                        sample = currentSample;
+                    }
+                    if (sample == null) continue;
+                    if (sample.Unavailable) { window.RenderUnavailable(); continue; }   // Zonewide + PopulateAll off (SPEC §Availability)
+
+                    double duration = MeterEngine.DurationSeconds(sample.Encounter);
                     var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
-                    // Deaths (the event metric) builds an event timeline from the death records, not Tick.
+                    // Deaths (the event metric) builds an event timeline from the segment's death records, not Tick.
                     var listFrame = metric != null && metric.IsEvent
-                        ? DeathsEngine.BuildList(deaths, duration, _inference.ColorForName)
-                        : _meterEngine.Tick(encounter, combatants, config.MetricKey, config.SecondaryKey, config.Scope, _inference.ColorForName);
+                        ? DeathsEngine.BuildList(sample.Deaths, duration, _inference.ColorForName)
+                        : _meterEngine.Tick(sample.Encounter, sample.Combatants, config.MetricKey, config.SecondaryKey, config.Scope, _inference.ColorForName);
 
                     var target = window.DrillTarget;
                     if (target == null || metric == null)
