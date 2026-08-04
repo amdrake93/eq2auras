@@ -88,15 +88,15 @@ namespace Eq2Auras.Plugin.Overlay
             parent.Children.Add(header);
 
             bool allSelected = zone.All.Available && current.Kind == SegmentKind.Historical
-                && current.ZoneKey == zone.All.ZoneKey && current.StartTicks == zone.All.StartTicks;
+                && current.IsAll && current.ZoneKey == zone.All.ZoneKey;
             var allEntry = zone.All;
             groupBody.Children.Add(FightItem(allEntry, "All", allEntry.Available, allSelected,
-                () => Pick(SegmentSelection.Historical(allEntry.ZoneKey, allEntry.StartTicks), "All — " + zone.ZoneName)));
+                () => Pick(SegmentSelection.HistoricalAll(allEntry.ZoneKey), "All — " + zone.ZoneName)));
 
             foreach (var fight in zone.Fights)
             {
                 var f = fight;
-                bool sel = current.Kind == SegmentKind.Historical && current.ZoneKey == f.ZoneKey && current.StartTicks == f.StartTicks;
+                bool sel = current.Kind == SegmentKind.Historical && !current.IsAll && current.ZoneKey == f.ZoneKey && current.StartTicks == f.StartTicks;
                 groupBody.Children.Add(FightItem(f, f.Title, enabled: true, sel,
                     () => Pick(SegmentSelection.Historical(f.ZoneKey, f.StartTicks), f.Title)));
             }

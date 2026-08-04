@@ -23,10 +23,12 @@ namespace Eq2Auras.Plugin.Act
         private readonly Func<string, bool> _isClassCommitted;   // skip the ability-name read for allies confirmed this encounter (SPEC §Class colors)
         private int _tick;
 
-        // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan).
-        private readonly List<DeathRecord> _deathStore = new List<DeathRecord>();
-        private readonly Dictionary<string, int> _deathsSeen = new Dictionary<string, int>();
-        private DateTime _encounterStartKey = DateTime.MinValue;
+        // Deaths capture (SPEC §Deaths — poll-only, count-delta triggers a bounded killing-blow scan),
+        // now PER SEGMENT KEY so a Deaths window follows its segment (SPEC §Segments); a frozen historical
+        // segment stabilizes after one scan, Current/Zonewide accumulate live.
+        private readonly Dictionary<string, List<DeathRecord>> _deathStores = new Dictionary<string, List<DeathRecord>>();
+        private readonly Dictionary<string, Dictionary<string, int>> _deathsSeen = new Dictionary<string, Dictionary<string, int>>();
+        private readonly Dictionary<string, DateTime> _encounterStartKeys = new Dictionary<string, DateTime>();
 
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
             Func<IReadOnlyList<SegmentSelection>> segmentRequests,
@@ -68,6 +70,9 @@ namespace Eq2Auras.Plugin.Act
                         var encounter = SegmentResolver.ResolveByKey(form, key, out bool unavailable);
                         if (key == "C") currentEncounter = encounter;
                         bySegKeyEncounter[key] = encounter;
+                        // A culled historical key (null, not Current, not the unavailable-Zonewide state) emits NO
+                        // sample, so the host detects the miss and falls the window back to Current (SPEC §Segments).
+                        if (encounter == null && !unavailable && key != "C") continue;
                         samples.Add(ReadSegment(form, encounter, key, key == "C", unavailable));
                     }
 
@@ -137,7 +142,9 @@ namespace Eq2Auras.Plugin.Act
                 LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,
                 FinalDurationSeconds = active ? 0 : encounter.Duration.TotalSeconds,
             };
-            sample.EncounterStartTicks = encounter.StartTime.Ticks;
+            // Degenerate pre-first-swing polls have StartTime == MaxValue; report 0 so the host's
+            // new-combat edge doesn't fire a phantom MaxValue→real-start transition (review nit).
+            sample.EncounterStartTicks = encounter.StartTime == DateTime.MaxValue ? 0 : encounter.StartTime.Ticks;
 
             // Mirror ACT's mini parse: base set is EVERY combatant (Items.Values); the ally set only
             // *filters* it, in Core, via the ShowOnlyAllies-with-escape-hatch rule (SPEC §Displayed combatants).
@@ -160,27 +167,30 @@ namespace Eq2Auras.Plugin.Act
                 sample.Combatants.Add(reading);
             }
 
-            if (isCurrent)
-                sample.Deaths = CaptureDeaths(encounter, allySet);
+            sample.Deaths = CaptureDeaths(encounter, allySet, key);   // every segment gets its own timeline (SPEC §Segments)
             return sample;
         }
 
-        /// Poll-only death capture for the current encounter (SPEC §Deaths): a count-delta triggers a
-        /// bounded killing-blow scan into the store; returns the store snapshot for the sample.
-        private List<DeathRecord> CaptureDeaths(EncounterData encounter, HashSet<CombatantData> allySet)
+        /// Poll-only death capture for one segment (SPEC §Deaths + §Segments): a count-delta triggers a
+        /// bounded killing-blow scan into that segment key's store; returns the store snapshot for the
+        /// sample. A frozen historical segment stabilizes after one scan; Current/Zonewide accumulate.
+        private List<DeathRecord> CaptureDeaths(EncounterData encounter, HashSet<CombatantData> allySet, string segKey)
         {
-            if (encounter.StartTime != _encounterStartKey)   // new encounter → reset the store
+            if (!_deathStores.TryGetValue(segKey, out var store)) { store = new List<DeathRecord>(); _deathStores[segKey] = store; }
+            if (!_deathsSeen.TryGetValue(segKey, out var seenMap)) { seenMap = new Dictionary<string, int>(); _deathsSeen[segKey] = seenMap; }
+            _encounterStartKeys.TryGetValue(segKey, out var startKey);
+            if (encounter.StartTime != startKey)   // a different encounter now resolves for this key → reset
             {
-                _encounterStartKey = encounter.StartTime;
-                _deathStore.Clear();
-                _deathsSeen.Clear();
+                _encounterStartKeys[segKey] = encounter.StartTime;
+                store.Clear();
+                seenMap.Clear();
             }
             string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
             foreach (var combatant in encounter.Items.Values)
             {
                 if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
                 int deathCount = combatant.Deaths;               // boolean-cached, cheap (verified ACT 3.8.5.288)
-                _deathsSeen.TryGetValue(combatant.Name, out int seen);
+                seenMap.TryGetValue(combatant.Name, out int seen);
                 if (deathCount <= seen) continue;
 
                 var deathSwings = new List<MasterSwing>();
@@ -193,7 +203,7 @@ namespace Eq2Auras.Plugin.Act
                 {
                     var deathSwing = deathSwings[ordinal - 1];
                     FindKillingBlow(combatant, deathSwing.TimeSorter, out string blowAbility, out double blowDamage);
-                    _deathStore.Add(new DeathRecord
+                    store.Add(new DeathRecord
                     {
                         Victim = combatant.Name,
                         Ordinal = ordinal,
@@ -203,9 +213,9 @@ namespace Eq2Auras.Plugin.Act
                         DrillKey = combatant.Name + "#" + ordinal,
                     });
                 }
-                _deathsSeen[combatant.Name] = deathCount;
+                seenMap[combatant.Name] = deathCount;
             }
-            return new List<DeathRecord>(_deathStore);   // snapshot for the WPF thread
+            return new List<DeathRecord>(store);   // snapshot for the WPF thread
         }
 
         /// The killing blow = the victim's last INCOMING DAMAGE swing at/before the death's TimeSorter

@@ -522,7 +522,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void RenderUnavailable()
         {
             if (_segmentChip != null) _segmentChip.Visibility = Visibility.Visible;
-            _durationText.Text = "";
+            _durationText.Text = "(—) ";   // keep the header's duration slot (SPEC §The meter window — dormant header)
             SetHeaderLabel(_metricText, "");
             SetHeaderLabel(_secondaryLabelText, "");
             SetHeaderLabel(_totalText, "");

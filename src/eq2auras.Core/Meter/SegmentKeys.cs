@@ -11,7 +11,7 @@ namespace Eq2Auras.Core.Meter
             switch (sel.Kind)
             {
                 case SegmentKind.Zonewide: return "Z:" + currentZoneKey;
-                case SegmentKind.Historical: return "H:" + sel.ZoneKey + ":" + sel.StartTicks;
+                case SegmentKind.Historical: return sel.IsAll ? "HA:" + sel.ZoneKey : "H:" + sel.ZoneKey + ":" + sel.StartTicks;
                 default: return "C";
             }
         }

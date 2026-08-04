@@ -30,6 +30,15 @@ public class SegmentKeysTests
     }
 
     [Fact]
+    public void An_all_pick_gets_its_own_key_distinct_from_that_zones_first_fight()
+    {
+        Assert.Equal("HA:Nizara#1", SegmentKeys.Of(SegmentSelection.HistoricalAll("Nizara#1"), "x"));
+        Assert.NotEqual(
+            SegmentKeys.Of(SegmentSelection.HistoricalAll("Nizara#1"), "x"),
+            SegmentKeys.Of(SegmentSelection.Historical("Nizara#1", 0), "x"));
+    }
+
+    [Fact]
     public void Fallback_sends_a_culled_historical_to_current_but_leaves_resolved_and_non_historical_alone()
     {
         var h = SegmentSelection.Historical("a", 3);

@@ -340,8 +340,10 @@ namespace Eq2Auras.Plugin.Overlay
                     var key = SegmentKeys.Of(window.CurrentSelection, currentZoneKey);
                     if (!byKey.TryGetValue(key, out var sample))
                     {
-                        // The window's segment has no sample this poll — a culled historical handle.
-                        if (window.CurrentSelection.Kind == SegmentKind.Historical) window.ApplySelection(SegmentSelection.Current(), "Current");
+                        // The window's segment produced no sample — a culled historical handle → Current (the
+                        // never-outlive-the-data discipline, the drill's auto-exit analog, SPEC §Segments).
+                        var fallback = SegmentKeys.FallbackOnMissing(window.CurrentSelection, resolved: false);
+                        if (!fallback.Equals(window.CurrentSelection)) window.ApplySelection(fallback, "Current");
                         sample = currentSample;
                     }
                     if (sample == null) continue;

@@ -27,19 +27,29 @@ namespace Eq2Auras.Plugin.Act
             if (key[0] == 'Z')   // "Z:<currentZoneKey>" — the current zone's live "All"
             {
                 var zone = form.ActiveZone;
-                if (zone != null && zone.PopulateAll && zone.Items.Count > 0) return zone.Items[0];
-                unavailable = true;
-                return null;
+                if (zone == null || !zone.PopulateAll) { unavailable = true; return null; }   // option OFF → the "enable Zone All listing" hint
+                return zone.Items.Count > 0 ? zone.Items[0] : null;   // option on, no combat yet → dormant empty (no hint)
             }
 
-            if (key[0] == 'H')   // "H:<zoneKey>:<encounterStartTicks>"; zoneKey = "name#ticks" (no ':')
+            if (key.StartsWith("HA:"))   // a specific past zone's static "All" (Items[0]) — resolved by zone, not by tick
+            {
+                string zoneKey = key.Substring(3);
+                var z = form.ZoneList?.FirstOrDefault(zz => ZoneKey(zz) == zoneKey);
+                return (z != null && z.PopulateAll && z.Items.Count > 0) ? z.Items[0] : null;
+            }
+
+            if (key.StartsWith("H:"))   // "H:<zoneKey>:<encounterStartTicks>"; zoneKey = "name#ticks" (no ':')
             {
                 int lastColon = key.LastIndexOf(':');
                 if (lastColon <= 2) return null;
                 string zoneKey = key.Substring(2, lastColon - 2);
                 if (!long.TryParse(key.Substring(lastColon + 1), out long ticks)) return null;
                 var z = form.ZoneList?.FirstOrDefault(zz => ZoneKey(zz) == zoneKey);
-                return z?.Items.FirstOrDefault(e => e.StartTimes.Count > 0 && e.StartTimes[0].Ticks == ticks);
+                if (z == null) return null;
+                // A fight — skip the zone's All (Items[0] when PopulateAll), which shares the first fight's
+                // first-hostile timestamp, so a first-fight pick never resolves to the aggregate.
+                var fights = (z.PopulateAll && z.Items.Count > 0) ? z.Items.Skip(1) : (IEnumerable<EncounterData>)z.Items;
+                return fights.FirstOrDefault(e => e.StartTimes.Count > 0 && e.StartTimes[0].Ticks == ticks);
             }
 
             return form.ActiveZone?.ActiveEncounter;

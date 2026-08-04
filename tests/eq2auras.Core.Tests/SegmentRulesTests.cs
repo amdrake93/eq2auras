@@ -40,4 +40,8 @@ public class SegmentRulesTests
         Assert.Equal(SegmentSelection.Historical("z", 5), SegmentSelection.Historical("z", 5));
         Assert.NotEqual(SegmentSelection.Historical("z", 5), SegmentSelection.Historical("z", 6));
     }
+
+    [Fact]
+    public void An_all_pick_is_not_equal_to_a_fight_pick_in_the_same_zone()
+        => Assert.NotEqual(SegmentSelection.HistoricalAll("z"), SegmentSelection.Historical("z", 0));
 }
