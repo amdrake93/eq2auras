@@ -64,6 +64,7 @@ namespace Eq2Auras.Plugin.Overlay
         private Border _segmentChip;                   // header segment chip (SPEC §Header) — click opens the flyout
         private TextBlock _segmentChipText;
         private TextBlock _unavailableHint;            // Zonewide-with-PopulateAll-off dormant-body hint (SPEC §Availability)
+        private SegmentFlyout _segmentFlyout;          // tracked so a prior flyout is closed before reopening
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             SegmentMode segmentMode, bool pinnedToSegment,
@@ -172,7 +173,9 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
             };
-            _segmentChip.MouseLeftButtonUp += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
+            // Open on DOWN with Handled — like the cog — so the header's drag handler (which captures
+            // the mouse on button-down when unlocked) can never swallow the chip's click.
+            _segmentChip.MouseLeftButtonDown += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
 
             // Outer header: [ (dur) metric (star) ] [segment chip (auto)] [secondary label + total (auto)] [cog (auto)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
@@ -470,7 +473,8 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var listing = _cb.EnumerateSegments?.Invoke();
             if (listing == null) return;
-            var flyout = new SegmentFlyout(_segmentChip, listing, _selection, returnToCurrent: !_pinned,
+            _segmentFlyout?.Close();   // no stale Popup left to swallow the next click
+            _segmentFlyout = new SegmentFlyout(_segmentChip, _style, listing, _selection, returnToCurrent: !_pinned,
                 onPick: (sel, label) =>
                 {
                     ApplySelection(sel, label);
@@ -480,7 +484,7 @@ namespace Eq2Auras.Plugin.Overlay
                     // Historical picks are runtime-only — the persisted mode is unchanged (SPEC §Segments Persistence).
                 },
                 onKnobToggled: knobChecked => { _pinned = !knobChecked; _cb.PinnedChanged?.Invoke(_pinned); });
-            flyout.Show();
+            _segmentFlyout.Show();
         }
 
         private static string SegmentLabel(SegmentSelection sel)
@@ -828,6 +832,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _settings?.Close();
             _hover?.Close();
+            _segmentFlyout?.Close();
             base.OnClosed(e);
         }
     }
