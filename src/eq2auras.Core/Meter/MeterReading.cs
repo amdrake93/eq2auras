@@ -1,3 +1,5 @@
+using System.Collections.Generic;
+
 namespace Eq2Auras.Core.Meter
 {
     /// One combatant's per-poll totals, snapshotted from ACT's computed model under
@@ -26,5 +28,26 @@ namespace Eq2Auras.Core.Meter
         public bool Active { get; set; }
         public double LiveDurationSeconds { get; set; }    // LastEstimatedTime - StartTime (may be garbage pre-first-swing; engine clamps)
         public double FinalDurationSeconds { get; set; }   // ACT's finalized log-time Duration
+    }
+
+    /// One resolved segment's per-poll snapshot (SPEC §Segments — the probe emits one per
+    /// distinct requested segment key). Deaths ride the sample so a Deaths window reads its
+    /// own segment's timeline. Unavailable = Zonewide with PopulateAll off (dormant body).
+    public sealed class SegmentSample
+    {
+        public string Key { get; set; }
+        public EncounterReading Encounter { get; set; }
+        public List<CombatantReading> Combatants { get; set; }
+        public List<DeathRecord> Deaths { get; set; }
+        public bool Unavailable { get; set; }
+        public long EncounterStartTicks { get; set; }   // the new-combat edge signal (host snaps non-pinned windows)
+    }
+
+    /// The probe→host per-poll payload: the samples plus the current zone key the probe resolved
+    /// under the lock, so the host maps each window→sample by the SAME snapshot (no zone-change race).
+    public sealed class SegmentSampleSet
+    {
+        public string CurrentZoneKey { get; set; }
+        public List<SegmentSample> Samples { get; set; }
     }
 }

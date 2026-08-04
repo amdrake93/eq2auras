@@ -18,7 +18,8 @@ namespace Eq2Auras.Plugin.Act
 
         private readonly Func<bool> _enabled;
         private readonly Func<IReadOnlyList<DrillRequest>> _drillRequests;
-        private readonly Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> _onSample;
+        private readonly Func<IReadOnlyList<SegmentSelection>> _segmentRequests;   // each window's live selection (SPEC §Segments)
+        private readonly Action<SegmentSampleSet, List<BreakdownReading>, List<RecapReading>> _onSample;
         private readonly Func<string, bool> _isClassCommitted;   // skip the ability-name read for allies confirmed this encounter (SPEC §Class colors)
         private int _tick;
 
@@ -28,11 +29,13 @@ namespace Eq2Auras.Plugin.Act
         private DateTime _encounterStartKey = DateTime.MinValue;
 
         public EncounterProbe(Func<bool> enabled, Func<IReadOnlyList<DrillRequest>> drillRequests,
-            Action<EncounterReading, List<CombatantReading>, List<BreakdownReading>, List<DeathRecord>, List<RecapReading>> onSample,
+            Func<IReadOnlyList<SegmentSelection>> segmentRequests,
+            Action<SegmentSampleSet, List<BreakdownReading>, List<RecapReading>> onSample,
             Func<string, bool> isClassCommitted = null)
         {
             _enabled = enabled;
             _drillRequests = drillRequests;
+            _segmentRequests = segmentRequests;
             _onSample = onSample;
             _isClassCommitted = isClassCommitted ?? (_ => false);
         }
@@ -43,121 +46,51 @@ namespace Eq2Auras.Plugin.Act
             if (++_tick % SampleEveryNthTick != 0) return;
             if (!_enabled()) return;
 
-            EncounterReading encounterReading;
-            var combatants = new List<CombatantReading>();
+            var requests = _drillRequests?.Invoke();   // O(1) volatile read — before the lock
+            var selections = _segmentRequests?.Invoke() ?? (IReadOnlyList<SegmentSelection>)new[] { SegmentSelection.Current() };
+            var samples = new List<SegmentSample>();
             var breakdowns = new List<BreakdownReading>();
             var recaps = new List<RecapReading>();
-            var requests = _drillRequests?.Invoke();   // O(1) volatile read — before the lock
+            string currentZoneKey = null;
             try
             {
                 var form = ActGlobals.oFormActMain;
                 lock (form.AfterCombatActionDataLock)
                 {
-                    var encounter = form.ActiveZone?.ActiveEncounter;
-                    if (encounter == null)
+                    currentZoneKey = SegmentResolver.CurrentZoneKey(form);
+
+                    // Resolve the distinct requested segments once each (SegmentKeys.Distinct always
+                    // includes "C", the fallback target). One snapshot per key; all-Current collapses to one.
+                    EncounterData currentEncounter = null;
+                    foreach (var key in SegmentKeys.Distinct(selections, currentZoneKey))
                     {
-                        encounterReading = new EncounterReading { Exists = false };
+                        var encounter = SegmentResolver.ResolveByKey(form, key, out bool unavailable);
+                        if (key == "C") currentEncounter = encounter;
+                        samples.Add(ReadSegment(form, encounter, key, key == "C", unavailable));
                     }
-                    else
+
+                    // Deep reads (drill / hover / recap). Task 7 routes each by request.SegmentKey; until
+                    // then they read the Current encounter (the common case), which is always resolved.
+                    if (currentEncounter != null && requests != null && requests.Count > 0)
                     {
-                        bool active = encounter.Active;
-                        encounterReading = new EncounterReading
-                        {
-                            Exists = true,
-                            Active = active,
-                            // Degenerate pre-first-swing polls (StartTime == DateTime.MaxValue)
-                            // produce a hugely negative estimate here — MeterEngine clamps.
-                            LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,
-                            FinalDurationSeconds = active ? 0 : encounter.Duration.TotalSeconds,
-                        };
-
-                        // Mirror ACT's mini parse: base set is EVERY combatant
-                        // (Items.Values); the ally set only *filters* it, in Core,
-                        // via the same ShowOnlyAllies-with-escape-hatch rule ACT uses
-                        // (SPEC Part III §Displayed combatants). GetAllies() is
-                        // you-relative, so an un-linked groupmate isn't an ally yet —
-                        // that's the flag Core keys the filter on, not who we include.
-                        var allySet = new HashSet<CombatantData>(encounter.GetAllies());
-                        foreach (var combatant in encounter.Items.Values)
-                        {
-                            var reading = new CombatantReading
-                            {
-                                Name = combatant.Name,
-                                Damage = combatant.Damage,
-                                Healed = combatant.Healed,
-                                CureDispels = combatant.CureDispels,
-                                DamageTaken = combatant.DamageTaken,
-                                HealsTaken = combatant.HealsTaken,
-                                PowerReplenish = combatant.PowerReplenish,
-                                IsAlly = allySet.Contains(combatant),
-                            };
-                            // Class inference (SPEC §Class colors): the outgoing ability NAMES, keys-only,
-                            // for allies not yet confirmed this encounter — cheap, shrinks as they confirm.
-                            if (reading.IsAlly && !_isClassCommitted(reading.Name))
-                                reading.AbilityNames = ReadOutgoingAbilityNames(combatant);
-                            combatants.Add(reading);
-                        }
-
-                        // Deaths capture (SPEC §Deaths): poll-only count-delta → bounded killing-blow scan.
-                        if (encounter.StartTime != _encounterStartKey)   // new encounter → reset the store
-                        {
-                            _encounterStartKey = encounter.StartTime;
-                            _deathStore.Clear();
-                            _deathsSeen.Clear();
-                        }
                         string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
-                        foreach (var combatant in encounter.Items.Values)
+                        foreach (var request in requests)
                         {
-                            if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
-                            int deathCount = combatant.Deaths;               // boolean-cached, cheap (verified ACT 3.8.5.288)
-                            _deathsSeen.TryGetValue(combatant.Name, out int seen);
-                            if (deathCount <= seen) continue;                // no new death for this victim
-
-                            // The victim's Death swings live as the incoming "Killing" AttackType (AllInc);
-                            // enumerate chronologically and record the un-seen ordinals.
-                            var deathSwings = new List<MasterSwing>();
-                            if (combatant.AllInc.TryGetValue(killingKey, out var killingAt))
-                                foreach (var sw in killingAt.Items)
-                                    if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
-                            deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
-
-                            for (int ordinal = seen + 1; ordinal <= deathCount && ordinal <= deathSwings.Count; ordinal++)
+                            // At most one CombatantData per request — never a per-combatant fan-out
+                            // (plan-watch #2). Items is keyed UPPERCASE.
+                            if (request.Source == MetricBreakdownSource.Deaths)
                             {
-                                var deathSwing = deathSwings[ordinal - 1];
-                                FindKillingBlow(combatant, deathSwing.TimeSorter, out string blowAbility, out double blowDamage);
-                                _deathStore.Add(new DeathRecord
-                                {
-                                    Victim = combatant.Name,
-                                    Ordinal = ordinal,
-                                    TimeOfDeathSeconds = (deathSwing.Time - encounter.StartTime).TotalSeconds,
-                                    KillingBlowAbility = blowAbility,
-                                    KillingBlowDamage = blowDamage,
-                                    DrillKey = combatant.Name + "#" + ordinal,
-                                });
+                                var recap = ReadRecap(currentEncounter, request, killingKey);
+                                if (recap != null) recaps.Add(recap);
+                                continue;
                             }
-                            _deathsSeen[combatant.Name] = deathCount;
-                        }
-
-                        if (requests != null && requests.Count > 0)
-                        {
-                            foreach (var request in requests)
-                            {
-                                // At most one CombatantData per request — never a per-combatant fan-out
-                                // (plan-watch #2). GetAllies is already resolved above; Items is keyed UPPERCASE.
-                                if (request.Source == MetricBreakdownSource.Deaths)
-                                {
-                                    var recap = ReadRecap(encounter, request, killingKey);
-                                    if (recap != null) recaps.Add(recap);
-                                    continue;
-                                }
-                                if (request.Source == MetricBreakdownSource.None) continue;
-                                if (!encounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
-                                var entries = request.Grouping == BreakdownGrouping.ByCounterpart
-                                    ? ReadByCounterpart(combatant, request.Source)
-                                    : ReadBreakdown(combatant, request.Source);
-                                if (entries != null)
-                                    breakdowns.Add(new BreakdownReading { CombatantName = request.CombatantName, Source = request.Source, Grouping = request.Grouping, Entries = entries });
-                            }
+                            if (request.Source == MetricBreakdownSource.None) continue;
+                            if (!currentEncounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
+                            var entries = request.Grouping == BreakdownGrouping.ByCounterpart
+                                ? ReadByCounterpart(combatant, request.Source)
+                                : ReadBreakdown(combatant, request.Source);
+                            if (entries != null)
+                                breakdowns.Add(new BreakdownReading { CombatantName = request.CombatantName, Source = request.Source, Grouping = request.Grouping, Entries = entries });
                         }
                     }
                 }
@@ -167,8 +100,106 @@ namespace Eq2Auras.Plugin.Act
                 return;   // same defensive stance as TimerProbe's GetTimerFrames read
             }
 
-            var deaths = new List<DeathRecord>(_deathStore);       // snapshot for the WPF thread
-            _onSample(encounterReading, combatants, breakdowns, deaths, recaps);   // outside the lock — hold it briefly
+            _onSample(new SegmentSampleSet { CurrentZoneKey = currentZoneKey, Samples = samples }, breakdowns, recaps);   // outside the lock
+        }
+
+        /// Read one resolved segment's encounter into a Core sample. `isCurrent` gates the two
+        /// live-only reads — class-inference ability names and the death-capture store — which ride
+        /// the live current encounter regardless of what any window displays (SPEC §Segments).
+        private SegmentSample ReadSegment(FormActMain form, EncounterData encounter, string key, bool isCurrent, bool unavailable)
+        {
+            var sample = new SegmentSample
+            {
+                Key = key,
+                Unavailable = unavailable,
+                Combatants = new List<CombatantReading>(),
+                Deaths = new List<DeathRecord>(),
+            };
+            if (unavailable || encounter == null)
+            {
+                sample.Encounter = new EncounterReading { Exists = false };
+                return sample;
+            }
+
+            bool active = encounter.Active;
+            sample.Encounter = new EncounterReading
+            {
+                Exists = true,
+                Active = active,
+                // Degenerate pre-first-swing polls (StartTime == DateTime.MaxValue) produce a hugely
+                // negative estimate here — MeterEngine clamps.
+                LiveDurationSeconds = (form.LastEstimatedTime - encounter.StartTime).TotalSeconds,
+                FinalDurationSeconds = active ? 0 : encounter.Duration.TotalSeconds,
+            };
+            sample.EncounterStartTicks = encounter.StartTime.Ticks;
+
+            // Mirror ACT's mini parse: base set is EVERY combatant (Items.Values); the ally set only
+            // *filters* it, in Core, via the ShowOnlyAllies-with-escape-hatch rule (SPEC §Displayed combatants).
+            var allySet = new HashSet<CombatantData>(encounter.GetAllies());
+            foreach (var combatant in encounter.Items.Values)
+            {
+                var reading = new CombatantReading
+                {
+                    Name = combatant.Name,
+                    Damage = combatant.Damage,
+                    Healed = combatant.Healed,
+                    CureDispels = combatant.CureDispels,
+                    DamageTaken = combatant.DamageTaken,
+                    HealsTaken = combatant.HealsTaken,
+                    PowerReplenish = combatant.PowerReplenish,
+                    IsAlly = allySet.Contains(combatant),
+                };
+                if (isCurrent && reading.IsAlly && !_isClassCommitted(reading.Name))
+                    reading.AbilityNames = ReadOutgoingAbilityNames(combatant);
+                sample.Combatants.Add(reading);
+            }
+
+            if (isCurrent)
+                sample.Deaths = CaptureDeaths(encounter, allySet);
+            return sample;
+        }
+
+        /// Poll-only death capture for the current encounter (SPEC §Deaths): a count-delta triggers a
+        /// bounded killing-blow scan into the store; returns the store snapshot for the sample.
+        private List<DeathRecord> CaptureDeaths(EncounterData encounter, HashSet<CombatantData> allySet)
+        {
+            if (encounter.StartTime != _encounterStartKey)   // new encounter → reset the store
+            {
+                _encounterStartKey = encounter.StartTime;
+                _deathStore.Clear();
+                _deathsSeen.Clear();
+            }
+            string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
+            foreach (var combatant in encounter.Items.Values)
+            {
+                if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
+                int deathCount = combatant.Deaths;               // boolean-cached, cheap (verified ACT 3.8.5.288)
+                _deathsSeen.TryGetValue(combatant.Name, out int seen);
+                if (deathCount <= seen) continue;
+
+                var deathSwings = new List<MasterSwing>();
+                if (combatant.AllInc.TryGetValue(killingKey, out var killingAt))
+                    foreach (var sw in killingAt.Items)
+                        if (sw.Damage == Dnum.Death) deathSwings.Add(sw);
+                deathSwings.Sort((a, b) => a.TimeSorter.CompareTo(b.TimeSorter));
+
+                for (int ordinal = seen + 1; ordinal <= deathCount && ordinal <= deathSwings.Count; ordinal++)
+                {
+                    var deathSwing = deathSwings[ordinal - 1];
+                    FindKillingBlow(combatant, deathSwing.TimeSorter, out string blowAbility, out double blowDamage);
+                    _deathStore.Add(new DeathRecord
+                    {
+                        Victim = combatant.Name,
+                        Ordinal = ordinal,
+                        TimeOfDeathSeconds = (deathSwing.Time - encounter.StartTime).TotalSeconds,
+                        KillingBlowAbility = blowAbility,
+                        KillingBlowDamage = blowDamage,
+                        DrillKey = combatant.Name + "#" + ordinal,
+                    });
+                }
+                _deathsSeen[combatant.Name] = deathCount;
+            }
+            return new List<DeathRecord>(_deathStore);   // snapshot for the WPF thread
         }
 
         /// The killing blow = the victim's last INCOMING DAMAGE swing at/before the death's TimeSorter
