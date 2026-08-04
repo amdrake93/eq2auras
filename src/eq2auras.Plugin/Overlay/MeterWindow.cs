@@ -59,8 +59,14 @@ namespace Eq2Auras.Plugin.Overlay
         private string _hoverRecapSecond;              // recap-drill: the hovered second-row's tag (DrillKey), or null
         private MeterRowVisual _hoverSlot;             // the hovered slot — its screen rect anchors the card
         private HoverCard _hover;                      // the by-row hover card (recreated per appearance)
+        private SegmentSelection _selection;           // the window's live segment (Current/Zonewide/Historical) — runtime (SPEC §Segments)
+        private bool _pinned;                          // PinnedToSegment: true = don't auto-return to Current
+        private Border _segmentChip;                   // header segment chip (SPEC §Header) — click opens the flyout
+        private TextBlock _segmentChipText;
+        private TextBlock _unavailableHint;            // Zonewide-with-PopulateAll-off dormant-body hint (SPEC §Availability)
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
+            SegmentMode segmentMode, bool pinnedToSegment,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
@@ -73,6 +79,8 @@ namespace Eq2Auras.Plugin.Overlay
             _opacity = opacity;
             _backdropOpacity = backdropOpacity;
             _visibleRows = visibleRows;
+            _selection = SegmentRules.FromMode(segmentMode);
+            _pinned = pinnedToSegment;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -141,15 +149,43 @@ namespace Eq2Auras.Plugin.Overlay
             metricCluster.Children.Add(_secondaryLabelText);
             metricCluster.Children.Add(_totalText);
 
-            // Outer header: [ (dur) metric (star; left cluster) ] [secondary label + total (auto)] [cog (auto, far right, above percent)].
+            // The segment chip (SPEC §Header): a compact, bounded, clickable element naming the
+            // window's selection; its own auto-sized column so it never steals the metric's width.
+            _segmentChipText = new TextBlock
+            {
+                Text = "▾ " + SegmentLabel(_selection),
+                FontSize = 10,
+                Foreground = Theme.TextLabel,
+                VerticalAlignment = VerticalAlignment.Center,
+                TextTrimming = TextTrimming.CharacterEllipsis,
+                MaxWidth = 130,
+            };
+            _segmentChip = new Border
+            {
+                Child = _segmentChipText,
+                Background = Theme.Surface(0x0D),
+                BorderBrush = Theme.Divider,
+                BorderThickness = new Thickness(1),
+                CornerRadius = new CornerRadius(9),
+                Padding = new Thickness(7, 1, 7, 1),
+                Margin = new Thickness(6, 0, 6, 0),
+                VerticalAlignment = VerticalAlignment.Center,
+                Cursor = Cursors.Hand,
+            };
+            _segmentChip.MouseLeftButtonUp += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
+
+            // Outer header: [ (dur) metric (star) ] [segment chip (auto)] [secondary label + total (auto)] [cog (auto)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = new GridLength(1, GridUnitType.Star) });  // (dur) metric
+            headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // segment chip
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // metric cluster (total above the value column)
             headerGrid.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });          // cog (far right, above the percent column)
             Grid.SetColumn(leftCluster, 0);
-            Grid.SetColumn(metricCluster, 1);
-            Grid.SetColumn(affordance, 2);
+            Grid.SetColumn(_segmentChip, 1);
+            Grid.SetColumn(metricCluster, 2);
+            Grid.SetColumn(affordance, 3);
             headerGrid.Children.Add(leftCluster);
+            headerGrid.Children.Add(_segmentChip);
             headerGrid.Children.Add(metricCluster);
             headerGrid.Children.Add(affordance);
 
@@ -182,6 +218,19 @@ namespace Eq2Auras.Plugin.Overlay
             _rowsContainer = new Grid { MinHeight = ReservedRowsHeight() };
             _rowsContainer.Children.Add(_backdrop);              // behind
             _rowsContainer.Children.Add(_rowsPanel);             // on top; empty area shows the backdrop
+            _unavailableHint = new TextBlock
+            {
+                Text = "Enable ACT’s “Zone All listing” for Zonewide",
+                Foreground = Theme.TextMuted,
+                FontSize = 11,
+                TextWrapping = TextWrapping.Wrap,
+                TextAlignment = TextAlignment.Center,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center,
+                Margin = new Thickness(12),
+                Visibility = Visibility.Collapsed,
+            };
+            _rowsContainer.Children.Add(_unavailableHint);       // over the dormant backdrop when Zonewide is unavailable
             _root = new StackPanel { Width = style.RowWidth };
             _root.Children.Add(header);
             _root.Children.Add(_rowsContainer);
@@ -285,6 +334,8 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _lastFrame = frame;
             _currentRows = frame.Rows;
+            if (_segmentChip != null) _segmentChip.Visibility = Visibility.Visible;   // list layer shows the chip (hidden while drilled)
+            if (_unavailableHint != null) _unavailableHint.Visibility = Visibility.Collapsed;
             _durationText.Text = "(" + frame.DurationText + ") ";
             SetHeaderLabel(_secondaryLabelText, frame.SecondaryLabel);
             SetHeaderLabel(_metricText, frame.MetricLabel);
@@ -336,7 +387,7 @@ namespace Eq2Auras.Plugin.Overlay
         /// the probe's drill-request set and to route list-vs-drill rendering (SPEC §Row drill-down).
         public DrillRequest DrillTarget => _drilledCombatant == null
             ? null
-            : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource, DeathKey = _drillDeathKey };
+            : new DrillRequest { CombatantName = _drilledCombatant, Source = _drillSource, DeathKey = _drillDeathKey, Selection = _selection };
 
         /// The window's current hover request, or null when drilled / not hovering / the primary is
         /// cleared or an event metric (Deaths — no by-counterpart hover). The host reads this to build
@@ -349,7 +400,7 @@ namespace Eq2Auras.Plugin.Overlay
                 if (_drilledCombatant != null || _hoverCombatant == null) return null;
                 var metric = MetricRegistry.ResolvePrimary(_metricKey);
                 if (metric == null || metric.IsEvent) return null;
-                return new DrillRequest { CombatantName = _hoverCombatant, Source = metric.BreakdownSource, Grouping = BreakdownGrouping.ByCounterpart };
+                return new DrillRequest { CombatantName = _hoverCombatant, Source = metric.BreakdownSource, Grouping = BreakdownGrouping.ByCounterpart, Selection = _selection };
             }
         }
 
@@ -397,7 +448,49 @@ namespace Eq2Auras.Plugin.Overlay
             _hoverCombatant = null;
             _hoverSlot = null;
             HideHover();                        // a live hover card must not linger over the drilled body
+            if (_segmentChip != null) _segmentChip.Visibility = Visibility.Collapsed;   // segment is a list-layer action (SPEC §Header)
             _cb.DrillChanged?.Invoke();
+        }
+
+        /// The window's live segment (SPEC §Segments). The host reads it to build the probe's
+        /// segment-request set and to route each window to its own segment's snapshot.
+        public SegmentSelection CurrentSelection => _selection;
+
+        /// Apply a new segment selection — from the flyout, or the host's new-combat snap / culled
+        /// fallback (Task 6). Updates the chip label and republishes so the host rebuilds its request
+        /// sets. A historical pick is runtime-only; Current/Zonewide persist via the flyout callbacks.
+        public void ApplySelection(SegmentSelection selection, string label)
+        {
+            _selection = selection ?? SegmentSelection.Current();
+            if (_segmentChipText != null) _segmentChipText.Text = "▾ " + label;
+            _cb.SegmentChanged?.Invoke();
+        }
+
+        private void OpenSegmentFlyout()
+        {
+            var listing = _cb.EnumerateSegments?.Invoke();
+            if (listing == null) return;
+            var flyout = new SegmentFlyout(_segmentChip, listing, _selection, returnToCurrent: !_pinned,
+                onPick: (sel, label) =>
+                {
+                    ApplySelection(sel, label);
+                    if (SegmentRules.ClearsKnobOnPick(sel)) { _pinned = true; _cb.PinnedChanged?.Invoke(true); }   // Zonewide pins in one gesture
+                    if (sel.Kind == SegmentKind.Current) _cb.SegmentModeChanged?.Invoke(SegmentMode.Current);
+                    else if (sel.Kind == SegmentKind.Zonewide) _cb.SegmentModeChanged?.Invoke(SegmentMode.Zonewide);
+                    // Historical picks are runtime-only — the persisted mode is unchanged (SPEC §Segments Persistence).
+                },
+                onKnobToggled: knobChecked => { _pinned = !knobChecked; _cb.PinnedChanged?.Invoke(_pinned); });
+            flyout.Show();
+        }
+
+        private static string SegmentLabel(SegmentSelection sel)
+        {
+            switch (sel.Kind)
+            {
+                case SegmentKind.Zonewide: return "Zonewide";
+                case SegmentKind.Historical: return "Segment";
+                default: return "Current";
+            }
         }
 
         /// Leave drill mode. Clears state and republishes; the host's next Render(listFrame) restores
@@ -422,6 +515,21 @@ namespace Eq2Auras.Plugin.Overlay
             _currentRows = rows ?? new List<MeterRow>();
             _scrollOffset = Math.Max(0, Math.Min(_scrollOffset, _currentRows.Count - _visibleRows));
             RenderSlots();
+        }
+
+        /// Zonewide selected but the current zone has no "Zone All listing" (SPEC §Availability): the
+        /// dormant backdrop body + a one-line hint; the header keeps its duration, chip, and cog.
+        public void RenderUnavailable()
+        {
+            if (_segmentChip != null) _segmentChip.Visibility = Visibility.Visible;
+            _durationText.Text = "";
+            SetHeaderLabel(_metricText, "");
+            SetHeaderLabel(_secondaryLabelText, "");
+            SetHeaderLabel(_totalText, "");
+            _currentRows = new List<MeterRow>();
+            _scrollOffset = 0;
+            RenderSlots();   // empty → the dormant backdrop shows
+            if (_unavailableHint != null) _unavailableHint.Visibility = Visibility.Visible;
         }
 
         // ─── The hover surface (SPEC Part I §The hover surface) ───────────────────────────

@@ -62,30 +62,36 @@ namespace Eq2Auras.Plugin.Act
                     // Resolve the distinct requested segments once each (SegmentKeys.Distinct always
                     // includes "C", the fallback target). One snapshot per key; all-Current collapses to one.
                     EncounterData currentEncounter = null;
+                    var bySegKeyEncounter = new Dictionary<string, EncounterData>();
                     foreach (var key in SegmentKeys.Distinct(selections, currentZoneKey))
                     {
                         var encounter = SegmentResolver.ResolveByKey(form, key, out bool unavailable);
                         if (key == "C") currentEncounter = encounter;
+                        bySegKeyEncounter[key] = encounter;
                         samples.Add(ReadSegment(form, encounter, key, key == "C", unavailable));
                     }
 
-                    // Deep reads (drill / hover / recap). Task 7 routes each by request.SegmentKey; until
-                    // then they read the Current encounter (the common case), which is always resolved.
-                    if (currentEncounter != null && requests != null && requests.Count > 0)
+                    // Deep reads (drill / hover / recap) each target the requesting window's segment
+                    // (SPEC §Segments — every read follows the window's segment), resolved this poll.
+                    if (requests != null && requests.Count > 0)
                     {
                         string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
                         foreach (var request in requests)
                         {
+                            var reqKey = SegmentKeys.Of(request.Selection ?? SegmentSelection.Current(), currentZoneKey);
+                            var reqEnc = (bySegKeyEncounter.TryGetValue(reqKey, out var re) && re != null) ? re : currentEncounter;
+                            if (reqEnc == null) continue;
+
                             // At most one CombatantData per request — never a per-combatant fan-out
                             // (plan-watch #2). Items is keyed UPPERCASE.
                             if (request.Source == MetricBreakdownSource.Deaths)
                             {
-                                var recap = ReadRecap(currentEncounter, request, killingKey);
+                                var recap = ReadRecap(reqEnc, request, killingKey);
                                 if (recap != null) recaps.Add(recap);
                                 continue;
                             }
                             if (request.Source == MetricBreakdownSource.None) continue;
-                            if (!currentEncounter.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
+                            if (!reqEnc.Items.TryGetValue((request.CombatantName ?? "").ToUpper(), out var combatant)) continue;
                             var entries = request.Grouping == BreakdownGrouping.ByCounterpart
                                 ? ReadByCounterpart(combatant, request.Source)
                                 : ReadBreakdown(combatant, request.Source);
@@ -288,7 +294,7 @@ namespace Eq2Auras.Plugin.Act
                 var form = ActGlobals.oFormActMain;
                 lock (form.AfterCombatActionDataLock)
                 {
-                    var encounter = form.ActiveZone?.ActiveEncounter;
+                    var encounter = ResolveForRequest(form, request);
                     if (encounter == null) return false;
 
                     int hash = request.DeathKey.LastIndexOf('#');
@@ -340,6 +346,16 @@ namespace Eq2Auras.Plugin.Act
                     details.Add(new RecapEventDetail { Source = sw.Attacker, Ability = sw.AttackType, Amount = amt, IsHeal = isHeal, Order = sw.TimeSorter });
                 }
             }
+        }
+
+        /// Resolve the segment a synchronous hover read targets (SPEC §Segments — every read follows
+        /// the window's segment): the request's selection → its EncounterData, or Current on a culled
+        /// historical handle. Called under the lock, so CurrentZoneKey is consistent with the resolve.
+        private static EncounterData ResolveForRequest(FormActMain form, DrillRequest request)
+        {
+            var sel = request?.Selection ?? SegmentSelection.Current();
+            var enc = SegmentResolver.ResolveByKey(form, SegmentKeys.Of(sel, SegmentResolver.CurrentZoneKey(form)), out _);
+            return enc ?? form.ActiveZone?.ActiveEncounter;
         }
 
         /// Enum → ACT bucket alias-static. The statics are set at the EQ2 parser's init
@@ -467,7 +483,7 @@ namespace Eq2Auras.Plugin.Act
                 var form = ActGlobals.oFormActMain;
                 lock (form.AfterCombatActionDataLock)
                 {
-                    var encounter = form.ActiveZone?.ActiveEncounter;
+                    var encounter = ResolveForRequest(form, request);
                     if (encounter == null) return false;
                     bool active = encounter.Active;
                     durationSeconds = MeterEngine.DurationSeconds(new EncounterReading

@@ -29,6 +29,7 @@ namespace Eq2Auras.Plugin.Overlay
             new Dictionary<MeterWindowConfig, MeterWindow>();
         private volatile IReadOnlyList<DrillRequest> _drillRequests = new List<DrillRequest>();
         private volatile IReadOnlyList<SegmentSelection> _segmentRequests = new List<SegmentSelection>();
+        private long _lastCurrentStartTicks;   // the new-combat edge signal (SPEC §Segments — Return to Current)
         private Thread _thread;
         private Dispatcher _dispatcher;
 
@@ -117,6 +118,8 @@ namespace Eq2Auras.Plugin.Overlay
                 config.Opacity ?? MeterSettings.DefaultOpacity,
                 config.BackdropOpacity ?? MeterSettings.DefaultBackdropOpacity,
                 config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
+                config.SegmentMode,
+                config.PinnedToSegment,
                 new MeterWindowCallbacks
                 {
                     PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
@@ -133,6 +136,10 @@ namespace Eq2Auras.Plugin.Overlay
                     CanClose = () => _meterWindows.Count > 1,
                     DrillChanged = RebuildDrillRequests,
                     ReadHoverNow = request => ReadHoverRowsNow(config, request),
+                    SegmentModeChanged = mode => SettingsStore.Update(_settings, () => config.SegmentMode = mode),
+                    PinnedChanged = pinned => SettingsStore.Update(_settings, () => config.PinnedToSegment = pinned),
+                    EnumerateSegments = () => SegmentResolver.Enumerate(Advanced_Combat_Tracker.ActGlobals.oFormActMain),
+                    SegmentChanged = () => { RebuildSegmentRequests(); RebuildDrillRequests(); },
                 });
             _meterWindows[config] = window;
             RebuildSegmentRequests();
@@ -146,7 +153,7 @@ namespace Eq2Auras.Plugin.Overlay
         private void RebuildSegmentRequests()
         {
             var list = new List<SegmentSelection>();
-            foreach (var config in _meterWindows.Keys) list.Add(SegmentRules.FromMode(config.SegmentMode));
+            foreach (var window in _meterWindows.Values) list.Add(window.CurrentSelection);
             _segmentRequests = list;
         }
 
@@ -312,14 +319,33 @@ namespace Eq2Auras.Plugin.Overlay
                 _wasEncounterActive = encounterActive;
 
                 string currentZoneKey = set?.CurrentZoneKey;
+
+                // New-combat edge (SPEC §Segments — Return to Current): a new active current encounter
+                // snaps every non-pinned window's selection back to Current.
+                long curTicks = (currentSample != null && currentSample.Encounter != null && currentSample.Encounter.Active) ? currentSample.EncounterStartTicks : 0;
+                bool newCombat = curTicks != 0 && curTicks != _lastCurrentStartTicks;
+                if (curTicks != 0) _lastCurrentStartTicks = curTicks;
+
                 foreach (var pair in _meterWindows)
                 {
                     var config = pair.Key;
                     var window = pair.Value;
-                    // Task 10 upgrades this to window.CurrentSelection; for now the persisted mode drives it.
-                    var key = SegmentKeys.Of(SegmentRules.FromMode(config.SegmentMode), currentZoneKey);
-                    var sample = byKey.TryGetValue(key, out var s) ? s : currentSample;   // culled historical → Current (Task 6 resets the selection)
+
+                    if (newCombat && !config.PinnedToSegment)
+                    {
+                        var snapped = SegmentRules.OnNewCombat(window.CurrentSelection, pinned: false);
+                        if (!snapped.Equals(window.CurrentSelection)) window.ApplySelection(snapped, "Current");
+                    }
+
+                    var key = SegmentKeys.Of(window.CurrentSelection, currentZoneKey);
+                    if (!byKey.TryGetValue(key, out var sample))
+                    {
+                        // The window's segment has no sample this poll — a culled historical handle.
+                        if (window.CurrentSelection.Kind == SegmentKind.Historical) window.ApplySelection(SegmentSelection.Current(), "Current");
+                        sample = currentSample;
+                    }
                     if (sample == null) continue;
+                    if (sample.Unavailable) { window.RenderUnavailable(); continue; }   // Zonewide + PopulateAll off (SPEC §Availability)
 
                     double duration = MeterEngine.DurationSeconds(sample.Encounter);
                     var metric = MetricRegistry.ResolvePrimary(config.MetricKey);

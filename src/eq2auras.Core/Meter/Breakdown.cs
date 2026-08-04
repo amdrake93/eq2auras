@@ -42,5 +42,6 @@ namespace Eq2Auras.Core.Meter
         public BreakdownGrouping Grouping { get; set; }   // ByAbility (default) = the drill; ByCounterpart = the hover
         public string DeathKey { get; set; }   // set when Source == Deaths — which death (Victim#Ordinal) to recap; null otherwise
         public int Second { get; set; }   // RecapSecond grouping: which recap second (0..9) to read; else unused
+        public SegmentSelection Selection { get; set; }   // the requesting window's segment; the probe deep-reads that segment (SPEC §Segments), null = Current
     }
 }
