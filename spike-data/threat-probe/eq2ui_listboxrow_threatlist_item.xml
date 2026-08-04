@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<Page Name="Template" PackSize="absolute, fixed" ScrollExtent="200,36" Size="200,36" DarqUI="3.003">
-    <Text Font="/TextStyles.Small.SmallStyle" Location="0,0" Name="ProbeRow1" ScrollExtent="200,18" Size="200,18" TextColor="#00FFFF" TextAlignment="Left">ctl:$zzznotreal$ sthr:$secondary_threat$ tpct:$threat_pct$ tperc:$threat_percent$</Text>
-    <Text Font="/TextStyles.Small.SmallStyle" Location="0,18" Name="ProbeRow2" ScrollExtent="200,18" Size="200,18" TextColor="#FFAA00" TextAlignment="Left">tpos:$threat_position$ hpct:$hate_pct$ tlvl:$threat_level$ rank:$rank$</Text>
-</Page>

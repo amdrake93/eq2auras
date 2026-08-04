@@ -1,6 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Page Name="POI">
-    <Page Name="Biffels_0">
-        <Icon Name="0" PathFindLocation="0.00 20000.00 0.00" PoiDescription="true" PoiResource="site" PoiShowAlways="true" PoiType="LOCATION" Tooltip="0" />
-    </Page>
-</Page>

@@ -19,7 +19,7 @@ Explored a threat meter — in particular surfacing the **2nd-place threat on en
 - **In-game UI, current target:** `/GameData.Target.Threat` + `/GameData.Target.SecondaryThreat` scalars exist (declared in `eq2ui_gamedata.xml`) but are **target-scoped only**, and already shown by the stock/DarqUI threat window — nothing new to add.
 - **In-game UI, enemy threat-list window:** per-enemy standing is **sort-order only, no readable value.** The list is a data-bound `Listbox` over an **engine-provided** `ThreatListDS` whose rows expose only `dispname` / `health` / `target` — confirmed via SOE's default row template, DarqUI's, and **controlled on-box field probes** (~13 candidate names across both `snake_case`/non-underscore conventions, all blank against a live control). No per-entry threat number reaches the UI, so the macro version can't be built.
 - **Overlay via "inject UI-XML that emits to a log ACT reads":** the emit half is **unproven** — no EQ2 UI-XML precedent for a data-change handler autonomously emitting a bound value to a log/chat sink (searched DrumsUI + the mod ecosystem — display mods only), and it is ToS-adjacent (automated chat). Effectively dead.
-**Net:** no path to a threat feature beyond what EQ2/DarqUI already display in-game. Don't re-open without a new EQ2 data-exposure surface. (Spike artifacts: `spike-data/threat-probe/`, throwaway.)
+**Net:** no path to a threat feature beyond what EQ2/DarqUI already display in-game. Don't re-open without a new EQ2 data-exposure surface. (Research used SOE/DarqUI UI-XML files on-box; not committed here — third-party files, not ours to redistribute.)
 
 ## From Alex — 2026-08-01
 

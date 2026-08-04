@@ -1,8 +1,0 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
-<Page Name="Template" PackSize="absolute, fixed" ScrollExtent="200,20" Size="200,20" DarqUI="3.003">
-    <Text Font="/TextStyles.Normal.NormalStyle" Margin="3,0,0,0" MaxLines="1" Name="TargetName" PackSize="a,f" ScrollExtent="175,18" ShadowStyle="/ShadowStylesNew.Outline.style" Size="175,18" TextAlignmentVertical="Center" TruncateElipsis="true">$dispname$</Text>
-    <Text Font="/TextStyles.Small.SmallStyle" Margin="3,0,0,0" Name="Health" OnTextChanged="Parent.Bar.Progress=($health$ / 100)" PackSize="a,f" ScrollExtent="175,18" ShadowStyle="/ShadowStylesNew.Outline.style" Size="175,18" TextAlignmentVertical="Center" TextColor="#$health_color$" Visible="false">$health$%</Text>
-    <Image Location="180,3" Name="CurrentTarget" PackLocation="right,top" ScrollExtent="13,13" Size="13,13" SourceRect="245,490,262,507" SourceResource="/images/mugshots_female.dds" Visible="$target$" />
-	<Page BackgroundOpacity="0.500" Name="Shroud" PackSize="a,f" ScrollExtent="200,18" Size="200,18" />
-	<Progressbar Color="#$health_color$" Location="0,0" Name="Bar" PackSize="absolute,absolute" Progress="0.500" ScrollExtent="175,18" Size="175,18" Style="progdata.bar.bar_style" />
-</Page>
