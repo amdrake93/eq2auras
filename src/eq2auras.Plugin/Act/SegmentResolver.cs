@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Linq;
 using Advanced_Combat_Tracker;
 using Eq2Auras.Core.Meter;
@@ -42,6 +43,43 @@ namespace Eq2Auras.Plugin.Act
             }
 
             return form.ActiveZone?.ActiveEncounter;
+        }
+
+        /// On flyout open (not per poll), under the lock: snapshot ZoneList into the Core RawZone/
+        /// RawEncounter rows and let the tested SegmentListBuilder do the grouping/ordering/filter/
+        /// availability. GetEncounterSuccessLevel is per-call (uncached), but this runs on-open only
+        /// and ACT's culling bounds ZoneList.
+        public static SegmentListing Enumerate(FormActMain form)
+        {
+            var raws = new List<SegmentListBuilder.RawZone>();
+            lock (form.AfterCombatActionDataLock)
+            {
+                foreach (var z in form.ZoneList ?? Enumerable.Empty<ZoneData>())
+                {
+                    var rz = new SegmentListBuilder.RawZone
+                    {
+                        ZoneName = z.ZoneName,
+                        ZoneKey = ZoneKey(z),
+                        IsCurrent = ReferenceEquals(z, form.ActiveZone),
+                        StartTicks = z.StartTime.Ticks,
+                        PopulateAll = z.PopulateAll,
+                    };
+                    for (int i = 0; i < z.Items.Count; i++)
+                    {
+                        var e = z.Items[i];
+                        rz.Encounters.Add(new SegmentListBuilder.RawEncounter
+                        {
+                            Title = string.IsNullOrEmpty(e.Title) ? "Encounter" : e.Title,
+                            DurationSeconds = e.Duration.TotalSeconds,
+                            SuccessLevel = e.GetEncounterSuccessLevel(),
+                            StartTicks = e.StartTimes.Count > 0 ? e.StartTimes[0].Ticks : 0,
+                            IsAll = z.PopulateAll && i == 0,
+                        });
+                    }
+                    raws.Add(rz);
+                }
+            }
+            return SegmentListBuilder.Build(raws);
         }
     }
 }
