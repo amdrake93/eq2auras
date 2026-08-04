@@ -26,7 +26,7 @@ _Copied from SPEC.md; every task's requirements implicitly include these._
 ## File Structure
 
 **Core (new):** `Meter/SegmentMode.cs`, `Meter/SegmentSelection.cs`, `Meter/SegmentRules.cs`, `Meter/SegmentKeys.cs`, `Meter/SegmentListing.cs` (DTOs + `SegmentListBuilder`).
-**Core (modified):** `Config/MeterWindowConfig.cs` (+2 fields), `Meter/MeterReading.cs` (+`SegmentSample`).
+**Core (modified):** `Config/MeterWindowConfig.cs` (+2 fields), `Meter/MeterReading.cs` (+`SegmentSample`, +`SegmentSampleSet`).
 **Plugin (new):** `Overlay/ThemeCheckbox.cs`, `Overlay/SegmentFlyout.cs`, `Act/SegmentResolver.cs`.
 **Plugin (modified):** `Act/EncounterProbe.cs`, `Overlay/OverlayHost.cs`, `Overlay/MeterWindow.cs`, `Overlay/MeterWindowCallbacks.cs`, `Eq2AurasPlugin.cs`.
 
