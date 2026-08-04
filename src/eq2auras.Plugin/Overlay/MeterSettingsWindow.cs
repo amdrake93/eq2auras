@@ -158,8 +158,10 @@ namespace Eq2Auras.Plugin.Overlay
                 backdropSlider.Value = MeterSettings.DefaultBackdropOpacity;
                 _fontFamily = null;
                 _fontBaseSize = 13.0;
+                _fontBold = false;
+                _fontItalic = false;
                 fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
-                _onFontChanged(_fontFamily, _fontBaseSize);
+                _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic);
             };
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
