@@ -32,7 +32,7 @@ namespace Eq2Auras.Plugin.Overlay
         private string _primaryKey;
         private string _secondaryKey;
 
-        public MeterPopup(UIElement placementTarget, MeterScope scope, string primaryKey, string secondaryKey, Func<bool> canRemove, Callbacks cb)
+        public MeterPopup(UIElement placementTarget, MeterScope scope, string primaryKey, string secondaryKey, Func<bool> canRemove, bool locked, Callbacks cb)
         {
             _cb = cb;
             _scope = scope;
@@ -46,7 +46,7 @@ namespace Eq2Auras.Plugin.Overlay
             body.Children.Add(SectionLabel("Secondary metric"));
             body.Children.Add(BuildGrid(isPrimary: false));
             body.Children.Add(Rule());
-            body.Children.Add(BuildLifecycle(canRemove));
+            body.Children.Add(BuildLifecycle(canRemove, locked));
 
             var dismiss = new ThemeButton("✕")
             {
@@ -75,7 +75,8 @@ namespace Eq2Auras.Plugin.Overlay
             _popup = new Popup
             {
                 PlacementTarget = placementTarget,
-                Placement = PlacementMode.Bottom,   // anchored to the header edge, not the cursor — drops below the header rather than covering the meter at a random spot (SPEC §Configuration: "anchored to the window you right-clicked")
+                Placement = PlacementMode.Top,   // opens ABOVE the header so it doesn't cover the meter body (field-2026-08-03); WPF flips it down near the screen top
+
                 StaysOpen = false,       // dismiss on outside click
                 AllowsTransparency = true,
                 Child = shell
@@ -171,9 +172,9 @@ namespace Eq2Auras.Plugin.Overlay
 
         private static UIElement Rule() => new Border { Height = 1, Background = Theme.Divider, Margin = new Thickness(13, 0, 13, 0) };
 
-        private UIElement BuildLifecycle(Func<bool> canRemove)
+        private UIElement BuildLifecycle(Func<bool> canRemove, bool locked)
         {
-            var lockBtn = new ThemeButton("Lock");
+            var lockBtn = new ThemeButton(locked ? "Unlock" : "Lock");   // label reflects the current state (field-2026-08-03)
             lockBtn.Click += () => { _cb.Lock(); _popup.IsOpen = false; };
             var newBtn = new ThemeButton("New meter") { Margin = new Thickness(7, 0, 0, 0) };
             newBtn.Click += () => { _cb.NewMeter(); _popup.IsOpen = false; };

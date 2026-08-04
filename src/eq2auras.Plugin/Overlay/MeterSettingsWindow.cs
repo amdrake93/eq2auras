@@ -16,13 +16,15 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Action<double> _onOpacityChanged;
         private readonly Action<double> _onBackdropOpacityChanged;
         private readonly Action<double> _onRowHeightChanged;
-        private readonly Action<string, double> _onFontChanged;
+        private readonly Action<string, double, bool, bool> _onFontChanged;
         private string _fontFamily;
         private double _fontBaseSize;
+        private bool _fontBold;
+        private bool _fontItalic;
 
         public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged,
             double backdropOpacity, Action<double> onBackdropOpacityChanged,
-            string fontFamily, double fontBaseSize, Action<string, double> onFontChanged)
+            string fontFamily, double fontBaseSize, bool fontBold, bool fontItalic, Action<string, double, bool, bool> onFontChanged)
         {
             _onOpacityChanged = onOpacityChanged;
             _onBackdropOpacityChanged = onBackdropOpacityChanged;
@@ -30,6 +32,8 @@ namespace Eq2Auras.Plugin.Overlay
             _onFontChanged = onFontChanged;
             _fontFamily = fontFamily;
             _fontBaseSize = fontBaseSize;
+            _fontBold = fontBold;
+            _fontItalic = fontItalic;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -92,12 +96,15 @@ namespace Eq2Auras.Plugin.Overlay
                 using (var dialog = new System.Windows.Forms.FontDialog())
                 {
                     var currentFamily = _fontFamily ?? System.Drawing.SystemFonts.MessageBoxFont.Name;
-                    dialog.Font = new System.Drawing.Font(currentFamily, (float)(_fontBaseSize * 72.0 / 96.0));
+                    var currentStyle = (_fontBold ? System.Drawing.FontStyle.Bold : 0) | (_fontItalic ? System.Drawing.FontStyle.Italic : 0);
+                    dialog.Font = new System.Drawing.Font(currentFamily, (float)(_fontBaseSize * 72.0 / 96.0), currentStyle);
                     if (dialog.ShowDialog() != System.Windows.Forms.DialogResult.OK) return;
                     _fontFamily = dialog.Font.Name;
                     _fontBaseSize = dialog.Font.SizeInPoints * 96.0 / 72.0;   // points -> DIPs
+                    _fontBold = dialog.Font.Bold;
+                    _fontItalic = dialog.Font.Italic;
                     fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
-                    _onFontChanged(_fontFamily, _fontBaseSize);
+                    _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic);
                 }
             };
             // Control region matches the sliders' width so Choose… right-aligns with the type-in

@@ -53,6 +53,12 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "fontBaseSize")]
         public double? FontBaseSize { get; set; }      // WPF DIPs; null = 13
 
+        [DataMember(Name = "fontBold")]
+        public bool FontBold { get; set; }             // the picker's Bold; 0-value false = normal (SPEC §Typography)
+
+        [DataMember(Name = "fontItalic")]
+        public bool FontItalic { get; set; }           // the picker's Italic
+
         [DataMember(Name = "width")]
         public double? Width { get; set; }             // null = VisualStyle.DefaultRowWidth (250); clamped to Settings row-width bounds
 

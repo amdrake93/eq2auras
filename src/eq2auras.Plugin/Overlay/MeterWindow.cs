@@ -100,11 +100,11 @@ namespace Eq2Auras.Plugin.Overlay
             double hr = style.HeightRatio;
             _durationText = HeaderBlock(style, dim: true);
             _metricText = HeaderBlock(style, dim: false);          // primary metric NAME — white, the header's left identity
-            _metricText.FontWeight = FontWeights.SemiBold;
+            _metricText.FontWeight = IdentityWeight;
             _metricText.TextTrimming = TextTrimming.CharacterEllipsis;
             _secondaryLabelText = HeaderBlock(style, dim: true);   // secondary label — subordinate grey, matches the row's secondary column
             _totalText = HeaderBlock(style, dim: false);
-            _totalText.FontWeight = FontWeights.SemiBold;
+            _totalText.FontWeight = IdentityWeight;
 
             // Left cluster: (duration) + primary metric NAME (the meter's identity — SPEC §Header).
             // A DockPanel docks the duration left and lets the metric name fill the remaining width
@@ -299,12 +299,16 @@ namespace Eq2Auras.Plugin.Overlay
             block.Visibility = block.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // The header identity accents (metric name, total) read SemiBold by default but honor a
+        // user Bold-font choice (SPEC §Typography — style respected).
+        private FontWeight IdentityWeight => _style.FontWeight == FontWeights.Bold ? FontWeights.Bold : FontWeights.SemiBold;
+
         /// Right-click opens the themed popup (SPEC Part III §Configuration): metric/secondary
         /// toggle-grids + lifecycle. A fresh popup per open reflects current state; toggles route
         /// through the callbacks (a cleared primary passes null — the meter shows nothing).
         private void OpenPopup(UIElement target)
         {
-            var popup = new MeterPopup(target, _scope, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
+            var popup = new MeterPopup(target, _scope, _metricKey, _secondaryKey, _cb.CanClose, _locked, new MeterPopup.Callbacks
             {
                 PrimarySelected = (scope, key) => { _scope = scope; _metricKey = key; _cb.PrimaryPicked(scope, key); },
                 SecondaryToggled = SetSecondary,
@@ -655,12 +659,15 @@ namespace Eq2Auras.Plugin.Overlay
                 _settings.Activate();
                 return;
             }
+            double settingsLeft = Left - 310;
+            if (settingsLeft < 0) settingsLeft = Left + Width + 10;   // beside the window, not over it (field-2026-08-03)
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
                 _backdropOpacity, SetBackdropOpacity,
-                _style.Font?.Source, _style.BaseSize, SetFont)
+                _style.Font?.Source, _style.BaseSize,
+                _style.FontWeight == FontWeights.Bold, _style.FontStyle == FontStyles.Italic, SetFont)
             {
-                Left = Left + 20,
-                Top = Top + 20,
+                Left = settingsLeft,
+                Top = Top,
             };
             _settings.Closed += (s, e) => _settings = null;
             _settings.Show();
@@ -700,6 +707,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
+                FontWeight = _style.FontWeight,
+                FontStyle = _style.FontStyle,
             };
             _rowsContainer.MinHeight = ReservedRowsHeight();
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
@@ -708,7 +717,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         /// Live font: re-point _style (family + base size), re-stamp the header text and
         /// every retained row in place; new slots read the live _style. Persisted.
-        public void SetFont(string fontFamily, double baseSize)
+        public void SetFont(string fontFamily, double baseSize, bool bold, bool italic)
         {
             _style = new VisualStyle
             {
@@ -718,10 +727,12 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = fontFamily != null ? new FontFamily(fontFamily) : null,
                 BaseSize = baseSize,
+                FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+                FontStyle = italic ? FontStyles.Italic : FontStyles.Normal,
             };
             ApplyHeaderFont();
             foreach (var slot in _slots) slot.SetFont(_style);
-            _cb.FontChanged(fontFamily, baseSize);
+            _cb.FontChanged(fontFamily, baseSize, bold, italic);
         }
 
         /// Live secondary selection (SPEC Part III §Configuration): persist the per-window
@@ -740,6 +751,8 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_secondaryLabelText, _style.RowText);
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
+            _metricText.FontWeight = IdentityWeight;   // ApplyFont set the base weight; restore the identity accent
+            _totalText.FontWeight = IdentityWeight;
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
             _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);
             _secondaryLabelText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
@@ -758,6 +771,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
+                FontWeight = _style.FontWeight,
+                FontStyle = _style.FontStyle,
             };
             _root.Width = width;
             Width = width;

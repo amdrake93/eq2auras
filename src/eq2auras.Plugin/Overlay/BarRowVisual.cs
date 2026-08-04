@@ -81,7 +81,9 @@ namespace Eq2Auras.Plugin.Overlay
             if (nameOutline)   // meter-only (SPEC §Meter display defaults — parameterized, not a blanket timer change): keeps names legible over light class fills
                 _name.Effect = new System.Windows.Media.Effects.DropShadowEffect
                 {
-                    Color = Colors.Black, ShadowDepth = 0, BlurRadius = 2, Opacity = 0.9,
+                    // A darker, tighter black halo — the field found the prior 2px/0.9 too faint over
+                    // light class fills (field-2026-08-03). ShadowDepth 0 = centered outline, not a shadow.
+                    Color = Colors.Black, ShadowDepth = 0, BlurRadius = 3, Opacity = 1.0, RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality,
                 };
             _trailing = new TextBlock
             {

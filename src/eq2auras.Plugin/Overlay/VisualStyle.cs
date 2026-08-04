@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -19,6 +20,8 @@ namespace Eq2Auras.Plugin.Overlay
         public double RowSpacing { get; set; } = 4.0; // flat DIPs — never derived (SPEC §Element dimensions)
         public FontFamily Font { get; set; }          // null = system default
         public double BaseSize { get; set; } = 13.0;  // WPF DIPs
+        public FontWeight FontWeight { get; set; } = FontWeights.Normal;   // the picker's Bold (SPEC §Typography — style respected)
+        public FontStyle FontStyle { get; set; } = FontStyles.Normal;      // the picker's Italic
 
         // The five text roles (13, 13, 34, 13, 13 — row, pie name, pie seconds,
         // LATE tag, LATE name). LATE respects the font as-is (field verdict, SPEC
@@ -40,6 +43,8 @@ namespace Eq2Auras.Plugin.Overlay
         {
             if (Font != null) text.FontFamily = Font;
             text.FontSize = size;
+            text.FontWeight = FontWeight;
+            text.FontStyle = FontStyle;
         }
     }
 }
