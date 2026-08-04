@@ -177,7 +177,11 @@ place. This is the same contract with a mechanical relay; the review mechanics (
 verification standard, block format, decision routing) apply unchanged. **The loop is a mode
 the owner explicitly invokes per artifact** — the writer never enters it on its own judgment.
 Invoking it is the owner's "go" for the whole loop: one authorized turn, ending at closure or
-a break condition.
+a break condition. **Spawn the reviewer on the most capable available model** (currently
+**Fable 5**, `claude-fable-5`) — the independent verification pass benefits most from the
+strongest reasoning, and it is the standing practice that has carried the spec/plan reviews to
+closure. This governs the automated loop's reviewer; a manually-bootstrapped reviewer session
+(§Bootstrap) should be started on the same tier.
 
 **Isolation requirements** (the non-negotiables):
 
