@@ -43,7 +43,7 @@ namespace Eq2Auras.Plugin.Overlay
                 HorizontalAlignment = HorizontalAlignment.Center,
                 VerticalAlignment = VerticalAlignment.Center
             };
-            style.ApplyFont(_seconds, style.PieSeconds);
+            style.ApplyFont(_seconds, style.PieSeconds, FontWeights.Bold);   // the escalation focal glyph — always Bold
             _name = new TextBlock
             {
                 FontWeight = FontWeights.SemiBold,
@@ -52,7 +52,7 @@ namespace Eq2Auras.Plugin.Overlay
                 TextTrimming = TextTrimming.CharacterEllipsis,
                 MaxWidth = 190 * style.RadialRatio
             };
-            style.ApplyFont(_name, style.PieName);
+            style.ApplyFont(_name, style.PieName, FontWeights.SemiBold);
 
             var pieStack = new Grid();
             pieStack.Children.Add(_ring);
@@ -114,7 +114,7 @@ namespace Eq2Auras.Plugin.Overlay
                 Foreground = new SolidColorBrush(OverlayTheme.Text),
                 HorizontalAlignment = HorizontalAlignment.Center
             };
-            style.ApplyFont(_late, style.LateTag);
+            style.ApplyFont(_late, style.LateTag, FontWeights.Bold);   // LATE tag — always Bold
             _name = new TextBlock
             {
                 Foreground = new SolidColorBrush(OverlayTheme.Text),

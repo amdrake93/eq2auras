@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Controls.Primitives;
@@ -12,17 +14,26 @@ namespace Eq2Auras.Plugin.Overlay
     /// on top (Zonewide disabled/greyed when the current zone has no "Zone All listing"), then
     /// per-zone collapsible groups — each an All (a disabled placeholder when the zone lacks one)
     /// then its fights with a win/partial/wipe dot — and a footer "Return to Current" checkbox.
+    /// Inherits the source window's font; width pre-measured so expanding a group never snaps it;
+    /// opens up-and-left from the chip (WPF clamps it on-screen). No scrollbar chrome — the wheel scrolls.
     internal sealed class SegmentFlyout
     {
+        private const double LeadWidth = 14;   // the dot/Σ column — shared so labels align
+        private const double DurationWidth = 52;
+
         private readonly Popup _popup;
         private readonly Action<SegmentSelection, string> _onPick;
+        private readonly FontFamily _fontFamily;
+        private readonly double _fontSize;
 
-        public SegmentFlyout(UIElement target, SegmentListing listing, SegmentSelection current, bool returnToCurrent,
+        public SegmentFlyout(UIElement target, VisualStyle style, SegmentListing listing, SegmentSelection current, bool returnToCurrent,
             Action<SegmentSelection, string> onPick, Action<bool> onKnobToggled)
         {
             _onPick = onPick;
+            _fontFamily = style?.Font;
+            _fontSize = style?.RowText ?? 13.0;
 
-            var body = new StackPanel { MinWidth = 224 };
+            var body = new StackPanel();
             body.Children.Add(SectionLabel("Segment"));
             body.Children.Add(TopItem("Current", current.Kind == SegmentKind.Current, enabled: true,
                 onClick: () => Pick(SegmentSelection.Current(), "Current")));
@@ -34,7 +45,7 @@ namespace Eq2Auras.Plugin.Overlay
             body.Children.Add(new ScrollViewer
             {
                 MaxHeight = 250,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+                VerticalScrollBarVisibility = ScrollBarVisibility.Hidden,   // no raw chrome — the wheel scrolls
                 Content = groups,
             });
 
@@ -43,8 +54,10 @@ namespace Eq2Auras.Plugin.Overlay
             knob.Toggled += b => onKnobToggled?.Invoke(b);
             body.Children.Add(knob);
 
+            double width = MeasureWidth(listing);
             var shell = new Border
             {
+                Width = width,
                 Background = Theme.Surface(0xF2),
                 BorderBrush = Theme.Divider,
                 BorderThickness = new Thickness(1),
@@ -55,7 +68,8 @@ namespace Eq2Auras.Plugin.Overlay
             _popup = new Popup
             {
                 PlacementTarget = target,
-                Placement = PlacementMode.Bottom,
+                Placement = PlacementMode.Custom,          // up-and-left (below); WPF clamps on-screen
+                CustomPopupPlacementCallback = UpAndLeft,
                 StaysOpen = false,
                 AllowsTransparency = true,
                 Child = shell,
@@ -63,6 +77,12 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         public void Show() { _popup.IsOpen = true; }
+        public void Close() { _popup.IsOpen = false; }
+
+        // Open above the chip, right edge aligned to the chip's right edge so it extends LEFT over the
+        // window's own top-right, not off to the right; WPF nudges it fully on-screen from here.
+        private static CustomPopupPlacement[] UpAndLeft(Size popupSize, Size targetSize, Point offset)
+            => new[] { new CustomPopupPlacement(new Point(targetSize.Width - popupSize.Width, -popupSize.Height), PopupPrimaryAxis.Horizontal) };
 
         private void Pick(SegmentSelection sel, string label)
         {
@@ -75,10 +95,13 @@ namespace Eq2Auras.Plugin.Overlay
             var groupBody = new StackPanel { Visibility = zone.IsCurrent ? Visibility.Visible : Visibility.Collapsed };
 
             var caret = new TextBlock { Text = zone.IsCurrent ? "▾" : "▸", Foreground = Theme.TextMuted, FontSize = 9, Width = 12, VerticalAlignment = VerticalAlignment.Center };
+            var zoneName = new TextBlock { Text = zone.ZoneName, Foreground = Theme.TextLabel, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
+            ApplyFont(zoneName, _fontSize - 2);
             var nameRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 7, 8, 2) };
             nameRow.Children.Add(caret);
-            nameRow.Children.Add(new TextBlock { Text = zone.ZoneName, Foreground = Theme.TextLabel, FontSize = 10, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
+            nameRow.Children.Add(zoneName);
             var header = new Border { Child = nameRow, Cursor = Cursors.Hand, Background = Brushes.Transparent };
+            Hoverable(header, selected: false);
             header.MouseLeftButtonUp += (s, e) =>
             {
                 bool show = groupBody.Visibility != Visibility.Visible;
@@ -87,8 +110,7 @@ namespace Eq2Auras.Plugin.Overlay
             };
             parent.Children.Add(header);
 
-            bool allSelected = zone.All.Available && current.Kind == SegmentKind.Historical
-                && current.IsAll && current.ZoneKey == zone.All.ZoneKey;
+            bool allSelected = zone.All.Available && current.Kind == SegmentKind.Historical && current.IsAll && current.ZoneKey == zone.All.ZoneKey;
             var allEntry = zone.All;
             groupBody.Children.Add(FightItem(allEntry, "All", allEntry.Available, allSelected,
                 () => Pick(SegmentSelection.HistoricalAll(allEntry.ZoneKey), "All — " + zone.ZoneName)));
@@ -104,7 +126,7 @@ namespace Eq2Auras.Plugin.Overlay
             parent.Children.Add(groupBody);
         }
 
-        private static UIElement SectionLabel(string text) => new TextBlock
+        private UIElement SectionLabel(string text) => new TextBlock
         {
             Text = text.ToUpperInvariant(),
             FontSize = 9,
@@ -118,13 +140,13 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var text = new TextBlock
             {
-                Text = label,
-                FontSize = 12,
+                Text = enabled ? label : label + "  (needs “Zone All listing”)",
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = enabled ? (selected ? Theme.TextPrimary : Theme.TextLabel) : Theme.TextMuted,
                 FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal,
+                TextTrimming = TextTrimming.CharacterEllipsis,
             };
-            if (!enabled) text.Text = label + "  (needs “Zone All listing”)";
+            ApplyFont(text, _fontSize);
             var border = new Border
             {
                 Child = text,
@@ -133,30 +155,43 @@ namespace Eq2Auras.Plugin.Overlay
                 CornerRadius = new CornerRadius(3),
                 Background = selected ? Theme.ItemSelected : Brushes.Transparent,
             };
-            if (enabled) { border.Cursor = Cursors.Hand; border.MouseLeftButtonUp += (s, e) => onClick(); }
+            if (enabled) { border.Cursor = Cursors.Hand; border.MouseLeftButtonUp += (s, e) => onClick(); Hoverable(border, selected); }
             return border;
         }
 
         private UIElement FightItem(SegmentEntry entry, string label, bool enabled, bool selected, Action onClick)
         {
-            var row = new StackPanel { Orientation = Orientation.Horizontal };
-            if (entry.IsAll)
-                row.Children.Add(new TextBlock { Text = "Σ", Width = 12, TextAlignment = TextAlignment.Center, Foreground = enabled ? Theme.AccentBlue : Theme.TextMuted, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center });
-            else
-                row.Children.Add(new System.Windows.Shapes.Ellipse { Width = 6, Height = 6, Margin = new Thickness(3, 0, 6, 0), VerticalAlignment = VerticalAlignment.Center, Fill = OutcomeBrush(entry.Outcome) });
+            var lead = entry.IsAll
+                ? (UIElement)new TextBlock { Text = "Σ", Width = LeadWidth, TextAlignment = TextAlignment.Center, Foreground = enabled ? Theme.AccentBlue : Theme.TextMuted, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center }
+                : new Border { Width = LeadWidth, Child = new System.Windows.Shapes.Ellipse { Width = 6, Height = 6, Fill = OutcomeBrush(entry.Outcome) }, VerticalAlignment = VerticalAlignment.Center };
 
-            row.Children.Add(new TextBlock
+            var name = new TextBlock
             {
                 Text = label,
-                FontSize = 11,
                 VerticalAlignment = VerticalAlignment.Center,
                 Foreground = enabled ? (selected ? Theme.TextPrimary : Theme.TextLabel) : Theme.TextMuted,
                 FontWeight = selected ? FontWeights.SemiBold : FontWeights.Normal,
-            });
+                TextTrimming = TextTrimming.CharacterEllipsis,
+            };
+            ApplyFont(name, _fontSize - 1);
 
-            string trailing = !enabled ? "  (unavailable)" : (entry.DurationSeconds > 0 ? "  " + FormatDuration(entry.DurationSeconds) : "");
-            if (trailing.Length > 0)
-                row.Children.Add(new TextBlock { Text = trailing, FontSize = 10, Foreground = Theme.TextMuted, VerticalAlignment = VerticalAlignment.Center });
+            string trailing = !enabled ? "unavailable" : (entry.DurationSeconds > 0 ? FormatDuration(entry.DurationSeconds) : "");
+            var duration = new TextBlock
+            {
+                Text = trailing,
+                Width = DurationWidth,
+                TextAlignment = TextAlignment.Right,
+                Foreground = Theme.TextMuted,
+                VerticalAlignment = VerticalAlignment.Center,
+            };
+            ApplyFont(duration, _fontSize - 2);
+
+            var row = new DockPanel { LastChildFill = true };
+            DockPanel.SetDock(lead, Dock.Left);
+            DockPanel.SetDock(duration, Dock.Right);   // right-aligned duration column
+            row.Children.Add(lead);
+            row.Children.Add(duration);
+            row.Children.Add(name);   // fills the middle, trims
 
             var border = new Border
             {
@@ -166,8 +201,45 @@ namespace Eq2Auras.Plugin.Overlay
                 CornerRadius = new CornerRadius(3),
                 Background = selected ? Theme.ItemSelected : Brushes.Transparent,
             };
-            if (enabled) { border.Cursor = Cursors.Hand; border.MouseLeftButtonUp += (s, e) => onClick(); }
+            if (enabled) { border.Cursor = Cursors.Hand; border.MouseLeftButtonUp += (s, e) => onClick(); Hoverable(border, selected); }
             return border;
+        }
+
+        /// Hover highlight (SPEC §The theme system — the selectable list-item's state set): a selected
+        /// row keeps its lit background; an unselected one lights on enter and clears on leave.
+        private static void Hoverable(Border border, bool selected)
+        {
+            border.MouseEnter += (s, e) => { if (!selected) border.Background = Theme.ItemSelected; };
+            border.MouseLeave += (s, e) => { if (!selected) border.Background = Brushes.Transparent; };
+        }
+
+        private void ApplyFont(TextBlock text, double size)
+        {
+            if (_fontFamily != null) text.FontFamily = _fontFamily;
+            text.FontSize = size;
+        }
+
+        // Pre-measure so expanding a long-named group never snaps the flyout: the widest label across
+        // every row (visible or collapsed) sets the width, capped; anything past it ellipsis-trims.
+        private double MeasureWidth(SegmentListing listing)
+        {
+            double max = TextWidth("Return to Current when a fight starts", _fontSize) + 30;   // the knob is the usual floor
+            max = Math.Max(max, TextWidth("Zonewide  (needs “Zone All listing”)", _fontSize) + 40);
+            foreach (var z in listing.Zones)
+            {
+                max = Math.Max(max, TextWidth(z.ZoneName, _fontSize - 2) + 40);
+                max = Math.Max(max, TextWidth("All", _fontSize - 1) + 30 + LeadWidth + DurationWidth + 20);
+                foreach (var f in z.Fights)
+                    max = Math.Max(max, TextWidth(f.Title, _fontSize - 1) + 30 + LeadWidth + DurationWidth + 20);
+            }
+            return Math.Max(224, Math.Min(340, max));
+        }
+
+        private double TextWidth(string text, double size)
+        {
+            var typeface = new Typeface(_fontFamily ?? new FontFamily("Segoe UI"), FontStyles.Normal, FontWeights.Normal, FontStretches.Normal);
+            var ft = new FormattedText(text ?? "", CultureInfo.CurrentUICulture, FlowDirection.LeftToRight, typeface, size, Brushes.Black, 1.0);
+            return ft.WidthIncludingTrailingWhitespace;
         }
 
         private static Brush OutcomeBrush(EncounterOutcome o)

@@ -1,3 +1,4 @@
+using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
 
@@ -19,6 +20,8 @@ namespace Eq2Auras.Plugin.Overlay
         public double RowSpacing { get; set; } = 4.0; // flat DIPs — never derived (SPEC §Element dimensions)
         public FontFamily Font { get; set; }          // null = system default
         public double BaseSize { get; set; } = 13.0;  // WPF DIPs
+        public FontWeight FontWeight { get; set; } = FontWeights.Normal;   // the picker's Bold (field-2026-08-03 — respect the dialog's style)
+        public FontStyle FontStyle { get; set; } = FontStyles.Normal;      // the picker's Italic
 
         // The five text roles (13, 13, 34, 13, 13 — row, pie name, pie seconds,
         // LATE tag, LATE name). LATE respects the font as-is (field verdict, SPEC
@@ -36,10 +39,18 @@ namespace Eq2Auras.Plugin.Overlay
         public double HeightRatio => RowHeight / DefaultRowHeight;
         public double RadialRatio => RadialSize / DefaultRadialSize;
 
-        public void ApplyFont(TextBlock text, double size)
+        public void ApplyFont(TextBlock text, double size) => ApplyFont(text, size, FontWeights.Normal);
+
+        /// `accent` = the element's intrinsic weight (SemiBold value text, Bold pie-seconds / LATE tag).
+        /// The user's Bold wins; otherwise the accent applies. Always set from these stable inputs — never
+        /// read the element's mutated weight — so a live Bold→Normal revert resets cleanly instead of
+        /// leaving stale-Bold text. Italic always applies (no visual sets FontStyle in its initializer).
+        public void ApplyFont(TextBlock text, double size, FontWeight accent)
         {
             if (Font != null) text.FontFamily = Font;
             text.FontSize = size;
+            text.FontWeight = FontWeight == FontWeights.Bold ? FontWeights.Bold : accent;
+            text.FontStyle = FontStyle;
         }
     }
 }

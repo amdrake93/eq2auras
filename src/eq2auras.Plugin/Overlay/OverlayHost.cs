@@ -129,7 +129,7 @@ namespace Eq2Auras.Plugin.Overlay
                     OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
                     BackdropOpacityChanged = v => SettingsStore.Update(_settings, () => config.BackdropOpacity = v),
                     RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
-                    FontChanged = (family, size) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; }),
+                    FontChanged = (family, size, bold, italic) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; config.FontBold = bold; config.FontItalic = italic; }),
                     GeometryChanged = (width, rows) => SettingsStore.Update(_settings, () => { config.Width = width; config.VisibleRows = rows; }),
                     NewWindow = () => AddNewWindow(config),
                     CloseWindow = () => CloseMeterWindow(config),
@@ -213,6 +213,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowHeight = config.RowHeight ?? VisualStyle.DefaultRowHeight,
                 Font = config.FontFamily != null ? new System.Windows.Media.FontFamily(config.FontFamily) : null,
                 BaseSize = config.FontBaseSize ?? 13.0,
+                FontWeight = config.FontBold ? System.Windows.FontWeights.Bold : System.Windows.FontWeights.Normal,
+                FontStyle = config.FontItalic ? System.Windows.FontStyles.Italic : System.Windows.FontStyles.Normal,
             };
 
         private const double MeterCascadeOffset = 30;

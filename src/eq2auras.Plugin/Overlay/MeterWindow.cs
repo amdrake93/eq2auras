@@ -64,6 +64,7 @@ namespace Eq2Auras.Plugin.Overlay
         private Border _segmentChip;                   // header segment chip (SPEC §Header) — click opens the flyout
         private TextBlock _segmentChipText;
         private TextBlock _unavailableHint;            // Zonewide-with-PopulateAll-off dormant-body hint (SPEC §Availability)
+        private SegmentFlyout _segmentFlyout;          // tracked so a prior flyout is closed before reopening
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             SegmentMode segmentMode, bool pinnedToSegment,
@@ -99,11 +100,11 @@ namespace Eq2Auras.Plugin.Overlay
             double hr = style.HeightRatio;
             _durationText = HeaderBlock(style, dim: true);
             _metricText = HeaderBlock(style, dim: false);          // primary metric NAME — white, the header's left identity
-            _metricText.FontWeight = FontWeights.SemiBold;
+            _metricText.FontWeight = IdentityWeight;
             _metricText.TextTrimming = TextTrimming.CharacterEllipsis;
             _secondaryLabelText = HeaderBlock(style, dim: true);   // secondary label — subordinate grey, matches the row's secondary column
             _totalText = HeaderBlock(style, dim: false);
-            _totalText.FontWeight = FontWeights.SemiBold;
+            _totalText.FontWeight = IdentityWeight;
 
             // Left cluster: (duration) + primary metric NAME (the meter's identity — SPEC §Header).
             // A DockPanel docks the duration left and lets the metric name fill the remaining width
@@ -172,7 +173,9 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
             };
-            _segmentChip.MouseLeftButtonUp += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
+            // Open on DOWN with Handled — like the cog — so the header's drag handler (which captures
+            // the mouse on button-down when unlocked) can never swallow the chip's click.
+            _segmentChip.MouseLeftButtonDown += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
 
             // Outer header: [ (dur) metric (star) ] [segment chip (auto)] [secondary label + total (auto)] [cog (auto)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
@@ -296,12 +299,16 @@ namespace Eq2Auras.Plugin.Overlay
             block.Visibility = block.Text.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
         }
 
+        // The header identity accents (metric name, total) read SemiBold by default but honor a
+        // user Bold-font choice (field-2026-08-03).
+        private FontWeight IdentityWeight => _style.FontWeight == FontWeights.Bold ? FontWeights.Bold : FontWeights.SemiBold;
+
         /// Right-click opens the themed popup (SPEC Part III §Configuration): metric/secondary
         /// toggle-grids + lifecycle. A fresh popup per open reflects current state; toggles route
         /// through the callbacks (a cleared primary passes null — the meter shows nothing).
         private void OpenPopup(UIElement target)
         {
-            var popup = new MeterPopup(target, _scope, _metricKey, _secondaryKey, _cb.CanClose, new MeterPopup.Callbacks
+            var popup = new MeterPopup(target, _scope, _metricKey, _secondaryKey, _cb.CanClose, _locked, new MeterPopup.Callbacks
             {
                 PrimarySelected = (scope, key) => { _scope = scope; _metricKey = key; _cb.PrimaryPicked(scope, key); },
                 SecondaryToggled = SetSecondary,
@@ -470,7 +477,8 @@ namespace Eq2Auras.Plugin.Overlay
         {
             var listing = _cb.EnumerateSegments?.Invoke();
             if (listing == null) return;
-            var flyout = new SegmentFlyout(_segmentChip, listing, _selection, returnToCurrent: !_pinned,
+            _segmentFlyout?.Close();   // no stale Popup left to swallow the next click
+            _segmentFlyout = new SegmentFlyout(_segmentChip, _style, listing, _selection, returnToCurrent: !_pinned,
                 onPick: (sel, label) =>
                 {
                     ApplySelection(sel, label);
@@ -480,7 +488,7 @@ namespace Eq2Auras.Plugin.Overlay
                     // Historical picks are runtime-only — the persisted mode is unchanged (SPEC §Segments Persistence).
                 },
                 onKnobToggled: knobChecked => { _pinned = !knobChecked; _cb.PinnedChanged?.Invoke(_pinned); });
-            flyout.Show();
+            _segmentFlyout.Show();
         }
 
         private static string SegmentLabel(SegmentSelection sel)
@@ -651,12 +659,15 @@ namespace Eq2Auras.Plugin.Overlay
                 _settings.Activate();
                 return;
             }
+            double settingsLeft = Left - 360;   // ~settings-window width (350) + a gap, so it clears the meter's left edge
+            if (settingsLeft < 0) settingsLeft = Left + Width + 10;   // beside the window, not over it (field-2026-08-03)
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
                 _backdropOpacity, SetBackdropOpacity,
-                _style.Font?.Source, _style.BaseSize, SetFont)
+                _style.Font?.Source, _style.BaseSize,
+                _style.FontWeight == FontWeights.Bold, _style.FontStyle == FontStyles.Italic, SetFont)
             {
-                Left = Left + 20,
-                Top = Top + 20,
+                Left = settingsLeft,
+                Top = Top,
             };
             _settings.Closed += (s, e) => _settings = null;
             _settings.Show();
@@ -696,6 +707,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
+                FontWeight = _style.FontWeight,
+                FontStyle = _style.FontStyle,
             };
             _rowsContainer.MinHeight = ReservedRowsHeight();
             foreach (var slot in _slots) slot.SetRowHeight(rowHeight);
@@ -704,7 +717,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         /// Live font: re-point _style (family + base size), re-stamp the header text and
         /// every retained row in place; new slots read the live _style. Persisted.
-        public void SetFont(string fontFamily, double baseSize)
+        public void SetFont(string fontFamily, double baseSize, bool bold, bool italic)
         {
             _style = new VisualStyle
             {
@@ -714,10 +727,12 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = fontFamily != null ? new FontFamily(fontFamily) : null,
                 BaseSize = baseSize,
+                FontWeight = bold ? FontWeights.Bold : FontWeights.Normal,
+                FontStyle = italic ? FontStyles.Italic : FontStyles.Normal,
             };
             ApplyHeaderFont();
             foreach (var slot in _slots) slot.SetFont(_style);
-            _cb.FontChanged(fontFamily, baseSize);
+            _cb.FontChanged(fontFamily, baseSize, bold, italic);
         }
 
         /// Live secondary selection (SPEC Part III §Configuration): persist the per-window
@@ -736,6 +751,8 @@ namespace Eq2Auras.Plugin.Overlay
             _style.ApplyFont(_secondaryLabelText, _style.RowText);
             _style.ApplyFont(_totalText, _style.RowText);
             _style.ApplyFont(_affordance, _style.RowText);
+            _metricText.FontWeight = IdentityWeight;   // ApplyFont set the base weight; restore the identity accent
+            _totalText.FontWeight = IdentityWeight;
             _totalText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
             _totalText.Margin = new Thickness(0, 0, MeterColumns.ColumnGap, 0);
             _secondaryLabelText.Width = MeterColumns.NumberWidth(_style, _style.RowText);
@@ -754,6 +771,8 @@ namespace Eq2Auras.Plugin.Overlay
                 RowSpacing = _style.RowSpacing,
                 Font = _style.Font,
                 BaseSize = _style.BaseSize,
+                FontWeight = _style.FontWeight,
+                FontStyle = _style.FontStyle,
             };
             _root.Width = width;
             Width = width;
@@ -828,6 +847,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _settings?.Close();
             _hover?.Close();
+            _segmentFlyout?.Close();
             base.OnClosed(e);
         }
     }

@@ -16,7 +16,7 @@ namespace Eq2Auras.Plugin.Overlay
         public Action<double> OpacityChanged;
         public Action<double> BackdropOpacityChanged;
         public Action<double> RowHeightChanged;
-        public Action<string, double> FontChanged;
+        public Action<string, double, bool, bool> FontChanged;   // family, size, bold, italic
         public Action<double, int> GeometryChanged;   // width + visible-row count, persisted at resize drag-end
         public Action NewWindow;
         public Action CloseWindow;

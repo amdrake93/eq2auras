@@ -161,7 +161,7 @@ namespace Eq2Auras.Plugin.Overlay
         {
             _style = style;
             style.ApplyFont(_bar.NameText, style.RowText);
-            style.ApplyFont(_bar.TrailingText, style.RowText);
+            style.ApplyFont(_bar.TrailingText, style.RowText, System.Windows.FontWeights.SemiBold);   // value column accent
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
 
             double numberWidth = MeterColumns.NumberWidth(style, style.RowText);
