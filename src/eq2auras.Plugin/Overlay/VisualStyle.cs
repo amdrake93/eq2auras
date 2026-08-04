@@ -20,7 +20,7 @@ namespace Eq2Auras.Plugin.Overlay
         public double RowSpacing { get; set; } = 4.0; // flat DIPs — never derived (SPEC §Element dimensions)
         public FontFamily Font { get; set; }          // null = system default
         public double BaseSize { get; set; } = 13.0;  // WPF DIPs
-        public FontWeight FontWeight { get; set; } = FontWeights.Normal;   // the picker's Bold (SPEC §Typography — style respected)
+        public FontWeight FontWeight { get; set; } = FontWeights.Normal;   // the picker's Bold (field-2026-08-03 — respect the dialog's style)
         public FontStyle FontStyle { get; set; } = FontStyles.Normal;      // the picker's Italic
 
         // The five text roles (13, 13, 34, 13, 13 — row, pie name, pie seconds,
@@ -43,7 +43,10 @@ namespace Eq2Auras.Plugin.Overlay
         {
             if (Font != null) text.FontFamily = Font;
             text.FontSize = size;
-            text.FontWeight = FontWeight;
+            // Only override the weight when the user actually picked Bold — a Normal style must NOT clobber
+            // a visual's own accent (timer pie/LATE Bold, meter value SemiBold), which the initializer set
+            // before this call. Italic is always safe (no visual sets FontStyle in its initializer).
+            if (FontWeight != FontWeights.Normal) text.FontWeight = FontWeight;
             text.FontStyle = FontStyle;
         }
     }

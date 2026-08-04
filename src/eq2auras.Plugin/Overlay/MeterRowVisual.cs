@@ -162,6 +162,9 @@ namespace Eq2Auras.Plugin.Overlay
             _style = style;
             style.ApplyFont(_bar.NameText, style.RowText);
             style.ApplyFont(_bar.TrailingText, style.RowText);
+            // The value column is SemiBold by default, Bold when the user picks Bold — re-assert it so a
+            // live Bold→Normal revert doesn't leave it stale (ApplyFont only sets weight when non-Normal).
+            _bar.TrailingText.FontWeight = style.FontWeight == System.Windows.FontWeights.Bold ? System.Windows.FontWeights.Bold : System.Windows.FontWeights.SemiBold;
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
 
             double numberWidth = MeterColumns.NumberWidth(style, style.RowText);

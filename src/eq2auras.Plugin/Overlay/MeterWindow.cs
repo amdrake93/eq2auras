@@ -300,7 +300,7 @@ namespace Eq2Auras.Plugin.Overlay
         }
 
         // The header identity accents (metric name, total) read SemiBold by default but honor a
-        // user Bold-font choice (SPEC §Typography — style respected).
+        // user Bold-font choice (field-2026-08-03).
         private FontWeight IdentityWeight => _style.FontWeight == FontWeights.Bold ? FontWeights.Bold : FontWeights.SemiBold;
 
         /// Right-click opens the themed popup (SPEC Part III §Configuration): metric/secondary
@@ -659,7 +659,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _settings.Activate();
                 return;
             }
-            double settingsLeft = Left - 310;
+            double settingsLeft = Left - 360;   // ~settings-window width (350) + a gap, so it clears the meter's left edge
             if (settingsLeft < 0) settingsLeft = Left + Width + 10;   // beside the window, not over it (field-2026-08-03)
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
                 _backdropOpacity, SetBackdropOpacity,

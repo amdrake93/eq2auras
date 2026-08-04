@@ -54,7 +54,7 @@ namespace Eq2Auras.Core.Config
         public double? FontBaseSize { get; set; }      // WPF DIPs; null = 13
 
         [DataMember(Name = "fontBold")]
-        public bool FontBold { get; set; }             // the picker's Bold; 0-value false = normal (SPEC §Typography)
+        public bool FontBold { get; set; }             // the picker's Bold; 0-value false = normal (field-2026-08-03)
 
         [DataMember(Name = "fontItalic")]
         public bool FontItalic { get; set; }           // the picker's Italic

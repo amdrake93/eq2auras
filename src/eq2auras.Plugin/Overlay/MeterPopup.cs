@@ -76,7 +76,6 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 PlacementTarget = placementTarget,
                 Placement = PlacementMode.Top,   // opens ABOVE the header so it doesn't cover the meter body (field-2026-08-03); WPF flips it down near the screen top
-
                 StaysOpen = false,       // dismiss on outside click
                 AllowsTransparency = true,
                 Child = shell
