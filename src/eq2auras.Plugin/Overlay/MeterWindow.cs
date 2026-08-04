@@ -173,9 +173,12 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 Cursor = Cursors.Hand,
             };
-            // Open on DOWN with Handled — like the cog — so the header's drag handler (which captures
-            // the mouse on button-down when unlocked) can never swallow the chip's click.
-            _segmentChip.MouseLeftButtonDown += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
+            // Block the header drag on button-DOWN (Handled stops it bubbling to OnHeaderDrag, which
+            // captures the mouse), but open the flyout on button-UP — the real click. Opening on Down
+            // made the release read as an outside-click that instantly dismissed the StaysOpen=false
+            // popup (hold-to-open / release-to-close, field-2026-08-04).
+            _segmentChip.MouseLeftButtonDown += (s, e) => { e.Handled = true; };
+            _segmentChip.MouseLeftButtonUp += (s, e) => { e.Handled = true; OpenSegmentFlyout(); };
 
             // Outer header: [ (dur) metric (star) ] [segment chip (auto)] [secondary label + total (auto)] [cog (auto)].
             var headerGrid = new Grid { Margin = new Thickness(8 * hr, 0, 8 * hr, 0) };
