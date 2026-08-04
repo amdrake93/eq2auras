@@ -21,6 +21,14 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "scope")]
         public MeterScope Scope { get; set; } = MeterScope.Allies;   // the PRIMARY's scope; 0-value survives DCJS (no initializer on deserialize). Unknown values degrade to Allies at the engine read site.
 
+        [DataMember(Name = "segmentMode")]
+        public SegmentMode SegmentMode { get; set; } = SegmentMode.Current;   // 0-value Current survives DCJS; a legacy/absent value lands on Current.
+
+        // Inverted per the DCJS 0-value rule: false = knob ON (auto-return, the default);
+        // true = pinned (the window stays on its selection). SPEC §Settings.
+        [DataMember(Name = "pinnedToSegment")]
+        public bool PinnedToSegment { get; set; }
+
         [DataMember(Name = "left")]
         public double? Left { get; set; }
 
