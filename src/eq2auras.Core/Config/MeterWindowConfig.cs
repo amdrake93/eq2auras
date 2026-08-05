@@ -64,5 +64,11 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "visibleRows")]
         public int? VisibleRows { get; set; }          // null = MeterWindow.DefaultVisibleRows (10); clamped to [Min,Max]VisibleRows
+
+        // Inverted per the DCJS 0-value rule: false = class colours ON (the default); true =
+        // grey rows (the pre-class-color monochrome look). SPEC §Class colors. The cog checkbox
+        // is its inverse view; the plugin gates MeterEngine's colour resolver on this.
+        [DataMember(Name = "disableClassColors")]
+        public bool DisableClassColors { get; set; }
     }
 }
