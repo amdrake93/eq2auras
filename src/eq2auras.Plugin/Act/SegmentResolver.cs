@@ -55,22 +55,27 @@ namespace Eq2Auras.Plugin.Act
             return form.ActiveZone?.ActiveEncounter;
         }
 
-        /// On flyout open (not per poll), under the lock: snapshot ZoneList into the Core RawZone/
-        /// RawEncounter rows and let the tested SegmentListBuilder do the grouping/ordering/filter/
-        /// availability. GetEncounterSuccessLevel is per-call (uncached), but this runs on-open only
-        /// and ACT's culling bounds ZoneList.
-        public static SegmentListing Enumerate(FormActMain form)
+        /// On flyout open (not per poll), under the lock: snapshot ZoneList into Core RawZone/
+        /// RawEncounter rows. `GetEncounterSuccessLevel()` forces ACT to compute AND CACHE an ally list
+        /// per encounter — so on an import-heavy session, dotting every encounter permanently bloats
+        /// ACT's memory and stalls the lock (field-2026-08-04, "all of ACT laggy"). We only pay it for
+        /// zones the flyout shows expanded — the current zone plus the user's remembered ones; the rest
+        /// render dot-less (Unknown). The flyout itself builds visual rows only for those zones too.
+        public static SegmentListing Enumerate(FormActMain form, HashSet<string> dottedZones)
         {
             var raws = new List<SegmentListBuilder.RawZone>();
             lock (form.AfterCombatActionDataLock)
             {
                 foreach (var z in form.ZoneList ?? Enumerable.Empty<ZoneData>())
                 {
+                    string zoneKey = ZoneKey(z);
+                    bool isCurrent = ReferenceEquals(z, form.ActiveZone);
+                    bool dotted = isCurrent || (dottedZones != null && dottedZones.Contains(zoneKey));
                     var rz = new SegmentListBuilder.RawZone
                     {
                         ZoneName = z.ZoneName,
-                        ZoneKey = ZoneKey(z),
-                        IsCurrent = ReferenceEquals(z, form.ActiveZone),
+                        ZoneKey = zoneKey,
+                        IsCurrent = isCurrent,
                         StartTicks = z.StartTime.Ticks,
                         PopulateAll = z.PopulateAll,
                     };
@@ -81,7 +86,7 @@ namespace Eq2Auras.Plugin.Act
                         {
                             Title = string.IsNullOrEmpty(e.Title) ? "Encounter" : e.Title,
                             DurationSeconds = e.Duration.TotalSeconds,
-                            SuccessLevel = e.GetEncounterSuccessLevel(),
+                            SuccessLevel = dotted ? e.GetEncounterSuccessLevel() : 0,   // the ally-cache-bloating call — scoped
                             StartTicks = e.StartTimes.Count > 0 ? e.StartTimes[0].Ticks : 0,
                             IsAll = z.PopulateAll && i == 0,
                         });

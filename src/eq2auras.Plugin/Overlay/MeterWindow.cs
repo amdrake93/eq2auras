@@ -65,6 +65,7 @@ namespace Eq2Auras.Plugin.Overlay
         private TextBlock _segmentChipText;
         private TextBlock _unavailableHint;            // Zonewide-with-PopulateAll-off dormant-body hint (SPEC §Availability)
         private SegmentFlyout _segmentFlyout;          // tracked so a prior flyout is closed before reopening
+        private HashSet<string> _expandedZones;        // remembered expanded zone keys (null until first open) — scopes both the build and the dots (field-2026-08-04)
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
             SegmentMode segmentMode, bool pinnedToSegment,
@@ -478,10 +479,17 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void OpenSegmentFlyout()
         {
-            var listing = _cb.EnumerateSegments?.Invoke();
+            var listing = _cb.EnumerateSegments?.Invoke(_expandedZones);
             if (listing == null) return;
+            if (_expandedZones == null)   // first open: default to the current zone, then remember the user's toggles
+            {
+                _expandedZones = new HashSet<string>();
+                foreach (var z in listing.Zones) if (z.IsCurrent) _expandedZones.Add(z.ZoneKey);
+            }
             _segmentFlyout?.Close();   // no stale Popup left to swallow the next click
             _segmentFlyout = new SegmentFlyout(_segmentChip, _style, listing, _selection, returnToCurrent: !_pinned,
+                expandedZones: _expandedZones,
+                onZoneToggle: (zoneKey, expanded) => { if (expanded) _expandedZones.Add(zoneKey); else _expandedZones.Remove(zoneKey); },
                 onPick: (sel, label) =>
                 {
                     ApplySelection(sel, label);

@@ -70,9 +70,9 @@ namespace Eq2Auras.Plugin.Act
                         var encounter = SegmentResolver.ResolveByKey(form, key, out bool unavailable);
                         if (key == "C") currentEncounter = encounter;
                         bySegKeyEncounter[key] = encounter;
-                        // A culled historical key (null, not Current, not the unavailable-Zonewide state) emits NO
-                        // sample, so the host detects the miss and falls the window back to Current (SPEC §Segments).
-                        if (encounter == null && !unavailable && key != "C") continue;
+                        // A REQUESTED key always emits a sample — a culled historical resolves to a Missing
+                        // sample (the host falls the window back to Current), distinct from a key that is
+                        // merely absent because the window just picked it this poll (the host waits).
                         samples.Add(ReadSegment(form, encounter, key, key == "C", unavailable));
                     }
 
@@ -123,6 +123,10 @@ namespace Eq2Auras.Plugin.Act
             {
                 Key = key,
                 Unavailable = unavailable,
+                // A historical key that resolved to nothing = culled → the host falls the window back to
+                // Current (field-2026-08-04). Current-with-no-encounter and unavailable-Zonewide are NOT
+                // Missing (they render empty / the dormant hint respectively).
+                Missing = encounter == null && !unavailable && key.Length > 0 && key[0] == 'H',
                 Combatants = new List<CombatantReading>(),
                 Deaths = new List<DeathRecord>(),
             };
@@ -148,7 +152,7 @@ namespace Eq2Auras.Plugin.Act
 
             // Mirror ACT's mini parse: base set is EVERY combatant (Items.Values); the ally set only
             // *filters* it, in Core, via the ShowOnlyAllies-with-escape-hatch rule (SPEC §Displayed combatants).
-            var allySet = new HashSet<CombatantData>(encounter.GetAllies());
+            var allySet = new HashSet<CombatantData>(encounter.GetAllies(true));   // allowLimited: reuse ACT's <=1s-stale ally cache — never re-derive per poll (field-2026-08-04 perf)
             foreach (var combatant in encounter.Items.Values)
             {
                 var reading = new CombatantReading

@@ -23,13 +23,18 @@ namespace Eq2Auras.Plugin.Overlay
 
         private readonly Popup _popup;
         private readonly Action<SegmentSelection, string> _onPick;
+        private readonly Action<string, bool> _onZoneToggle;
+        private readonly HashSet<string> _expandedZones;
         private readonly FontFamily _fontFamily;
         private readonly double _fontSize;
 
         public SegmentFlyout(UIElement target, VisualStyle style, SegmentListing listing, SegmentSelection current, bool returnToCurrent,
+            HashSet<string> expandedZones, Action<string, bool> onZoneToggle,
             Action<SegmentSelection, string> onPick, Action<bool> onKnobToggled)
         {
             _onPick = onPick;
+            _onZoneToggle = onZoneToggle;
+            _expandedZones = expandedZones ?? new HashSet<string>();
             _fontFamily = style?.Font;
             _fontSize = style?.RowText ?? 13.0;
 
@@ -92,9 +97,32 @@ namespace Eq2Auras.Plugin.Overlay
 
         private void AddZoneGroup(Panel parent, ZoneGroup zone, SegmentSelection current)
         {
-            var groupBody = new StackPanel { Visibility = zone.IsCurrent ? Visibility.Visible : Visibility.Collapsed };
+            var groupBody = new StackPanel();
+            bool built = false;
 
-            var caret = new TextBlock { Text = zone.IsCurrent ? "▾" : "▸", Foreground = Theme.TextMuted, FontSize = 9, Width = 12, VerticalAlignment = VerticalAlignment.Center };
+            // Build the group's rows LAZILY — only when expanded — so a whole session of encounters
+            // isn't materialized into WPF visuals on every open (field-2026-08-04 memory fix).
+            Action build = () =>
+            {
+                if (built) return;
+                built = true;
+
+                bool allSelected = zone.All.Available && current.Kind == SegmentKind.Historical && current.IsAll && current.ZoneKey == zone.All.ZoneKey;
+                var allEntry = zone.All;
+                groupBody.Children.Add(FightItem(allEntry, "All", allEntry.Available, allSelected,
+                    () => Pick(SegmentSelection.HistoricalAll(allEntry.ZoneKey), "All — " + zone.ZoneName)));
+
+                foreach (var fight in zone.Fights)
+                {
+                    var f = fight;
+                    bool sel = current.Kind == SegmentKind.Historical && !current.IsAll && current.ZoneKey == f.ZoneKey && current.StartTicks == f.StartTicks;
+                    groupBody.Children.Add(FightItem(f, f.Title, enabled: true, sel,
+                        () => Pick(SegmentSelection.Historical(f.ZoneKey, f.StartTicks), f.Title)));
+                }
+            };
+
+            bool expanded = _expandedZones.Contains(zone.ZoneKey);
+            var caret = new TextBlock { Text = expanded ? "▾" : "▸", Foreground = Theme.TextMuted, FontSize = 9, Width = 12, VerticalAlignment = VerticalAlignment.Center };
             var zoneName = new TextBlock { Text = zone.ZoneName, Foreground = Theme.TextLabel, FontWeight = FontWeights.Bold, VerticalAlignment = VerticalAlignment.Center, TextTrimming = TextTrimming.CharacterEllipsis };
             ApplyFont(zoneName, _fontSize - 2);
             var nameRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(8, 7, 8, 2) };
@@ -105,24 +133,15 @@ namespace Eq2Auras.Plugin.Overlay
             header.MouseLeftButtonUp += (s, e) =>
             {
                 bool show = groupBody.Visibility != Visibility.Visible;
+                if (show) build();   // materialize rows on first expand
                 groupBody.Visibility = show ? Visibility.Visible : Visibility.Collapsed;
                 caret.Text = show ? "▾" : "▸";
+                _onZoneToggle?.Invoke(zone.ZoneKey, show);   // remember across opens (field-2026-08-04)
             };
             parent.Children.Add(header);
 
-            bool allSelected = zone.All.Available && current.Kind == SegmentKind.Historical && current.IsAll && current.ZoneKey == zone.All.ZoneKey;
-            var allEntry = zone.All;
-            groupBody.Children.Add(FightItem(allEntry, "All", allEntry.Available, allSelected,
-                () => Pick(SegmentSelection.HistoricalAll(allEntry.ZoneKey), "All — " + zone.ZoneName)));
-
-            foreach (var fight in zone.Fights)
-            {
-                var f = fight;
-                bool sel = current.Kind == SegmentKind.Historical && !current.IsAll && current.ZoneKey == f.ZoneKey && current.StartTicks == f.StartTicks;
-                groupBody.Children.Add(FightItem(f, f.Title, enabled: true, sel,
-                    () => Pick(SegmentSelection.Historical(f.ZoneKey, f.StartTicks), f.Title)));
-            }
-
+            if (expanded) { build(); groupBody.Visibility = Visibility.Visible; }
+            else groupBody.Visibility = Visibility.Collapsed;
             parent.Children.Add(groupBody);
         }
 
@@ -219,15 +238,18 @@ namespace Eq2Auras.Plugin.Overlay
             text.FontSize = size;
         }
 
-        // Pre-measure so expanding a long-named group never snaps the flyout: the widest label across
-        // every row (visible or collapsed) sets the width, capped; anything past it ellipsis-trims.
+        // Pre-measure so expanding a group never snaps the flyout — but only over the labels actually
+        // shown (all zone HEADERS + the EXPANDED zones' rows), not every encounter in the session, so a
+        // huge import doesn't allocate a FormattedText per fight on open (field-2026-08-04). A row
+        // materialized later by expanding a collapsed zone just ellipsis-trims to the cap.
         private double MeasureWidth(SegmentListing listing)
         {
             double max = TextWidth("Return to Current when a fight starts", _fontSize) + 30;   // the knob is the usual floor
             max = Math.Max(max, TextWidth("Zonewide  (needs “Zone All listing”)", _fontSize) + 40);
             foreach (var z in listing.Zones)
             {
-                max = Math.Max(max, TextWidth(z.ZoneName, _fontSize - 2) + 40);
+                max = Math.Max(max, TextWidth(z.ZoneName, _fontSize - 2) + 40);   // headers always show
+                if (!_expandedZones.Contains(z.ZoneKey)) continue;               // collapsed rows aren't built or measured
                 max = Math.Max(max, TextWidth("All", _fontSize - 1) + 30 + LeadWidth + DurationWidth + 20);
                 foreach (var f in z.Fights)
                     max = Math.Max(max, TextWidth(f.Title, _fontSize - 1) + 30 + LeadWidth + DurationWidth + 20);
