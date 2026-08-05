@@ -93,6 +93,15 @@ namespace Eq2Auras.Plugin.Overlay
                 VerticalAlignment = VerticalAlignment.Center,
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
+            // Bold/Italic are dedicated checkboxes, NOT left to the native FontDialog's style list:
+            // hosted from WPF the dialog wouldn't reliably round-trip a *de*-selected style (bold got
+            // stuck on — field-2026-08-04). The dialog still sets family + size (and seeds/reflects
+            // style for its preview); these boxes are the deterministic on/off the user actually needs.
+            var boldCheck = new ThemeCheckbox("Bold", _fontBold);
+            var italicCheck = new ThemeCheckbox("Italic", _fontItalic);
+            boldCheck.Toggled += on => { _fontBold = on; _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic); };
+            italicCheck.Toggled += on => { _fontItalic = on; _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic); };
+
             var choose = new ThemeButton("Choose…") { Margin = new Thickness(10, 0, 0, 0) };
             choose.Click += () =>
             {
@@ -106,6 +115,8 @@ namespace Eq2Auras.Plugin.Overlay
                     _fontBaseSize = dialog.Font.SizeInPoints * 96.0 / 72.0;   // points -> DIPs
                     _fontBold = dialog.Font.Bold;
                     _fontItalic = dialog.Font.Italic;
+                    boldCheck.Checked = _fontBold;       // reflect the dialog's style; Checked setter doesn't re-fire Toggled
+                    italicCheck.Checked = _fontItalic;
                     fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
                     _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic);
                 }
@@ -119,6 +130,18 @@ namespace Eq2Auras.Plugin.Overlay
             var fontRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
             fontRow.Children.Add(fontLabel);
             fontRow.Children.Add(fontControls);
+
+            var styleLabel = new TextBlock
+            {
+                Text = "Style",
+                Foreground = Theme.TextLabel,
+                VerticalAlignment = VerticalAlignment.Center,
+                Width = 112
+            };
+            var styleRow = new StackPanel { Orientation = Orientation.Horizontal, Margin = new Thickness(0, 0, 0, 16) };
+            styleRow.Children.Add(styleLabel);
+            styleRow.Children.Add(boldCheck);
+            styleRow.Children.Add(italicCheck);
 
             var opacityLabel = new TextBlock
             {
@@ -166,6 +189,8 @@ namespace Eq2Auras.Plugin.Overlay
                 _fontBaseSize = 13.0;
                 _fontBold = false;
                 _fontItalic = false;
+                boldCheck.Checked = false;
+                italicCheck.Checked = false;
                 fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
                 _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic);
                 if (!classColors.Checked) { classColors.Checked = true; _onClassColorsChanged(true); }   // default = colours on
@@ -174,6 +199,7 @@ namespace Eq2Auras.Plugin.Overlay
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
             body.Children.Add(rowHeightRow);
             body.Children.Add(fontRow);
+            body.Children.Add(styleRow);
             body.Children.Add(opacityRow);
             body.Children.Add(backdropRow);
             body.Children.Add(classColors);

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
@@ -23,7 +24,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Border _fill;
         private readonly Border _background;   // full-width class-color ground behind the fill (two-tone recap rows); transparent otherwise
         private readonly TextBlock _name;
-        private readonly Grid _nameOutlineHost;   // wraps _name to carry the second (compounded) outline glow; null when nameOutline off
+        private readonly List<TextBlock> _nameOutlineCopies;   // 8 black offset copies forming a crisp stroke behind _name; null when nameOutline off
         private readonly TextBlock _trailing;
         private readonly StackPanel _trailingPanel;
 
@@ -79,19 +80,8 @@ namespace Eq2Auras.Plugin.Overlay
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
             style.ApplyFont(_name, style.RowText);
-            System.Windows.FrameworkElement nameVisual = _name;
             if (nameOutline)   // meter-only (SPEC §Meter display defaults — parameterized, not a blanket timer change): keeps names legible over light class fills
-            {
-                // A COMPOUNDED opaque outline: a tight full-opacity black glow on the text, then a
-                // second identical glow on its host — the outer darkens the already-outlined bitmap
-                // into an opaque edge, where a lone soft shadow washed out white-on-light (its alpha
-                // spread across the blur left the edge too faint; field-2026-08-04). ShadowDepth 0 =
-                // centered halo, not a drop shadow. A crisp layered stroke is the next escalation.
-                _name.Effect = OutlineGlow();
-                _nameOutlineHost = new Grid { Effect = OutlineGlow() };
-                _nameOutlineHost.Children.Add(_name);
-                nameVisual = _nameOutlineHost;
-            }
+                _nameOutlineCopies = BuildOutlineCopies(_name, style);
             _trailing = new TextBlock
             {
                 // Readable-light default: the meter relies on it; the timer overrides
@@ -115,7 +105,9 @@ namespace Eq2Auras.Plugin.Overlay
             var grid = new Grid();
             grid.Children.Add(_background);   // behind the fill — the two-tone class ground (transparent unless set)
             grid.Children.Add(_fill);
-            grid.Children.Add(nameVisual);
+            if (_nameOutlineCopies != null)
+                foreach (var copy in _nameOutlineCopies) grid.Children.Add(copy);   // the stroke, behind the white name
+            grid.Children.Add(_name);
             grid.Children.Add(_trailingPanel);
 
             _root = new Border
@@ -131,17 +123,56 @@ namespace Eq2Auras.Plugin.Overlay
             };
         }
 
-        // One layer of the compounded name outline (SPEC §Class colors — render rules): a tight,
-        // full-opacity black halo. Applied to both the name text and its host so the two compound.
-        private static System.Windows.Media.Effects.DropShadowEffect OutlineGlow()
-            => new System.Windows.Media.Effects.DropShadowEffect
+        private static readonly Point[] OutlineOffsets =
+        {
+            new Point(-1, -1), new Point(0, -1), new Point(1, -1),
+            new Point(-1,  0),                   new Point(1,  0),
+            new Point(-1,  1), new Point(0,  1), new Point(1,  1),
+        };
+
+        // A crisp opaque name stroke (SPEC §Class colors — render rules): the name rendered in black,
+        // offset 1px in all eight directions BEHIND the white text, so every glyph carries a solid
+        // dark edge readable over any fill. Replaces the compounded soft glow the field found still
+        // too faint on white rows (2026-08-04). Each copy mirrors _name's layout exactly and is kept
+        // in sync by SyncOutline (content) and ApplyNameFont (font); the RenderTransform offset is
+        // post-layout, so trimming and width match the top text — only the glyphs shift.
+        private List<TextBlock> BuildOutlineCopies(TextBlock name, VisualStyle style)
+        {
+            var copies = new List<TextBlock>(OutlineOffsets.Length);
+            foreach (var o in OutlineOffsets)
             {
-                Color = Colors.Black,
-                ShadowDepth = 0,
-                BlurRadius = 2,
-                Opacity = 1.0,
-                RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality,
-            };
+                var copy = new TextBlock
+                {
+                    Foreground = Brushes.Black,
+                    Margin = name.Margin,
+                    VerticalAlignment = name.VerticalAlignment,
+                    TextTrimming = name.TextTrimming,
+                    RenderTransform = new TranslateTransform(o.X, o.Y),
+                };
+                style.ApplyFont(copy, style.RowText);
+                copies.Add(copy);
+            }
+            return copies;
+        }
+
+        /// Mirror the current name text into the black outline copies. One concatenated Text matches
+        /// the two-run (name + detail) top text glyph-for-glyph, which is all the stroke needs. Called
+        /// after the meter sets NameText each bind; a no-op when the row has no outline (the timer).
+        public void SyncOutline()
+        {
+            if (_nameOutlineCopies == null) return;
+            string text = _name.Text;
+            foreach (var copy in _nameOutlineCopies) copy.Text = text;
+        }
+
+        /// Apply the row font to the name AND its outline copies together, so the stroke stays
+        /// glyph-aligned on a live font change (SPEC §Configuration — live font).
+        public void ApplyNameFont(VisualStyle style, double size)
+        {
+            style.ApplyFont(_name, size);
+            if (_nameOutlineCopies == null) return;
+            foreach (var copy in _nameOutlineCopies) style.ApplyFont(copy, size);
+        }
 
         public void SetFillColor(int argb)
         {
