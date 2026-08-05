@@ -17,6 +17,16 @@ The real answer to "why is a finished, never-changing segment inside the polling
 4. **Minor allocation guards:** `MeterEngine.Tick` formats/colors all N rows when only ≤40 render (B2/C4 — split Value/Percent [needed for all] from FormattedValue/Secondaries/FillArgb [visible-only]); per-poll brush + `DoubleAnimation` restart on unchanged rows (C3 — guard like `PieVisual`); never-committing ally re-derived every poll (B3).
 5. **Housekeeping nits (record-only):** unbounded name-keyed maps — class map + `PaletteAssigner._slotByName` — grow per distinct name forever, no eviction (trivial rate); per-segment `_deathStores`/`_deathsSeen` never pruned (A7); `SegmentKeys.Distinct` uses `List.Contains` (O(k²), k tiny); historical-key `ZoneList.FirstOrDefault` allocates a key string per zone per poll (A6).
 
+### 🔭 IDEA (Alex, 2026-08-04) — poll-overrun / lock-contention watchdog (runtime backstop to §Runtime-scaling discipline)
+The runtime companion to the design-time SPEC rule: instead of relying on a user reporting "ACT froze," the plugin **self-detects** when it's heading toward soft-lock and flags it. Born from the 2026-08-04 lockup, which was silent until the field hit it.
+
+**Mechanics (one framing correction that sharpens it):** the poll is a **non-reentrant** WinForms UI-thread timer — `WM_TIMER` coalesces, so polls **can't overlap**. A slow handler doesn't stack; it **monopolizes the UI thread and holds `AfterCombatActionDataLock` for its whole run**, so ACT's after-action thread blocks and the app freezes while subsequent ticks are silently **dropped**. So the signals to watch are single-poll-too-long and ticks-dropped, not overlap. Candidates, cheapest/highest-value first:
+- **Our own lock-hold duration** — a `Stopwatch` around the `lock(){}` block. THE direct harm metric (our hold time is exactly what strangles ACT), nearly free; a budget breach (e.g. >X ms) would have screamed on the first long fight in dev.
+- **Total poll-handler duration** vs the ~300 ms budget; and **poll-cadence drops** (gap between consecutive poll starts ≫ 300 ms ⇒ thread was saturated).
+- **Lock contention** (Alex's Q): `Monitor.TryEnter(lock, smallTimeout)` — failing to acquire promptly ⇒ ACT/another thread holds it long; measure wait-time. `TryEnter`-then-skip is itself a **circuit-breaker** (don't pile onto a hot lock).
+
+**Two tiers.** (1) **Cheap self-instrumentation** on the UI thread inside the handler → emit a diagnostic **JSONL** record on any budget breach. This is the deferred "meter diagnostics — decide once field behavior shows what a capture needs" decision landing (SPEC slice-1 punt) — low-risk, high-value dev+field tripwire. (2) **Background watchdog thread** (the literal "something above the polling watching") — on-thread instrumentation can't catch a hang *in progress* (it's stuck behind it); only a separate thread can watch "has the UI thread advanced recently?" and flag a soft-lock as it forms, then optionally **self-defend** (throttle the poll divider, skip expensive frozen segments, overlay warning). Must avoid adding its own contention. Not designed — own brainstorm when picked up; tier 1 likely rides the architecture pass, tier 2 is its own slice.
+
 ## From Alex — 2026-08-03
 
 ### 🚧 IN FLIGHT — segment picker (branch `segment-picker`) — spec amended, in third-party review
