@@ -120,6 +120,7 @@ namespace Eq2Auras.Plugin.Overlay
                 config.VisibleRows ?? MeterWindow.DefaultVisibleRows,
                 config.SegmentMode,
                 config.PinnedToSegment,
+                config.DisableClassColors,
                 new MeterWindowCallbacks
                 {
                     PersistPosition = (left, top) => SettingsStore.Update(_settings, () => { config.Left = left; config.Top = top; }),
@@ -129,6 +130,7 @@ namespace Eq2Auras.Plugin.Overlay
                     OpacityChanged = opacity => SettingsStore.Update(_settings, () => config.Opacity = opacity),
                     BackdropOpacityChanged = v => SettingsStore.Update(_settings, () => config.BackdropOpacity = v),
                     RowHeightChanged = rowHeight => SettingsStore.Update(_settings, () => config.RowHeight = rowHeight),
+                    DisableClassColorsChanged = disabled => SettingsStore.Update(_settings, () => config.DisableClassColors = disabled),
                     FontChanged = (family, size, bold, italic) => SettingsStore.Update(_settings, () => { config.FontFamily = family; config.FontBaseSize = size; config.FontBold = bold; config.FontItalic = italic; }),
                     GeometryChanged = (width, rows) => SettingsStore.Update(_settings, () => { config.Width = width; config.VisibleRows = rows; }),
                     NewWindow = () => AddNewWindow(config),
@@ -289,8 +291,15 @@ namespace Eq2Auras.Plugin.Overlay
             var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
             if (metric == null) return null;
             if (!EncounterProbe.TryReadNow(request, out var entries, out double duration)) return null;
-            return BreakdownEngine.Build(entries, metric, duration, _inference.ColorForName);   // by-counterpart hover — each row its counterpart's color
+            return BreakdownEngine.Build(entries, metric, duration, ColorResolverFor(config));   // by-counterpart hover — each row its counterpart's color
         }
+
+        /// The window's row-color resolver: the learned class map normally, but a flat neutral grey
+        /// when the window has class colours turned off (SPEC §Class colors — the pre-class-color
+        /// monochrome look). Greying at the resolver keeps every colored surface — rows, Deaths,
+        /// drill, hover, recap ground — uniform without each engine having to null-check.
+        private System.Func<string, int> ColorResolverFor(MeterWindowConfig config)
+            => config.DisableClassColors ? (_ => SubclassColors.Grey) : (System.Func<string, int>)_inference.ColorForName;
 
         /// Callable from any thread (the sample runs on ACT's UI thread). Each window renders from
         /// the snapshot of ITS resolved segment (SPEC §Segments — every read follows the window's
@@ -364,12 +373,13 @@ namespace Eq2Auras.Plugin.Overlay
                     if (sample == null) continue;
                     if (sample.Unavailable) { window.RenderUnavailable(); continue; }   // Zonewide + PopulateAll off (SPEC §Availability)
 
+                    var colorFor = ColorResolverFor(config);   // class map, or flat grey when the window disabled class colours
                     double duration = MeterEngine.DurationSeconds(sample.Encounter);
                     var metric = MetricRegistry.ResolvePrimary(config.MetricKey);
                     // Deaths (the event metric) builds an event timeline from the segment's death records, not Tick.
                     var listFrame = metric != null && metric.IsEvent
-                        ? DeathsEngine.BuildList(sample.Deaths, duration, _inference.ColorForName)
-                        : _meterEngine.Tick(sample.Encounter, sample.Combatants, config.MetricKey, config.SecondaryKey, config.Scope, _inference.ColorForName);
+                        ? DeathsEngine.BuildList(sample.Deaths, duration, colorFor)
+                        : _meterEngine.Tick(sample.Encounter, sample.Combatants, config.MetricKey, config.SecondaryKey, config.Scope, colorFor);
 
                     var target = window.DrillTarget;
                     if (target == null || metric == null)
@@ -398,7 +408,7 @@ namespace Eq2Auras.Plugin.Overlay
                                 foreach (var b in breakdowns)
                                     if (b.Grouping == BreakdownGrouping.ByCounterpart && b.CombatantName == hover.CombatantName && b.Source == hover.Source)
                                     {
-                                        window.RenderHover(BreakdownEngine.Build(b.Entries, metric, duration, _inference.ColorForName));
+                                        window.RenderHover(BreakdownEngine.Build(b.Entries, metric, duration, colorFor));
                                         break;
                                     }
                             }
@@ -424,7 +434,7 @@ namespace Eq2Auras.Plugin.Overlay
                         if (recaps != null)
                             foreach (var r in recaps)
                                 if (r.DrillKey == target.DeathKey) { recap = r; break; }
-                        var recapRows = recap != null ? DeathRecapEngine.Build(recap, _inference.ColorForName(deathRow.Name)) : new List<MeterRow>();   // victim's color as the two-tone ground
+                        var recapRows = recap != null ? DeathRecapEngine.Build(recap, colorFor(deathRow.Name)) : new List<MeterRow>();   // victim's color as the two-tone ground
                         window.RenderDrill(recapRows, deathRow.FormattedValue);   // total cell = time-of-death
                         continue;
                     }
@@ -449,7 +459,7 @@ namespace Eq2Auras.Plugin.Overlay
                     // Header total is the combatant's own list value (ready immediately); the body fills
                     // when the breakdown arrives (one poll later than the click).
                     var rows = breakdown != null
-                        ? BreakdownEngine.Build(breakdown.Entries, metric, duration, _ => _inference.ColorForName(target.CombatantName))   // drill: every ability row the drilled combatant's color
+                        ? BreakdownEngine.Build(breakdown.Entries, metric, duration, _ => colorFor(target.CombatantName))   // drill: every ability row the drilled combatant's color
                         : new List<MeterRow>();
                     window.RenderDrill(rows, ownRow.FormattedValue);
                 }

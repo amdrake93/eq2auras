@@ -23,6 +23,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Border _fill;
         private readonly Border _background;   // full-width class-color ground behind the fill (two-tone recap rows); transparent otherwise
         private readonly TextBlock _name;
+        private readonly Grid _nameOutlineHost;   // wraps _name to carry the second (compounded) outline glow; null when nameOutline off
         private readonly TextBlock _trailing;
         private readonly StackPanel _trailingPanel;
 
@@ -78,13 +79,19 @@ namespace Eq2Auras.Plugin.Overlay
                 TextTrimming = TextTrimming.CharacterEllipsis
             };
             style.ApplyFont(_name, style.RowText);
+            System.Windows.FrameworkElement nameVisual = _name;
             if (nameOutline)   // meter-only (SPEC §Meter display defaults — parameterized, not a blanket timer change): keeps names legible over light class fills
-                _name.Effect = new System.Windows.Media.Effects.DropShadowEffect
-                {
-                    // A darker, tighter black halo — the field found the prior 2px/0.9 too faint over
-                    // light class fills (field-2026-08-03). ShadowDepth 0 = centered outline, not a shadow.
-                    Color = Colors.Black, ShadowDepth = 0, BlurRadius = 3, Opacity = 1.0, RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality,
-                };
+            {
+                // A COMPOUNDED opaque outline: a tight full-opacity black glow on the text, then a
+                // second identical glow on its host — the outer darkens the already-outlined bitmap
+                // into an opaque edge, where a lone soft shadow washed out white-on-light (its alpha
+                // spread across the blur left the edge too faint; field-2026-08-04). ShadowDepth 0 =
+                // centered halo, not a drop shadow. A crisp layered stroke is the next escalation.
+                _name.Effect = OutlineGlow();
+                _nameOutlineHost = new Grid { Effect = OutlineGlow() };
+                _nameOutlineHost.Children.Add(_name);
+                nameVisual = _nameOutlineHost;
+            }
             _trailing = new TextBlock
             {
                 // Readable-light default: the meter relies on it; the timer overrides
@@ -108,7 +115,7 @@ namespace Eq2Auras.Plugin.Overlay
             var grid = new Grid();
             grid.Children.Add(_background);   // behind the fill — the two-tone class ground (transparent unless set)
             grid.Children.Add(_fill);
-            grid.Children.Add(_name);
+            grid.Children.Add(nameVisual);
             grid.Children.Add(_trailingPanel);
 
             _root = new Border
@@ -123,6 +130,18 @@ namespace Eq2Auras.Plugin.Overlay
                 Child = grid
             };
         }
+
+        // One layer of the compounded name outline (SPEC §Class colors — render rules): a tight,
+        // full-opacity black halo. Applied to both the name text and its host so the two compound.
+        private static System.Windows.Media.Effects.DropShadowEffect OutlineGlow()
+            => new System.Windows.Media.Effects.DropShadowEffect
+            {
+                Color = Colors.Black,
+                ShadowDepth = 0,
+                BlurRadius = 2,
+                Opacity = 1.0,
+                RenderingBias = System.Windows.Media.Effects.RenderingBias.Quality,
+            };
 
         public void SetFillColor(int argb)
         {

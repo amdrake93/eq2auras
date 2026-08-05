@@ -61,6 +61,7 @@ namespace Eq2Auras.Plugin.Overlay
         private HoverCard _hover;                      // the by-row hover card (recreated per appearance)
         private SegmentSelection _selection;           // the window's live segment (Current/Zonewide/Historical) — runtime (SPEC §Segments)
         private bool _pinned;                          // PinnedToSegment: true = don't auto-return to Current
+        private bool _disableClassColors;              // true = grey rows; the next poll's ColorResolverFor reads it (SPEC §Class colors)
         private Border _segmentChip;                   // header segment chip (SPEC §Header) — click opens the flyout
         private TextBlock _segmentChipText;
         private TextBlock _unavailableHint;            // Zonewide-with-PopulateAll-off dormant-body hint (SPEC §Availability)
@@ -68,7 +69,7 @@ namespace Eq2Auras.Plugin.Overlay
         private HashSet<string> _expandedZones;        // remembered expanded zone keys (null until first open) — scopes both the build and the dots (field-2026-08-04)
 
         public MeterWindow(double left, double top, VisualStyle style, MeterScope scope, string metricKey, string secondaryKey, bool locked, double opacity, double backdropOpacity, int visibleRows,
-            SegmentMode segmentMode, bool pinnedToSegment,
+            SegmentMode segmentMode, bool pinnedToSegment, bool disableClassColors,
             MeterWindowCallbacks callbacks)
             : base(left, top, GrowDirection.Down, callbacks.PersistPosition, clickThroughBaseline: false)
         {
@@ -83,6 +84,7 @@ namespace Eq2Auras.Plugin.Overlay
             _visibleRows = visibleRows;
             _selection = SegmentRules.FromMode(segmentMode);
             _pinned = pinnedToSegment;
+            _disableClassColors = disableClassColors;
 
             WindowStyle = WindowStyle.None;
             AllowsTransparency = true;
@@ -675,7 +677,8 @@ namespace Eq2Auras.Plugin.Overlay
             _settings = new MeterSettingsWindow(_style.RowHeight, SetRowHeight, _opacity, SetOpacity,
                 _backdropOpacity, SetBackdropOpacity,
                 _style.Font?.Source, _style.BaseSize,
-                _style.FontWeight == FontWeights.Bold, _style.FontStyle == FontStyles.Italic, SetFont)
+                _style.FontWeight == FontWeights.Bold, _style.FontStyle == FontStyles.Italic, SetFont,
+                !_disableClassColors, SetClassColorsEnabled)
             {
                 Left = settingsLeft,
                 Top = Top,
@@ -694,6 +697,15 @@ namespace Eq2Auras.Plugin.Overlay
             foreach (var slot in _slots) slot.SetOpacity(opacity);
             _backdrop.Opacity = _opacity * _backdropOpacity;
             _cb.OpacityChanged(opacity);
+        }
+
+        /// Class colours on/off (SPEC §Class colors). No live visual state to flip — the row colour
+        /// resolver is recomputed from config each poll (OverlayHost.ColorResolverFor), so the next
+        /// sample (~sub-second) repaints grey or coloured; here we only persist the inverted flag.
+        public void SetClassColorsEnabled(bool enabled)
+        {
+            _disableClassColors = !enabled;
+            _cb.DisableClassColorsChanged(_disableClassColors);
         }
 
         /// Backdrop opacity (SPEC Part III §Meter display defaults): scales just the persistent

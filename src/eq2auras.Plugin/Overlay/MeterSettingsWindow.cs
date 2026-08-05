@@ -17,6 +17,7 @@ namespace Eq2Auras.Plugin.Overlay
         private readonly Action<double> _onBackdropOpacityChanged;
         private readonly Action<double> _onRowHeightChanged;
         private readonly Action<string, double, bool, bool> _onFontChanged;
+        private readonly Action<bool> _onClassColorsChanged;
         private string _fontFamily;
         private double _fontBaseSize;
         private bool _fontBold;
@@ -24,12 +25,14 @@ namespace Eq2Auras.Plugin.Overlay
 
         public MeterSettingsWindow(double rowHeight, Action<double> onRowHeightChanged, double opacity, Action<double> onOpacityChanged,
             double backdropOpacity, Action<double> onBackdropOpacityChanged,
-            string fontFamily, double fontBaseSize, bool fontBold, bool fontItalic, Action<string, double, bool, bool> onFontChanged)
+            string fontFamily, double fontBaseSize, bool fontBold, bool fontItalic, Action<string, double, bool, bool> onFontChanged,
+            bool classColorsEnabled, Action<bool> onClassColorsChanged)
         {
             _onOpacityChanged = onOpacityChanged;
             _onBackdropOpacityChanged = onBackdropOpacityChanged;
             _onRowHeightChanged = onRowHeightChanged;
             _onFontChanged = onFontChanged;
+            _onClassColorsChanged = onClassColorsChanged;
             _fontFamily = fontFamily;
             _fontBaseSize = fontBaseSize;
             _fontBold = fontBold;
@@ -149,6 +152,9 @@ namespace Eq2Auras.Plugin.Overlay
             backdropRow.Children.Add(backdropLabel);
             backdropRow.Children.Add(backdropSlider);
 
+            var classColors = new ThemeCheckbox("Class colors", classColorsEnabled) { Margin = new Thickness(0, 0, 0, 16) };
+            classColors.Toggled += on => _onClassColorsChanged(on);
+
             var reset = new ThemeButton("Reset to defaults");
             reset.Click += () =>
             {
@@ -162,6 +168,7 @@ namespace Eq2Auras.Plugin.Overlay
                 _fontItalic = false;
                 fontValue.Text = FontLabel(_fontFamily, _fontBaseSize);
                 _onFontChanged(_fontFamily, _fontBaseSize, _fontBold, _fontItalic);
+                if (!classColors.Checked) { classColors.Checked = true; _onClassColorsChanged(true); }   // default = colours on
             };
 
             var body = new StackPanel { Margin = new Thickness(14, 12, 14, 12) };
@@ -169,6 +176,7 @@ namespace Eq2Auras.Plugin.Overlay
             body.Children.Add(fontRow);
             body.Children.Add(opacityRow);
             body.Children.Add(backdropRow);
+            body.Children.Add(classColors);
             body.Children.Add(reset);
 
             var stack = new StackPanel();
