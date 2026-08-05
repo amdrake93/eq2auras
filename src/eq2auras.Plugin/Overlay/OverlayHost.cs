@@ -138,7 +138,7 @@ namespace Eq2Auras.Plugin.Overlay
                     ReadHoverNow = request => ReadHoverRowsNow(config, request),
                     SegmentModeChanged = mode => SettingsStore.Update(_settings, () => config.SegmentMode = mode),
                     PinnedChanged = pinned => SettingsStore.Update(_settings, () => config.PinnedToSegment = pinned),
-                    EnumerateSegments = () => SegmentResolver.Enumerate(Advanced_Combat_Tracker.ActGlobals.oFormActMain),
+                    EnumerateSegments = dotted => SegmentResolver.Enumerate(Advanced_Combat_Tracker.ActGlobals.oFormActMain, dotted),
                     SegmentChanged = () => { RebuildSegmentRequests(); RebuildDrillRequests(); },
                 });
             _meterWindows[config] = window;
@@ -325,7 +325,9 @@ namespace Eq2Auras.Plugin.Overlay
                 // New-combat edge (SPEC §Segments — Return to Current): a new active current encounter
                 // snaps every non-pinned window's selection back to Current.
                 long curTicks = (currentSample != null && currentSample.Encounter != null && currentSample.Encounter.Active) ? currentSample.EncounterStartTicks : 0;
-                bool newCombat = curTicks != 0 && curTicks != _lastCurrentStartTicks;
+                // Only a CHANGE from a prior real value is a new fight — not the first poll (0 -> real),
+                // which would otherwise snap a just-picked segment to Current on load (field-2026-08-04).
+                bool newCombat = curTicks != 0 && _lastCurrentStartTicks != 0 && curTicks != _lastCurrentStartTicks;
                 if (curTicks != 0) _lastCurrentStartTicks = curTicks;
 
                 foreach (var pair in _meterWindows)
@@ -340,12 +342,23 @@ namespace Eq2Auras.Plugin.Overlay
                     }
 
                     var key = SegmentKeys.Of(window.CurrentSelection, currentZoneKey);
-                    if (!byKey.TryGetValue(key, out var sample))
+                    if (byKey.TryGetValue(key, out var sample))
                     {
-                        // The window's segment produced no sample — a culled historical handle → Current (the
-                        // never-outlive-the-data discipline, the drill's auto-exit analog, SPEC §Segments).
-                        var fallback = SegmentKeys.FallbackOnMissing(window.CurrentSelection, resolved: false);
-                        if (!fallback.Equals(window.CurrentSelection)) window.ApplySelection(fallback, "Current");
+                        if (sample.Missing)
+                        {
+                            // Requested and resolved to nothing = genuinely culled → fall back to Current
+                            // (the never-outlive-the-data discipline, the drill's auto-exit analog).
+                            var fallback = SegmentKeys.FallbackOnMissing(window.CurrentSelection, resolved: false);
+                            if (!fallback.Equals(window.CurrentSelection)) window.ApplySelection(fallback, "Current");
+                            sample = currentSample;
+                        }
+                    }
+                    else
+                    {
+                        // Key absent from THIS poll's sample set — the window just picked this segment and
+                        // the probe hasn't resolved it yet. Render Current as a placeholder and KEEP the
+                        // selection (next poll resolves it) — do NOT fall back, which reverted a fresh pick
+                        // to Current (field-2026-08-04).
                         sample = currentSample;
                     }
                     if (sample == null) continue;

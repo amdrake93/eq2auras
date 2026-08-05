@@ -39,7 +39,8 @@ namespace Eq2Auras.Core.Meter
         public EncounterReading Encounter { get; set; }
         public List<CombatantReading> Combatants { get; set; }
         public List<DeathRecord> Deaths { get; set; }
-        public bool Unavailable { get; set; }
+        public bool Unavailable { get; set; }   // Zonewide with PopulateAll off — render the dormant hint
+        public bool Missing { get; set; }       // a requested historical segment that resolved to nothing (culled) — the host falls the window back to Current
         public long EncounterStartTicks { get; set; }   // the new-combat edge signal (host snaps non-pinned windows)
     }
 
