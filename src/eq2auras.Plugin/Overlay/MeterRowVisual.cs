@@ -91,6 +91,7 @@ namespace Eq2Auras.Plugin.Overlay
             {
                 _bar.NameText.Text = row.Name;   // single white run (resets any prior inlines)
             }
+            _bar.SyncOutline();   // mirror the name into the black stroke copies (SPEC §Class colors — render rules)
             // An empty value collapses its column (no reserved gap) — the recap drops the raw health
             // number and lets the bar + hp% carry it (SPEC §Death Recap). Meter-only; the timer drives
             // BarRowVisual directly and never sets an empty trailing value.
@@ -160,7 +161,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void SetFont(VisualStyle style)
         {
             _style = style;
-            style.ApplyFont(_bar.NameText, style.RowText);
+            _bar.ApplyNameFont(style, style.RowText);   // name + its outline stroke copies together
             style.ApplyFont(_bar.TrailingText, style.RowText, System.Windows.FontWeights.SemiBold);   // value column accent
             style.ApplyFont(_percent, style.RowText * 11.0 / 13.0);
 
