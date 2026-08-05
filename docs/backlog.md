@@ -2,6 +2,21 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## Performance review — 2026-08-04 (three Fable-5 reviewers; audit: `$CLAUDE_JOB_DIR/tmp/perf-review-{A-readpath,B-core,C-render}.md`)
+
+Triggered by a hard ACT lockup when a window is pointed at a 103-minute zone **"All"** segment (Emerald Halls), memory flat → CPU/lock-bound. Three reviewers (read-path, Core, render) **independently converged** on one root cause; Core was exonerated (Tick ≈ 0.5–2 ms at N=2000). The general lesson is now a SPEC rule (**§Runtime-scaling discipline**, after Read discipline).
+
+### ✅ HOTFIX (branch `hotfix-ally-name-keying`) — the lockup
+**Finding 1 (unanimous):** `new HashSet<CombatantData>(GetAllies(true))` + `.Contains()` per poll (`EncounterProbe.cs:155/167/195`) routed combatant identity through ACT's **swing-deep `GetHashCode`** (walks + `ToString()`s every swing the combatant owns → **O(all swings), twice, every poll, under the lock**). Present on Current all along — self-erased each fight as the segment rolled on, so only a pinned long segment/All exposed it. Fix: key ally membership by **name** (`HashSet<string>` OrdinalIgnoreCase), ACT's own identity model — into line with the standing SPEC:306 rule the HashSet violated implicitly. **Caveat:** swing-deep-hash detail is from our decompile doc (ACT not on the Mac) — fix is safe regardless; confirm on-box it clears.
+
+### 🔜 ARCHITECTURE PASS (deferred — "a complete segment should never be on the poll") — own branch, once designed
+The real answer to "why is a finished, never-changing segment inside the polling loop at all." Fold in the remaining reviewer findings:
+1. **Frozen-segment load-once cache** (A5/B2/C3 + Alex's design intent): a completed encounter (past fight, past zone's "All") is immutable — resolve+snapshot **once on selection, cache by segment identity, never re-poll**; re-render from cache on config change. Tier it: **live** Current = poll; **complete** = load-once; **current-zone Zonewide** = event-driven refresh on encounter-boundary. Plus a cheap invalidation hook for clear-encounters / import replay.
+2. **Deaths capture consumer-gating + first-resolve bound** (A2/A3): `CaptureDeaths` runs unconditionally per segment per poll; on first resolve of a huge aggregate it scans killing blows for *every death in the zone* in one lock-held pass (`FindKillingBlow` = O(victim's full incoming history) × deaths). Gate on "a window shows Deaths on this key"; bound the first-resolve scan.
+3. **Open hover/drill card re-folds** (A4): a standing hover/recap request re-iterates O(swings) every poll even on a frozen segment (byte-identical result). Skip the re-fold when the segment can't change.
+4. **Minor allocation guards:** `MeterEngine.Tick` formats/colors all N rows when only ≤40 render (B2/C4 — split Value/Percent [needed for all] from FormattedValue/Secondaries/FillArgb [visible-only]); per-poll brush + `DoubleAnimation` restart on unchanged rows (C3 — guard like `PieVisual`); never-committing ally re-derived every poll (B3).
+5. **Housekeeping nits (record-only):** unbounded name-keyed maps — class map + `PaletteAssigner._slotByName` — grow per distinct name forever, no eviction (trivial rate); per-segment `_deathStores`/`_deathsSeen` never pruned (A7); `SegmentKeys.Distinct` uses `List.Contains` (O(k²), k tiny); historical-key `ZoneList.FirstOrDefault` allocates a key string per zone per poll (A6).
+
 ## From Alex — 2026-08-03
 
 ### 🚧 IN FLIGHT — segment picker (branch `segment-picker`) — spec amended, in third-party review
