@@ -8,10 +8,14 @@ namespace Eq2Auras.Plugin.Act
     /// The encounter adapter (SPEC Part III §Assembly split & polling): samples ACT's
     /// computed combat model on a divider of the existing 100 ms poll tick — briefly
     /// under AfterCombatActionDataLock, snapshot into Core DTOs, release, hand off.
-    /// Reads only the cheap shapes: every combatant's totals + its ally flag (from
-    /// GetAllies membership), the live title, StartTime (live branch) / Duration
-    /// (frozen branch). Never holds an EncounterData reference across ticks; never
-    /// touches EncId/GetHashCode.
+    /// Reads only the cheap shapes: every combatant's totals + its ally flag (ally
+    /// membership compared by NAME — never a HashSet&lt;CombatantData&gt;, whose default
+    /// GetHashCode walks and ToString()s every swing the combatant owns, i.e. O(all
+    /// swings in the segment) per poll under the lock — the field-2026-08-04 "All"-
+    /// segment lockup, unnoticed on Current only because each fight's cost died when the
+    /// segment rolled on), the live title, StartTime (live branch) / Duration (frozen
+    /// branch). Never holds an EncounterData reference across ticks; never touches
+    /// EncId/GetHashCode.
     public sealed class EncounterProbe
     {
         public const int SampleEveryNthTick = 3;   // 100 ms tick -> ~300 ms effective (SPEC: ~2-4 Hz)
@@ -152,7 +156,15 @@ namespace Eq2Auras.Plugin.Act
 
             // Mirror ACT's mini parse: base set is EVERY combatant (Items.Values); the ally set only
             // *filters* it, in Core, via the ShowOnlyAllies-with-escape-hatch rule (SPEC §Displayed combatants).
-            var allySet = new HashSet<CombatantData>(encounter.GetAllies(true));   // allowLimited: reuse ACT's <=1s-stale ally cache — never re-derive per poll (field-2026-08-04 perf)
+            // Ally membership by NAME, not by putting CombatantData into a hash set: ACT keys
+            // combatants by uppercase name (act-parse-engine.md), and CombatantData.GetHashCode is
+            // the swing-deep chain (O(all swings)) — a HashSet<CombatantData> re-hashed the whole
+            // segment every poll (the "All" lockup). GetAllies(true) still reuses ACT's <=1s ally
+            // cache; we only change what we key the membership test on. Case-insensitive comparer
+            // avoids a ToUpper() allocation per combatant.
+            var allyNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var ally in encounter.GetAllies(true))
+                if (ally.Name != null) allyNames.Add(ally.Name);
             foreach (var combatant in encounter.Items.Values)
             {
                 var reading = new CombatantReading
@@ -164,21 +176,21 @@ namespace Eq2Auras.Plugin.Act
                     DamageTaken = combatant.DamageTaken,
                     HealsTaken = combatant.HealsTaken,
                     PowerReplenish = combatant.PowerReplenish,
-                    IsAlly = allySet.Contains(combatant),
+                    IsAlly = combatant.Name != null && allyNames.Contains(combatant.Name),
                 };
                 if (isCurrent && reading.IsAlly && !_isClassCommitted(reading.Name))
                     reading.AbilityNames = ReadOutgoingAbilityNames(combatant);
                 sample.Combatants.Add(reading);
             }
 
-            sample.Deaths = CaptureDeaths(encounter, allySet, key);   // every segment gets its own timeline (SPEC §Segments)
+            sample.Deaths = CaptureDeaths(encounter, allyNames, key);   // every segment gets its own timeline (SPEC §Segments)
             return sample;
         }
 
         /// Poll-only death capture for one segment (SPEC §Deaths + §Segments): a count-delta triggers a
         /// bounded killing-blow scan into that segment key's store; returns the store snapshot for the
         /// sample. A frozen historical segment stabilizes after one scan; Current/Zonewide accumulate.
-        private List<DeathRecord> CaptureDeaths(EncounterData encounter, HashSet<CombatantData> allySet, string segKey)
+        private List<DeathRecord> CaptureDeaths(EncounterData encounter, HashSet<string> allyNames, string segKey)
         {
             if (!_deathStores.TryGetValue(segKey, out var store)) { store = new List<DeathRecord>(); _deathStores[segKey] = store; }
             if (!_deathsSeen.TryGetValue(segKey, out var seenMap)) { seenMap = new Dictionary<string, int>(); _deathsSeen[segKey] = seenMap; }
@@ -192,7 +204,7 @@ namespace Eq2Auras.Plugin.Act
             string killingKey = ActGlobals.ActLocalization.LocalizationStrings["specialAttackTerm-killing"].DisplayedText;
             foreach (var combatant in encounter.Items.Values)
             {
-                if (!allySet.Contains(combatant)) continue;      // Allies-only (SPEC §Deaths)
+                if (combatant.Name == null || !allyNames.Contains(combatant.Name)) continue;      // Allies-only (SPEC §Deaths)
                 int deathCount = combatant.Deaths;               // boolean-cached, cheap (verified ACT 3.8.5.288)
                 seenMap.TryGetValue(combatant.Name, out int seen);
                 if (deathCount <= seen) continue;
