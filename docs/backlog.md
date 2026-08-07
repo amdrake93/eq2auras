@@ -17,6 +17,10 @@ Follow-on to the release-scheme revert work (SPEC §Release channels — the `vX
 - **Plugin-side, NOT CI-only** — this changes updater behavior, so it needs the Windows box to field-test (unlike the release-scheme spec itself, which is CI-only). Gated on box access.
 - **Scope of "force":** auto-download-and-reload on detect, vs. a louder-but-still-manual prompt.
 
+### 🧹 DOC-CLEANUP (deferred, recorded 2026-08-06) — §Versioning `0.1`→`1.0` cutover text is stale (present-tense-future about a past event)
+
+SPEC §Versioning still frames the `0.1.x` → `1.0.0` cutover as forthcoming ("The `1.0.0` launch" + "One-time cutover caveat" — *"before the `1.0` bump … it vanishes the moment the `1.0` bump opens a fresh window"*), but the project is at `1.3` (`stable` = 1.3.0) — the cutover is several MINOR bumps in the past. The `versioned-releases-revert` spec review (Fable-5, round 1) flagged this as inherited staleness now sitting beside the branch's new §Rollout seed (`v1.3.0`). **Decision (writer, full-autonomous mode): out of scope for the release-scheme branch** — kept tight to the versioned-release/revert feature. Fix later as a standalone present-tense pass over §Versioning (past-tense or trim the one-time cutover caveat now that it's historical). Recorded here so the review doesn't re-raise it.
+
 ## Performance review — 2026-08-04 (three Fable-5 reviewers; audit: `$CLAUDE_JOB_DIR/tmp/perf-review-{A-readpath,B-core,C-render}.md`)
 
 Triggered by a hard ACT lockup when a window is pointed at a 103-minute zone **"All"** segment (Emerald Halls), memory flat → CPU/lock-bound. Three reviewers (read-path, Core, render) **independently converged** on one root cause; Core was exonerated (Tick ≈ 0.5–2 ms at N=2000). The general lesson is now a SPEC rule (**§Runtime-scaling discipline**, after Read discipline).
