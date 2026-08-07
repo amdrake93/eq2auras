@@ -2,6 +2,21 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-08-06
+
+### 💡 IDEA (Alex, 2026-08-06) — auto-apply a *reversion* (forced rollback), not just offer it
+
+Follow-on to the release-scheme revert work (SPEC §Release channels — the `vX.Y.Z` durable releases + generalized promote/revert; brainstormed 2026-08-06). That work makes a revert *possible*, and via the identity-equality updater a revert already surfaces as "update available" on the user's next manual check. This idea goes further: when the updater detects the channel's current release is a **reversion** (a rollback off a bad stable), **force-apply it** instead of waiting for the click — so everyone gets off the broken build fast, without depending on each user noticing.
+
+**Why:** a revert usually means "the current stable is broken — get people off it *now*." Leaving it to a manual check leaves a window where users keep running the bad build.
+
+**Concern (the real cost, Alex's words):** forcing a revert effectively requires every deployment/change to be **idempotent and non-destructive** across version moves. If a user took the newer (bad) build and started **customizing** (settings/config/schema) and we then force a revert, do we **obliterate what they had**? *Maybe* — undecided, and it's the crux to settle before building. Example: the newer version migrates the settings schema; a forced downgrade to the older reader could clobber or corrupt it.
+
+**Open sub-questions (captured so they aren't lost):**
+- **Detecting a "reversion" is non-trivial.** The updater is deliberately *identity-equality, no version ordering* (beta→stable opt-out routinely moves numerically backward — §Versioning), so "installed > channel" can't tell a *forced rollback* apart from a *normal backward move*. A forced rollback needs an explicit signal (a flag on the release, or a locally-remembered version history), not a numeric compare.
+- **Plugin-side, NOT CI-only** — this changes updater behavior, so it needs the Windows box to field-test (unlike the release-scheme spec itself, which is CI-only). Gated on box access.
+- **Scope of "force":** auto-download-and-reload on detect, vs. a louder-but-still-manual prompt.
+
 ## Performance review — 2026-08-04 (three Fable-5 reviewers; audit: `$CLAUDE_JOB_DIR/tmp/perf-review-{A-readpath,B-core,C-render}.md`)
 
 Triggered by a hard ACT lockup when a window is pointed at a 103-minute zone **"All"** segment (Emerald Halls), memory flat → CPU/lock-bound. Three reviewers (read-path, Core, render) **independently converged** on one root cause; Core was exonerated (Tick ≈ 0.5–2 ms at N=2000). The general lesson is now a SPEC rule (**§Runtime-scaling discipline**, after Read discipline).
