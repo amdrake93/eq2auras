@@ -117,7 +117,12 @@ jobs:
           version="${{ steps.resolve.outputs.version }}"
           sha="${{ steps.resolve.outputs.sha }}"
           if gh release view "$vtag" --repo "$REPO" >/dev/null 2>&1; then
-            echo "$vtag already exists -- reusing (idempotent re-promote), not re-minting."
+            if [ "$DRY" = "true" ]; then
+              echo "[dry-run] would ensure existing $vtag is non-prerelease + latest (idempotent re-promote of a possibly-demoted version)"
+            else
+              echo "$vtag already exists -- ensuring non-prerelease + latest (idempotent re-promote; clears any prior revert demotion)."
+              gh release edit "$vtag" --repo "$REPO" --prerelease=false --latest
+            fi
           elif [ "$DRY" = "true" ]; then
             echo "[dry-run] would create release $vtag on $sha (name=$version, non-prerelease, --latest) with dist/eq2auras.dll"
           else
@@ -190,7 +195,7 @@ Expected: `yaml ok`. Then hand-read each `run:` block against Step 5's trace.
 - [ ] **Step 5: Hand-trace both operations against the spec (no live run — see the dispatch-constraint note)**
 
 Confirm by reading the file:
-- **Promote (blank):** resolves `version`/`sha` from `dev-latest`; downloads `dev-latest`'s DLL; mints `v<version>` on `sha` as non-prerelease `--latest` (idempotent if it exists); re-points `stable` as **prerelease** with that name+bytes. Matches SPEC §One manual `workflow_dispatch` (Promote) + §A promotion mints.
+- **Promote (blank):** resolves `version`/`sha` from `dev-latest`; downloads `dev-latest`'s DLL; mints `v<version>` on `sha` as non-prerelease `--latest` — and if `v<version>` already exists (including left **prerelease** by a prior revert's demotion), re-asserts it non-prerelease + latest so "Latest" tracks the version `stable` now serves; re-points `stable` as **prerelease** with that name+bytes. Matches SPEC §One manual `workflow_dispatch` (Promote) + §A promotion mints + §Keeping "Latest" honest (a re-promote of a demoted version reclaims Latest).
 - **Revert (`1.3.0`):** errors if `v1.3.0` absent; else downloads `v1.3.0`'s DLL; demotes every non-prerelease `vX.Y.Z` with `core > 1.3.0` to prerelease and marks `v1.3.0` latest; re-points `stable` as prerelease with `1.3.0`'s name+bytes. Matches SPEC §One manual `workflow_dispatch` (Revert) + §Keeping "Latest" honest across a revert.
 - **`dry_run=true`:** every create/edit/upload is replaced by an `echo "[dry-run] would …"`; only read-only `gh release view/list`/`gh api`/`gh release download` run. Confirm no mutating `gh` command is reachable when `DRY=true`.
 
@@ -200,6 +205,8 @@ Confirm by reading the file:
 git add .github/workflows/promote.yml
 git commit -m "Release: promote.yml -> versioned vX.Y.Z + programmatic revert (mint/re-point/demote, dry_run); stable becomes prerelease pointer [skip ci]"
 ```
+
+`[skip ci]` is intentional: this changes only `promote.yml` — a `workflow_dispatch` workflow not triggered by push — so the push-triggered `build.yml` verify run would exercise nothing about this change. Its verification is `actionlint` (Steps 3–4), not branch CI.
 
 ---
 
