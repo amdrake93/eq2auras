@@ -1,6 +1,6 @@
 # eq2auras
 
-[![build](https://img.shields.io/github/actions/workflow/status/amdrake93/eq2auras/build.yml?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) [![stable](https://img.shields.io/github/v/release/amdrake93/eq2auras?label=stable&color=009E73)](https://github.com/amdrake93/eq2auras/releases/tag/stable) [![license](https://img.shields.io/github/license/amdrake93/eq2auras?color=E69F00)](LICENSE)
+[![build](https://img.shields.io/github/actions/workflow/status/amdrake93/eq2auras/build.yml?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) [![stable](https://img.shields.io/github/v/release/amdrake93/eq2auras?display_name=release&label=stable&color=009E73)](https://github.com/amdrake93/eq2auras/releases/tag/stable) [![beta](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Famdrake93%2Feq2auras%2Freleases%2Ftags%2Fdev-latest&query=%24.name&label=beta&color=0072B2)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) [![license](https://img.shields.io/github/license/amdrake93/eq2auras?color=E69F00)](LICENSE)
 
 [install guide](docs/install.md) · [stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 
