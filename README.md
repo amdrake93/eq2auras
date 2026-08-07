@@ -4,17 +4,18 @@
 
 [install guide](docs/install.md) · [stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 
-**eq2auras** is an [ACT (Advanced Combat Tracker)](https://advancedcombattracker.com/) overlay for **EverQuest 2**. It takes the spell timers you already track in ACT and draws them as a clean, glanceable overlay that quietly counts down — then escalates each ability into view as it comes due, so you catch the recast without staring at a wall of bars. The north star is *"WeakAuras for EQ2."*
+**eq2auras** is an [ACT (Advanced Combat Tracker)](https://advancedcombattracker.com/) overlay *suite* for **EverQuest 2** — a single plugin that draws clean, glanceable overlays on top of the combat data ACT already tracks. Under the hood it's **one UI framework fed by different data sources**: spell-timer data drives the **Timer Overlay**, live parse data drives the **Parse Meter**. Each new overlay is a new module on the same framework, not a new plugin.
 
-It reads ACT's data only. Your triggers and timers stay in ACT's native framework, so a teammate who **doesn't** run eq2auras still shares timers with you through ACT exactly as before.
+It reads ACT's data only — presentation, never parsing. Your triggers and spell timers stay in ACT's native framework, so a teammate who **doesn't** run eq2auras still shares timers with you through ACT exactly as before; the meter simply re-draws the same live parse ACT is already computing.
 
 ## What you get
 
-- **A calm list that escalates.** Upcoming timers sit quiet in a compact list; as an ability nears its recast it escalates — either into a large radial countdown in the center of your screen or highlighted in place — driven by each timer's own ACT warning value.
-- **Colour that means something.** Timers draw from a hand-picked palette, assigned in the order abilities first fire, so a given ability keeps its colour across pulls and wipes. (Assignments start fresh whenever the plugin reloads — for example after taking an update.) Greyscale and "use ACT's own colour" modes are a click away, and you can supply your own palette.
-- **Put it where you want it.** Two independent panels, each freely draggable into place and sized with simple width/height knobs, with its own font. Unlock, drag against an on-screen placement grid, re-lock — positions persist.
-- **No re-authoring.** It surfaces the timers ACT already knows about; there's nothing to re-enter. Point it at your existing setup and it just shows up.
-- **Self-updating.** A built-in *Check for updates* pulls the latest build and reloads live — no ACT restart. Runs a **stable** channel by default, with an opt-in **beta** channel for early builds.
+Two overlays today, each taking its cue from a WoW addon you may recognise — an inspiration to aim at, not a claim to have rebuilt it in EQ2:
+
+- **Timer Overlay** — a calm, glanceable list of your spell timers that escalates each ability into view as it comes due, so urgency reads at a glance instead of everything looking the same. *Inspired by [WeakAuras](https://github.com/WeakAuras/WeakAuras2).*
+- **Parse Meter** — a clean replacement for ACT's cramped mini-parse: who's doing what damage or healing, class-coloured and readable mid-fight. *Inspired by [Details!](https://github.com/Tercioo/Details-Damage-Meter).*
+
+Both drop into place where you want them, keep themselves updated, and surface what ACT already tracks — nothing to re-author.
 
 ## Getting Started
 
@@ -29,13 +30,13 @@ You need ACT already installed and parsing EverQuest 2 (see the [install guide](
 
 ## How it works
 
-eq2auras ships as a **single ACT plugin** — one `eq2auras.dll` you drop into ACT. Inside, a reusable overlay core (the transparent, top-most, click-through window; the render loop; bars/text/radial rendering; the escalation engine) sits under feature modules that read ACT through thin adapters. The shipped module is the **Timer Overlay**; a **Parse Meter** (a nicer replacement for ACT's mini parse) is planned. Features are individually toggleable.
+eq2auras ships as a **single ACT plugin** — one `eq2auras.dll` you drop into ACT. Inside it is a reusable **Core** — the overlay framework every feature is built on: transparent, top-most, click-through windows; the render loop; the shared row/bar, text, and radial rendering; the escalation and theming engines. Each feature is a thin module that reads ACT through its own data adapter and renders through the Core — the **Timer Overlay** feeds on ACT's spell-timer data, the **Parse Meter** on ACT's live encounter parse. Both ship today and are individually toggleable. New overlays are new modules on the same Core — one framework, one file, rather than a pile of separate plugins.
 
 **Requirements:** Windows with ACT running and parsing EQ2; EverQuest 2 in **borderless-windowed** mode (overlays can't draw over exclusive-fullscreen — a documented ACT limitation); .NET Framework 4.x (already present on modern Windows).
 
 ## Contributing & internals
 
-The architecture, engine rules, and roadmap live in [docs/SPEC.md](docs/SPEC.md); queued work and field feedback are in [docs/backlog.md](docs/backlog.md). Start there.
+The suite is a reusable **Core** with feature modules layered on top. The `Core` project (`src/eq2auras.Core`) is a `netstandard2.0` library whose sources compile directly into the plugin assembly (`src/eq2auras.Plugin`) — so there's one shipped DLL and no second binary to keep in sync, yet the same sources build and unit-test standalone (`dotnet test tests/eq2auras.Core.Tests`). The architecture, engine rules, and roadmap live in [docs/SPEC.md](docs/SPEC.md); queued work and field feedback are in [docs/backlog.md](docs/backlog.md). Start there.
 
 ## License
 
