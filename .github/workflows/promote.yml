@@ -3,9 +3,14 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "Version to promote (blank = current dev-latest)"
+        description: "Blank = promote current dev-latest. A version (e.g. 1.3.0) = revert stable to that already-promoted version."
         required: false
         default: ""
+      dry_run:
+        description: "Log the actions without creating/moving/editing any release."
+        type: boolean
+        required: false
+        default: false
 
 permissions:
   contents: write
@@ -13,36 +18,110 @@ permissions:
 jobs:
   promote:
     runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      DRY: ${{ inputs.dry_run }}
     steps:
-      - name: Resolve the dev-latest build being promoted
-        id: dev
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Resolve operation, version, byte source, and source commit
+        id: resolve
         run: |
-          name="$(gh release view dev-latest --repo ${{ github.repository }} --json name -q .name)"
-          sha="$(gh api repos/${{ github.repository }}/git/ref/tags/dev-latest -q .object.sha)"
-          want="${{ github.event.inputs.version }}"
-          if [ -n "$want" ] && [ "$want" != "$name" ]; then
-            echo "::error::Requested $want but dev-latest currently holds $name. Accept the default to promote the current build, or restore that version's run artifact first (escape hatch)."
-            exit 1
+          set -euo pipefail
+          want="${{ inputs.version }}"
+          if [ -z "$want" ]; then
+            op="promote"
+            version="$(gh release view dev-latest --repo "$REPO" --json name -q .name)"
+            sha="$(gh api "repos/$REPO/git/ref/tags/dev-latest" -q .object.sha)"
+            src_tag="dev-latest"
+          else
+            op="revert"
+            version="$want"
+            vtag="v$version"
+            if ! gh release view "$vtag" --repo "$REPO" >/dev/null 2>&1; then
+              echo "::error::Version $version was never promoted (no $vtag release). Revert targets must be previously-promoted versions."
+              exit 1
+            fi
+            sha="$(gh api "repos/$REPO/git/ref/tags/$vtag" -q .object.sha)"
+            src_tag="$vtag"
           fi
-          echo "version=$name" >> "$GITHUB_OUTPUT"
-          echo "sha=$sha" >> "$GITHUB_OUTPUT"
+          {
+            echo "op=$op"
+            echo "version=$version"
+            echo "sha=$sha"
+            echo "src_tag=$src_tag"
+            echo "vtag=v$version"
+          } >> "$GITHUB_OUTPUT"
+          echo "-> $op $version (bytes from $src_tag, source commit $sha)"
 
-      - name: Download the dev-latest DLL (exact bytes — no recompile)
-        shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
+      - name: Download the release DLL (exact bytes -- no recompile)
         run: |
-          mkdir dist
-          gh release download dev-latest --repo ${{ github.repository }} --pattern eq2auras.dll --dir dist --clobber
+          set -euo pipefail
+          mkdir -p dist
+          gh release download "${{ steps.resolve.outputs.src_tag }}" --repo "$REPO" --pattern eq2auras.dll --dir dist --clobber
 
-      - name: Publish stable
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: stable
-          name: ${{ steps.dev.outputs.version }}
-          prerelease: false
-          body: "Promoted from dev build ${{ steps.dev.outputs.version }} (source commit ${{ steps.dev.outputs.sha }})."
-          files: dist/eq2auras.dll
+      - name: Mint the immutable versioned release (promote only)
+        if: steps.resolve.outputs.op == 'promote'
+        run: |
+          set -euo pipefail
+          vtag="${{ steps.resolve.outputs.vtag }}"
+          version="${{ steps.resolve.outputs.version }}"
+          sha="${{ steps.resolve.outputs.sha }}"
+          if gh release view "$vtag" --repo "$REPO" >/dev/null 2>&1; then
+            if [ "$DRY" = "true" ]; then
+              echo "[dry-run] would ensure existing $vtag is non-prerelease + latest (idempotent re-promote of a possibly-demoted version)"
+            else
+              echo "$vtag already exists -- ensuring non-prerelease + latest (idempotent re-promote; clears any prior revert demotion)."
+              gh release edit "$vtag" --repo "$REPO" --prerelease=false --latest
+            fi
+          elif [ "$DRY" = "true" ]; then
+            echo "[dry-run] would create release $vtag on $sha (name=$version, non-prerelease, --latest) with dist/eq2auras.dll"
+          else
+            gh release create "$vtag" --repo "$REPO" --target "$sha" --title "$version" --latest \
+              --notes "eq2auras $version. Source commit $sha." dist/eq2auras.dll
+          fi
+
+      - name: Demote versioned releases newer than the target, keep target latest (revert only)
+        if: steps.resolve.outputs.op == 'revert'
+        run: |
+          set -euo pipefail
+          target="${{ steps.resolve.outputs.version }}"
+          gh release list --repo "$REPO" --limit 200 --json tagName,isPrerelease \
+            -q '.[] | select(.isPrerelease==false) | .tagName' | while read -r tag; do
+            case "$tag" in
+              v[0-9]*) core="${tag#v}" ;;
+              *) continue ;;
+            esac
+            [ "$core" = "$target" ] && continue
+            higher="$(printf '%s\n%s\n' "$target" "$core" | sort -V | tail -1)"
+            if [ "$higher" = "$core" ]; then
+              if [ "$DRY" = "true" ]; then
+                echo "[dry-run] would demote $tag to prerelease (newer than reverted-to $target)"
+              else
+                echo "demoting $tag to prerelease (newer than reverted-to $target)"
+                gh release edit "$tag" --repo "$REPO" --prerelease
+              fi
+            fi
+          done
+          if [ "$DRY" = "true" ]; then
+            echo "[dry-run] would mark v$target as latest"
+          else
+            gh release edit "v$target" --repo "$REPO" --latest --prerelease=false
+          fi
+
+      - name: Re-point stable at the chosen build (prerelease pointer)
+        run: |
+          set -euo pipefail
+          version="${{ steps.resolve.outputs.version }}"
+          sha="${{ steps.resolve.outputs.sha }}"
+          op="${{ steps.resolve.outputs.op }}"
+          body="stable = $version ($op). Bytes from ${{ steps.resolve.outputs.src_tag }}; source commit $sha."
+          if [ "$DRY" = "true" ]; then
+            echo "[dry-run] would set stable -> name=$version, prerelease=true, asset=dist/eq2auras.dll"
+            exit 0
+          fi
+          if gh release view stable --repo "$REPO" >/dev/null 2>&1; then
+            gh release edit stable --repo "$REPO" --prerelease --title "$version" --notes "$body"
+            gh release upload stable --repo "$REPO" dist/eq2auras.dll --clobber
+          else
+            gh release create stable --repo "$REPO" --prerelease --title "$version" --notes "$body" dist/eq2auras.dll
+          fi
