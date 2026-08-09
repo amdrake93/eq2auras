@@ -19,7 +19,7 @@ jobs:
   promote:
     runs-on: ubuntu-latest
     env:
-      GH_TOKEN: ${{ github.token }}
+      GH_TOKEN: ${{ secrets.RELEASE_PAT }}
       REPO: ${{ github.repository }}
       DRY: ${{ inputs.dry_run }}
     steps:
