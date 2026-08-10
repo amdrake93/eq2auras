@@ -145,12 +145,41 @@ so silently-patched trigger-scaling bugs are demonstrably this era's churn. **Be
 explanation: silent server-side change (fixed ~Jun 24–Jul 4, regressed by Aug 9). Not
 provable from logs.**
 
+## MARK OF DIVINITY RESEARCH (2026-08-10) — exonerated as the engine
+Exhaustive check of the spell across every version (live census all 10 quality tiers;
+historical ranks I–VI L18→83; item "Mark of the Celestial" → MoD IV; AA "Enhance: Mark of
+Divinity", Kunark Ascending 2016): **every version is arcane/divine-resist + combat-mit debuff
+plus a 20%-on-MELEE proc (Mark of Nobility) that HEALS the attacker 6–140. No version, era,
+AA, item, or focus adds/deals/amplifies damage.** Mark of Nobility isn't standalone (only the
+embedded heal). Two independent disproofs it causes the amp: (1) MoD payload is 6–140; amps are
++23k–125k. (2) MoD triggers only on melee-weapon damage, but amps hit SPELLS too (Storm Surge
+cold, Ceremonial Blade mental, Darksong Blade disease) — a melee-gated proc can't fire on those.
+=> MoD-reflect is a **tracer**, not the trigger. Confirms Alex's instinct + the earlier
+tracer branch.
+
+**Best model = server-side (emulator) issue, not live EQ2.** No official MoD can do this;
+official patch notes at both era boundaries (Jun 23, Jul 28 updates) contain nothing relevant
+(nearest: a June fix to a *different* triggered effect "down from 570,000%" — trigger-scaling
+bugs were live-side churn that expansion). The amp's on/off/on cadence (Jun on → Jul off →
+Aug on) fits **server data re-imports** (the "live data leaks into our version" phenomenon),
+not a client ability. Amp fingerprint (per-hit chance → fixed, ability-keyed, pre-crit add, on
+melee AND spell hits) = a damage-proc / scaling-error applied to the triggering ability,
+sourced in the server's reflect handling or a mismatched spell-effect row. Unreachable from
+public data — lives in the emu's build/changelog.
+Sources: census s:eq2i eq2/spell (Mark of Divinity ×10 tiers, Mark of Nobility 0 standalone);
+ZAM Mark of the Celestial; tentonhammer templar spell list; eq2wire KA 2016 update notes;
+everquest2.com update notes 6-23 / 7-28 / 6-9-2026.
+
 ## Next steps
 1. **In-game reproduction on current game version**: during a reflect phase, deliberately
-   bounce Mark of Divinity (Cheggers) — DM not needed. If bursts follow reliably, the
-   mechanism is live: on-demand ~7s free-damage window (time big CAs into it), and a clean
-   bug report if the guild prefers. If it never reproduces, the Aug 9 event was the tail of
-   another silent change.
+   bounce a reflected ability (NOT MoD-specific — MoD is exonerated; bounce whatever the raid
+   normally reflects). If bursts follow, mechanism is live: on-demand ~7s free-damage window
+   (time big CAs into it), or a clean bug report. If never reproduces, Aug 9 was the tail of
+   another silent server change.
+2. **Ask the server's dev team / changelog** about spell-data or reflect-handler changes
+   around late June and early August 2026 — that's where the real toggle lives.
+3. **If a server-side spell dump is available**, diff the amped abilities' effect rows against
+   live census to find the mismatched/bugged row directly.
 2. Optionally re-sweep future ferried logs with `sweep.py` (validated: 5/5 known bursts,
    0 false positives at burst tier) to track whether the mechanism stays live.
 3. After the spike: untrack the big archives + history-scrub (filter-repo/BFG).
