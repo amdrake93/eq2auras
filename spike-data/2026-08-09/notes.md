@@ -119,12 +119,38 @@ uptime alone provably does not produce amps.
   pairs, add-death timeline; `xfight.py` — cross-fight window template intersection (found
   the marks); `verify_retraction.py` — bimodal-population proof.
 
+## ARCHIVE SWEEP RESULTS (2026-08-10 — 17 day-logs, Jun 15–Aug 9, 1.7GB, 81s runtime)
+**Five real bursts** (≤9s wall, 10–15 amped hits, 5–9 attackers, ability-keyed ×3–×50), on
+**four different bosses**: Jun 21 D'Lizta Cheroon, Jun 23 Clockwork Menace, Jun 23 Tender of
+the Seedlings ×2, Aug 9 VL Mayong. Six other detector "bursts" = confirmed noise (sparse,
+30–56s spread, auto-crit variance / boss-owned abilities).
+
+**Mark of Divinity reflection is THE trigger — Death Mark exonerated** (Alex called it):
+- 12 MoD-bounce events in the archive (all Cheggers). **All 5 bursts start 1–2s after one.**
+- Tender#2 burst had NO Death Mark bounce at all; D'Lizta/Tender#1 DM bounces came 20–30s
+  AFTER their bursts. The earlier "both marks" conjunction was DM riding along (Biffels
+  casts DM into every reflect window; it's just the most-reflected spell).
+- Amp magnitudes are era-stable per ability (Wisp Blade amped 41.0k Jun / 41.3k Aug;
+  Masked Strike 35.0k/34.6k) — the engine is constant wherever it fires.
+
+**THE OPEN MYSTERY — the era gate.** MoD-bounce → burst: **4/4 in June (21–23), 0/5 Jul 5–28,
+1/2 Aug 9** (the Aug 9 dud = fight-open bounce, 4s residence, low swing volume — plausible
+zero). Eliminated as the gate: cure speed (bursts cured +3/4s; longest dud residence +9s),
+boss identity (Tender & Mayong appear on BOTH sides), raid roster (no player separates burst
+from dud nights, either direction), Cheggers' spell (Mark of Nobility proc payload flat
+~120–210 median across all eras), reflect behavior (no density/pattern change). Public patch
+notes at both boundaries (Jun 23, Jul 28 updates) mention nothing relevant — but the June
+notes DO fix a same-family bug elsewhere ("Do'Guen's triggered effect… down from 570,000%"),
+so silently-patched trigger-scaling bugs are demonstrably this era's churn. **Best remaining
+explanation: silent server-side change (fixed ~Jun 24–Jul 4, regressed by Aug 9). Not
+provable from logs.**
+
 ## Next steps
-1. **Tomorrow: full archive sweep.** Extract Wuoshi volumes (7zz installed) to scratchpad,
-   skip the Galdenya file, `sweep.py` everything + the three July day-logs with the Mayong
-   cohort. Deliverable: pulls × {bounce-overlap, burst} contingency table + any new bursts.
-   "Vampire Lord" prefix = the reflect version of the Mayong fight (cohort filter is correct).
-2. **In-game discriminator** (raid, whenever): during a reflect phase, deliberately bounce
-   Death Mark + Mark of Divinity together. Burst follows → on-demand reproduction (and free
-   burst window to exploit/report). Nothing → tracer reading wins; amp is a hidden boss state.
+1. **In-game reproduction on current game version**: during a reflect phase, deliberately
+   bounce Mark of Divinity (Cheggers) — DM not needed. If bursts follow reliably, the
+   mechanism is live: on-demand ~7s free-damage window (time big CAs into it), and a clean
+   bug report if the guild prefers. If it never reproduces, the Aug 9 event was the tail of
+   another silent change.
+2. Optionally re-sweep future ferried logs with `sweep.py` (validated: 5/5 known bursts,
+   0 false positives at burst tier) to track whether the mechanism stays live.
 3. After the spike: untrack the big archives + history-scrub (filter-repo/BFG).

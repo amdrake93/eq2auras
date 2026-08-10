@@ -64,6 +64,9 @@ for path in files:
             rm = re.match(r"^(.*?) tries to \w+ .* with (.*?), but", b)
             if rm: reflects.append((ep, daykey, t, rm.group(1), rm.group(2)))
             continue
+        if "ark of ivinity"[0:0] or re.search(r"[Mm]ark of [Dd]ivinity", b):
+            with open(path + ".mod.tsv", "a") as mf:
+                mf.write(f"{ep}\t{daykey}\t{t}\t{b}\n")
         if COHORT and COHORT in b:
             if " hits " in b or " multi attacks " in b or " flurries " in b:
                 cohort_hits.append(ep)
@@ -90,6 +93,9 @@ for path in files:
         if others_max > 0 and amt >= 2.2 * others_max and amt >= 4000:
             flags.append((ep, daykey, t, key, amt, amt / others_max))
     flags.sort()
+    with open(path + ".flags.tsv", "w") as ff:
+        for ep, daykey, t, key, amt, r in flags:
+            ff.write(f"{ep}\t{daykey}\t{t}\t{key[1]}\t{key[2]}\t{amt}\t{r:.1f}\t{key[5]}\n")
 
     clusters = []
     for f in flags:
