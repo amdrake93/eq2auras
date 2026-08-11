@@ -7,6 +7,16 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 ### 🧩 PROCESS — adopted the `requesting-design-review` skill; scrapped `docs/review-workflow.md`
 The generic writer/reviewer/loop review contract now lives in the user-scoped `requesting-design-review` skill (`~/.claude/skills/`, not in this repo); CLAUDE.md points at it. **Two review types retired** (over-formalized accretion on the old doc, never meant to be first-class): (1) **research / ground-truth doc review** — re-derivation of the ACT decompile docs stays documented in the engine docs themselves (`act-*-engine.md` "re-derive after any ACT upgrade" + the `ilspycmd` command); the existing `docs/research/` archive + review-status headers stand as-is; no separate review process going forward. (2) **code review of implemented plans** — code review, if ever needed, is `superpowers:requesting-code-review`, not an eq2auras-specific type. Recorded so the design-review loop doesn't re-raise either as a gap.
 
+### 📚 IN FLIGHT — user-facing docs: the generated feature wiki (branch `user-docs-wiki`)
+SPEC amended (§Development & test cycle — new "Feature docs — the generated wiki" subsection): the GitHub wiki becomes the player-facing **feature/usage** layer, **generated from SPEC** (text-only, no screenshots — cross-feature-shot-rot + Windows-box-blocks-automation), via a **repo-scoped generator skill**; README + `docs/install.md` stay hand-maintained in-repo. Regenerate at stable promotion, **maintainer-run** (the maintainer is the review gate on the AI prose); CI automation deferred. **Spec third-party-reviewed (Fable 5) — r1 request-changes (2 Important + 1 Minor), fixes applied, re-review pending.**
+
+**Plan-watch items (spec review carries; the plan verifies each landed):**
+1. **Which SPEC revision generation reads + shipped-vs-designed scoping** (the design's central honesty claim). Regeneration must read the SPEC at the **promoted build's `vX.Y.Z` source commit** (not live `main`), and the page manifest must map **only shipped feature sections** (never roadmap / forward-compatible scaffolding / design-meta) — so player docs reflect the bytes players run, not designed-but-unbuilt (SPEC:5 status line; §Forward-compatible vocabulary) or newer-than-promoted behavior (§Promote allows promoted-older-than-`main`). The plan pins the concrete mechanism — Alex's candidate: **ship the SPEC diff release-to-release so the generator targets only changed docs** (also addresses non-deterministic-LLM regen churn on unchanged sections).
+
+**Deferred (captured, not built):**
+- **CI automation of regeneration** — needs an LLM-in-CI rail (model credential, per-run cost, an automated review gate on the output); CI is deliberately unauthenticated today. Would ride the same rail as any future **contribution / PR-automation workflow** (automated spec/plan/code review on PRs) — a *possible* direction (cf. the tentative PR-based-change-management item, "From Alex — 2026-07-15"), **not** a committed plan.
+- **README hero shots** — general illustrative "look at my cool shit" screenshots, hand-maintained in the README, never in the generated wiki. Later.
+
 ## From Alex — 2026-08-06
 
 ### 💡 IDEA (Alex, 2026-08-06) — auto-apply a *reversion* (forced rollback), not just offer it
