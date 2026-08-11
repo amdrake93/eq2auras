@@ -2,6 +2,11 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-08-10
+
+### 🧩 PROCESS — adopted the `requesting-design-review` skill; scrapped `docs/review-workflow.md`
+The generic writer/reviewer/loop review contract now lives in the user-scoped `requesting-design-review` skill (`~/.claude/skills/`, not in this repo); CLAUDE.md points at it. **Two review types retired** (over-formalized accretion on the old doc, never meant to be first-class): (1) **research / ground-truth doc review** — re-derivation of the ACT decompile docs stays documented in the engine docs themselves (`act-*-engine.md` "re-derive after any ACT upgrade" + the `ilspycmd` command); the existing `docs/research/` archive + review-status headers stand as-is; no separate review process going forward. (2) **code review of implemented plans** — code review, if ever needed, is `superpowers:requesting-code-review`, not an eq2auras-specific type. Recorded so the design-review loop doesn't re-raise either as a gap.
+
 ## From Alex — 2026-08-06
 
 ### 💡 IDEA (Alex, 2026-08-06) — auto-apply a *reversion* (forced rollback), not just offer it
