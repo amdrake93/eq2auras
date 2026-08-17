@@ -2,6 +2,11 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-08-17
+
+### 🐛 FIX (branch `fix-devlatest-tag-provenance`) — `dev-latest` git tag was frozen → `vX.Y.Z` provenance broken
+**Discovered 2026-08-17 via the user-docs plan review.** The rolling `dev-latest` **git tag** was stuck at `6c5e680` (2026-07-14): `build.yml`'s `softprops/action-gh-release` publish refreshes the release + DLL asset every push but **never re-points an existing tag**, so the tag froze at its first-created commit. `promote.yml` reads the promoted build's source commit from that ref, so it stamped **`v1.4.0` onto the wrong pre-meter commit** (`6c5e680`; release body recorded it). `v1.3.0` was fine (backfilled with an explicit target). **Field/updater unaffected** — the asset + version name are correct (Alex's 1.4 has the segment picker); only the `vX.Y.Z`→source-commit provenance (the revert/rebuild spine) was wrong. **Fix, 2 parts:** (a) `build.yml` force-moves the `dev-latest` tag to the built commit on each `main` publish (before the release step), + a SPEC invariant note (§Build & publish); (b) one-time re-point of `v1.4.0` tag + release `6c5e680` → the true source `2693c1d`. Part (a) is fix-flow-reviewed + merge-gated (the merge push itself verifies the tag-move works with `github.token`, else escalate to `RELEASE_PAT`); part (b) runs after (a) is CI-confirmed.
+
 ## From Alex — 2026-08-10
 
 ### 🧩 PROCESS — adopted the `requesting-design-review` skill; scrapped `docs/review-workflow.md`
