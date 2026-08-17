@@ -88,6 +88,7 @@ jobs:
       # self-bootstraps rather than 404-blocking the publish.
       - name: Move the dev-latest tag to the published commit
         if: github.ref == 'refs/heads/main'
+        shell: bash   # windows-latest defaults to pwsh; the `\` continuation + `||` below are bash
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
