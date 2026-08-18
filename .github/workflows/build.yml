@@ -80,6 +80,21 @@ jobs:
           name: eq2auras-${{ steps.ver.outputs.version }}
           path: dist/*
 
+      # softprops/action-gh-release refreshes the dev-latest RELEASE + asset but never moves the
+      # existing dev-latest git TAG, so it freezes at whatever commit first created it. promote.yml
+      # reads the promoted build's source commit from this tag (§Stable is a promotion), so a frozen
+      # tag stamps every vX.Y.Z onto a stale commit. Move the tag to HEAD before publishing —
+      # create-or-update (PATCH, else POST), so an absent tag (fresh/deleted repo state) still
+      # self-bootstraps rather than 404-blocking the publish.
+      - name: Move the dev-latest tag to the published commit
+        if: github.ref == 'refs/heads/main'
+        shell: bash   # windows-latest defaults to pwsh; the `\` continuation + `||` below are bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api -X PATCH "repos/${{ github.repository }}/git/refs/tags/dev-latest" -f sha="${{ github.sha }}" -F force=true \
+            || gh api -X POST "repos/${{ github.repository }}/git/refs" -f ref="refs/tags/dev-latest" -f sha="${{ github.sha }}"
+
       - name: Publish rolling prerelease
         if: github.ref == 'refs/heads/main'   # releasing is a main-only event; branches only verify
         uses: softprops/action-gh-release@v2
