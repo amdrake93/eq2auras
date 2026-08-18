@@ -23,21 +23,36 @@ Copied verbatim from the SPEC amendment (§Development & test cycle — "Feature
 
 ---
 
-### Task 1: Author the generator skill
+### Task 1: Author the generator skill (TDD, via `superpowers:writing-skills`)
 
-The core deliverable: a repo-scoped skill that encodes what to generate (the page manifest), how to voice it (the style guide), and the run process (read SPEC at the promoted commit → generate → hand off for review → push). The plan-watch item lands here concretely.
+The core deliverable: a repo-scoped skill (`generate-user-docs`) encoding what to generate (the page manifest), how to voice it (the style guide), and the run process (read SPEC at the promoted commit → generate → hand off → push). It is a **technique/reference skill, not a discipline skill** — its failure mode is *wrong-shaped output* (a bad generated page), not rule-violation under pressure. Three things follow from `superpowers:writing-skills`, all load-bearing:
+
+- **REQUIRED SUB-SKILL: `superpowers:writing-skills`.** Author it **TDD-style** — a skill you didn't *run and inspect* is untested ("Reading ≠ using"). For a generation skill the "tests" are **input→output pairs**: a real SPEC section in, a known-good player page expected out; the skill is done when generation reliably hits the target. This is *technique-skill* testing (application scenarios), not the heavy discipline pressure-scenarios/rationalization tables.
+- **Form = recipe, not prohibitions.** Per `writing-skills` §"Match the Form to the Failure", *wrong-shaped output* is fixed by a **positive recipe** ("a page **IS** …") + a golden exemplar; prohibition lists measurably *backfire* on shaping problems. So the style guide leads with the recipe; hard bans (screenshots, internal terms) are a short tail.
+- **`description` = triggers only.** The skill's `description` states *when to use it*, never a workflow summary — a summarized workflow makes agents follow the description instead of reading the skill (`writing-skills` SDO).
+
+**Project-specific-skill decision (deliberate, recorded):** `writing-skills` steers project-specific conventions toward the instructions file, not a skill. Exception taken here because the generator is an invocable *multi-step process* (not a convention), too large for CLAUDE.md, and **repo-scoped** (`.claude/skills/`, not the shared user namespace) so it never enters the generic library.
 
 **Files:**
 - Create: `.claude/skills/generate-user-docs/SKILL.md`
 - Create: `.claude/skills/generate-user-docs/references/page-manifest.md`
 - Create: `.claude/skills/generate-user-docs/references/style-guide.md`
+- Scratch (session scratchpad, **not committed**): the two expected-output exemplars + the baseline / with-skill generation outputs used as the tests.
 
 **Interfaces:**
 - Produces: an invocable skill `generate-user-docs` whose run steps a later maintainer (or Task 4) follows. No code interface; the "interface" is the manifest's page set (`Home`, `_Sidebar`, `Timer-Overlay`, `Parse-Meter`) and the `.generated-from` marker convention (below), which Task 4 consumes.
 
-- [ ] **Step 1: Write `SKILL.md` — the run process + invariants.**
+- [ ] **Step 1 — RED: define the tests, watch a naive attempt fail.**
 
-Frontmatter + body. The body MUST specify, in order:
+  - Pick **two representative SPEC sections** as test inputs, spanning both overlays and different shapes: `§Escalation is driven by ACT's `WarningValue`` (Timer — a behavioral "no config needed" feature) and `§The meter window` (Meter — an interactive, multi-surface feature). Read them at the pinned release: `git show v1.4.0:docs/SPEC.md`.
+  - **Hand-write the expected output** for each — the good player page/section it should yield (concise, glanceable; *what it is* → *how you use/set it*; zero internals). These exemplars are the acceptance bar and seed the style guide's golden example. **Sanity-check them with Alex** — "good docs" is the maintainer's call.
+  - **Baseline (watch it fail):** in a **fresh subagent**, generate each section as player docs with only a naive instruction ("rewrite this SPEC section as player how-to") — *no skill*. Record the divergences from the exemplar **verbatim**: restating the SPEC, leaked terms (`CombatantData` / engine names), dev voice, over-length, invented features. These exact failures are what the skill must fix.
+
+- [ ] **Step 2 — GREEN: write `SKILL.md` (frontmatter + run process + invariants).**
+
+**`description` — triggers only, no workflow summary:** e.g. *"Use when regenerating eq2auras's player-facing feature wiki — at a stable promotion, or after a SPEC change to a documented feature."* NOT "…reads the SPEC, generates pages, and pushes" — a summarized workflow makes agents follow the description instead of reading the skill (`writing-skills` SDO).
+
+Body — the run process. The body MUST specify, in order:
 
 1. **Resolve the source revision.** The maintainer supplies the promoted version (e.g. `1.4.0`); the skill reads the SPEC from that release's commit, never the working tree:
    - **Fetch tags first** — `git -C <eq2auras-repo> fetch --tags --force origin`. The `vX.Y.Z` tags are minted *remotely* by the promote workflow, so a local clone won't have them until fetched; without this, the `git show`/`git diff` below fail with `invalid object name 'v<VERSION>'`.
@@ -56,7 +71,7 @@ Invariants to state in `SKILL.md` (bold, non-negotiable):
 - **No screenshots, no image references, ever.**
 - **The skill stops before push; the maintainer reviews and pushes.**
 
-- [ ] **Step 2: Write `references/page-manifest.md` — SPEC sections → wiki pages (shipped features only).**
+- [ ] **Step 3 — GREEN: write `references/page-manifest.md` — SPEC sections → wiki pages (shipped features only).**
 
 An explicit table. Initial page set is two feature pages plus the generated index/nav:
 
@@ -73,36 +88,43 @@ Page: Home.md           ← generated index of the above (derived from this mani
 Page: _Sidebar.md       ← generated nav (derived from this manifest's page list)
 ```
 
-**Both the manifest sources above and the EXCLUDE list below name header *prefixes*** (per Step 3's resolution rule — a name resolves to the section whose header begins with it). Sub-features live *inside* their section, not as separate entries: `§The meter window` covers the multiple-windows / right-click-menu / ⚙-settings / row-drill-down surfaces, and `§Segments mirror ACT's encounter list` covers the segment picker.
+**Both the manifest sources above and the EXCLUDE list below name header *prefixes*** (a name resolves to the SPEC section whose `###` header begins with it — see the run-process section-resolution rule in Step 2). Sub-features live *inside* their section, not as separate entries: `§The meter window` covers the multiple-windows / right-click-menu / ⚙-settings / row-drill-down surfaces, and `§Segments mirror ACT's encounter list` covers the segment picker.
 
 Then an explicit **EXCLUDE** list naming the SPEC sections the manifest must never map (they are internals/meta, not player features): `§Architecture: shared core + feature modules`, `§Packaging`, `§Platform facts`, `§The theme system`, `§The one hard constraint`, `§The one data rule`, `§The shared rendering substrate`, `§Assembly split & polling`, `§Slice map`, every `§Testing strategy …`, `§Development & test cycle`, `§Release channels & public distribution`, `§Resolved by the Phase-0 spike`, `§Roadmap`, `§Open decisions`. (The "Forward-compatible vocabulary" material is a bolded paragraph *inside* `§The theme system`, already excluded — it is not its own section, so it is not listed here.)
 
 State the rule above the table: **if a SPEC section is not listed as a page source here, it is not player-facing and is not generated** — a new shipped feature is added to this manifest deliberately, not picked up automatically (so unbuilt/spec-first sections never leak into player docs even at the promoted commit).
 
-- [ ] **Step 3: Write `references/style-guide.md` — the player voice.**
+- [ ] **Step 4 — GREEN: write `references/style-guide.md` as a recipe.**
 
-Concrete rules, with a before/after example transforming a SPEC sentence into player prose:
-- **Audience:** an EQ2 player using the overlay, not a developer. No architecture, no class/field/file names, no ACT-internals, no line numbers.
-- **Voice:** concise, glanceable, task-oriented — "what it is, how to turn it on / configure it," matching the overlay's own readable-at-a-glance ethos. Short sections, one per feature.
-- **Structure per page:** a one-line "what this is," then per-feature sections (heading + 1–3 short paragraphs: what it does → how to use/configure it). No exhaustive every-knob tables; name the knobs a player sets, not every internal default.
-- **Hard bans:** no screenshots / image markdown; no "SPEC says…"; no internal terms (`CombatantData`, `MasterSwing`, `EncounterData`, engine/file names).
-- **Worked example** (include verbatim in the file): SPEC's "Escalation is driven by ACT's `WarningValue`…" → player prose like "As an ability gets close to ready, its timer grows and brightens so the urgent ones stand out at a glance — no config needed; it follows the warning time your ACT trigger already sets."
+Lead with the **positive recipe** — the primary form (per `writing-skills` §"Match the Form to the Failure", recipes beat prohibitions for shaping output):
+- **A page IS:** a one-line *what this is*, then per feature — a heading + 1–3 short paragraphs (*what it does* → *how you turn it on / set it*). Short sections, one per feature; name the knobs a player actually sets, not every internal default.
+- **Audience:** an EQ2 player using the overlay, not a developer.
+- **Golden exemplar (include verbatim):** one Step-1 expected output, as the shape to match. Seed it from this transform — SPEC's "Escalation is driven by ACT's `WarningValue`…" → "As an ability gets close to ready, its timer grows and brightens so the urgent ones stand out at a glance — no config needed; it follows the warning time your ACT trigger already sets."
 
-- [ ] **Step 4: Verify the skill is complete and correctly scoped (structural check — no unit test).**
+Then a short **never** tail (bans, secondary to the recipe): image markdown / screenshots; "SPEC says…"; internal terms (`CombatantData`, `MasterSwing`, `EncounterData`, engine/file names); exhaustive every-knob tables.
 
-Run these checks and confirm each:
-- The skill loads: it appears in the available-skills list on a fresh Skill-tool listing (or `ls .claude/skills/generate-user-docs/` shows `SKILL.md` + both references).
+- [ ] **Step 5 — GREEN-verify: re-generate the tests with the skill.**
+
+  - Regenerate the two Step-1 sections **with** the skill (a fresh subagent given the skill). Compare each to its exemplar; **grep the output** for `CombatantData`, `MasterSwing`, `EncounterData`, `SPEC`, `![` → expect **none**; check length + voice against the recipe.
+  - Expected: the Step-1 baseline failures are gone and each output matches its exemplar's shape.
+
+- [ ] **Step 6 — REFACTOR: close gaps.**
+
+  - Any remaining divergence (over-length, a leaked term, a missed how-to, an invented feature) → tighten the recipe / `SKILL.md` → regenerate → recompare. Iterate until **both** sections reliably produce exemplar-quality output. Record any recurring failure as an explicit recipe line (the loophole-closing step).
+
+- [ ] **Step 7 — structural + `writing-skills` conformance checks.**
+
+Run these and confirm each:
+- The skill **loads**: `ls .claude/skills/generate-user-docs/` shows `SKILL.md` + both references (and it appears in a fresh Skill-tool listing).
 - **Coverage:** every feature named in the SPEC amendment's feature list (Timer Overlay: escalation, knobs, timer groups, unlock/move placement; Parse Meter: metrics + scope, multiple windows, right-click menu + ⚙ settings, drill-down, Deaths & Recap, hover cards, class colors, segment picker) maps to a page in `page-manifest.md`.
-- **Scoping:** spot-check that no EXCLUDE-list section is referenced as a page source.
-- **Invariants present:** `SKILL.md` states the promoted-commit source rule, the no-screenshots ban, and the stop-before-push gate.
+- **Scoping:** no EXCLUDE-list section is referenced as a page source.
+- **`writing-skills` conformance:** `description` is triggers-only (no workflow summary); the style guide is recipe-form with a golden exemplar; `SKILL.md` states the invariants (promoted-commit source, no-screenshots, stop-before-push).
 
-Expected: all four hold. Fix the manifest/style-guide/SKILL.md inline if any gap.
-
-- [ ] **Step 5: Commit.**
+- [ ] **Step 8 — Commit.**
 
 ```bash
 git add .claude/skills/generate-user-docs/
-git commit -m "Add generate-user-docs skill: SPEC→wiki generator (manifest + style guide + promoted-commit source)"
+git commit -m "Add generate-user-docs skill (TDD-authored via writing-skills): SPEC→wiki generator — recipe style-guide + manifest + promoted-commit source"
 ```
 
 ---
