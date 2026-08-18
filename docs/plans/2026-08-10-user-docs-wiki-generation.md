@@ -46,7 +46,7 @@ The core deliverable: a repo-scoped skill (`generate-user-docs`) encoding what t
 
   - Pick **two representative SPEC sections** as test inputs, spanning both overlays and different shapes: `§Escalation is driven by ACT's `WarningValue`` (Timer — a behavioral "no config needed" feature) and `§The meter window` (Meter — an interactive, multi-surface feature). Read them at the pinned release: `git show v1.4.0:docs/SPEC.md`.
   - **Hand-write the expected output** for each — the good player page/section it should yield (concise, glanceable; *what it is* → *how you use/set it*; zero internals). These exemplars are the acceptance bar and seed the style guide's golden example. **Sanity-check them with Alex** — "good docs" is the maintainer's call.
-  - **Baseline (watch it fail):** in a **fresh subagent**, generate each section as player docs with only a naive instruction ("rewrite this SPEC section as player how-to") — *no skill*. Record the divergences from the exemplar **verbatim**: restating the SPEC, leaked terms (`CombatantData` / engine names), dev voice, over-length, invented features. These exact failures are what the skill must fix.
+  - **Baseline (watch it fail):** run each section **5+ times, each in a fresh subagent**, with only a naive instruction ("rewrite this SPEC section as player how-to") — *no skill* — and **read every output** (single samples lie; `writing-skills` requires 5+ reps, `SKILL.md:577-585`). Record the **recurring** divergences from the exemplar **verbatim**: restating the SPEC, leaked terms (`CombatantData` / engine names), dev voice, over-length, invented features. Those recurring failures are what the skill must fix.
 
 - [ ] **Step 2 — GREEN: write `SKILL.md` (frontmatter + run process + invariants).**
 
@@ -59,14 +59,15 @@ Body — the run process. The body MUST specify, in order:
    - `git -C <eq2auras-repo> show v<VERSION>:docs/SPEC.md` is the source text. (The `vX.Y.Z` tag exists per SPEC §"A promotion mints a permanent versioned release.")
 2. **Determine scope — full vs. incremental.**
    - **Full** (bootstrap, or `--full`): regenerate every page in the manifest.
-   - **Incremental** (default at a promotion): read the wiki's `.generated-from` marker (the `vX.Y.Z` the wiki was last generated from — a plain-text file at the wiki root written by every run). Diff the two SPEC revisions — `git -C <repo> diff v<LAST>..v<VERSION> -- docs/SPEC.md` — map each changed section to its page(s) via the manifest, and **regenerate only those pages**. Pages whose source sections are unchanged are left **byte-identical** (this is what kills non-deterministic-LLM churn on unchanged docs and targets only what moved — the plan-watch mechanism).
+   - **Incremental** (default at a promotion): read the wiki's `.generated-from` marker — a plain-text file at the wiki root recording the `vX.Y.Z` **and the manifest's content hash** the wiki was last generated from (written by every run). Incremental is safe **only when the manifest is unchanged** since then: if the current manifest hash differs from the marker's, fall back to **`--full`** — a manifest edit can add / remove / re-source pages, which a SPEC diff cannot see. When the manifest matches: diff the two SPEC revisions — `git -C <repo> diff v<LAST>..v<VERSION> -- docs/SPEC.md` — map each changed section to its page(s) via the manifest, and **regenerate only those pages**; unchanged pages stay **byte-identical** (kills non-deterministic-LLM churn, targets only what moved — the plan-watch mechanism).
 3. **Generate**, per page, following `references/page-manifest.md` (which SPEC sections feed the page) and `references/style-guide.md` (voice, structure, no screenshots, no internals). **Section resolution — by header prefix:** each manifest entry names the *leading* part of a `###` header; resolve it to the SPEC section whose header **begins with** that string. Prefixes are chosen unambiguous, so a header's descriptive suffix (`— warning-window semantics`, `: session-stable palette assignment`) need not be copied verbatim and won't break resolution if it later changes. **Absent-section rule (load-bearing):** the manifest is version-static but the source is a *pinned* revision, so a mapped section's **`###` header may not exist** at `v<VERSION>` — when a feature's SPEC section was *added after* that version. The rule keys on the **header, not the body**: if no `###` header prefix-matches the manifest name, **skip it and log `skipped <section> — not in v<VERSION>` — never emit an empty page or a stub section.** (A section whose header *is* present but whose body is thinner at the older revision — a feature later fleshed out *within* an existing section, e.g. the segment picker inside `§Segments mirror ACT's encounter list` — still resolves and generates; only a genuinely absent header skips.) A page whose sources are *all* absent is not written at all (that version doesn't have the feature).
-4. **Write** the pages into a local clone of `eq2auras.wiki.git` (`git clone https://github.com/amdrake93/eq2auras.wiki.git`), update `.generated-from` to `v<VERSION>`, and regenerate `Home.md` + `_Sidebar.md` from the manifest's page list.
+4. **Write** the pages into a local clone of `eq2auras.wiki.git` (`git clone https://github.com/amdrake93/eq2auras.wiki.git`), then **prune orphans** — delete any wiki page **not in the current manifest** (so a removed/renamed manifest entry never leaves a stale page). Update `.generated-from` to the `v<VERSION>` **and the manifest hash**, and regenerate `Home.md` + `_Sidebar.md` from the manifest's page list.
 5. **Hand off — do NOT push.** Print the wiki-repo `git status` / `git diff --stat` and stop. The maintainer reviews the diff (coverage, accuracy vs. SPEC, player voice, no screenshots, no internals) and pushes manually. State this explicitly: the skill never pushes; the maintainer is the review gate on AI prose.
 
 Invariants to state in `SKILL.md` (bold, non-negotiable):
 - **Source is the promoted `vX.Y.Z` SPEC, never live `main`.**
 - **Only manifest pages are written; nothing hand-maintained exists in the wiki to clobber.**
+- **The wiki always equals a full projection of the manifest at `v<VERSION>`** — incremental only optimizes *how* it gets there (a manifest change forces a full pass; orphan pages absent from the manifest are pruned every run).
 - **A manifest section absent at the pinned revision is skipped + logged, never emitted empty.**
 - **No screenshots, no image references, ever.**
 - **The skill stops before push; the maintainer reviews and pushes.**
@@ -105,12 +106,12 @@ Then a short **never** tail (bans, secondary to the recipe): image markdown / sc
 
 - [ ] **Step 5 — GREEN-verify: re-generate the tests with the skill.**
 
-  - Regenerate the two Step-1 sections **with** the skill (a fresh subagent given the skill). Compare each to its exemplar; **grep the output** for `CombatantData`, `MasterSwing`, `EncounterData`, `SPEC`, `![` → expect **none**; check length + voice against the recipe.
-  - Expected: the Step-1 baseline failures are gone and each output matches its exemplar's shape.
+  - Regenerate each Step-1 section **5+ times with** the skill (a fresh subagent given the skill each time). **Read every output**, compare to its exemplar, and **grep each** for `CombatantData`, `MasterSwing`, `EncounterData`, `SPEC`, `![` → expect **none**; check length + voice against the recipe.
+  - Bar: **every** rep (not one lucky sample) matches its exemplar's shape with no leaks, and the Step-1 recurring failures are gone.
 
 - [ ] **Step 6 — REFACTOR: close gaps.**
 
-  - Any remaining divergence (over-length, a leaked term, a missed how-to, an invented feature) → tighten the recipe / `SKILL.md` → regenerate → recompare. Iterate until **both** sections reliably produce exemplar-quality output. Record any recurring failure as an explicit recipe line (the loophole-closing step).
+  - Any divergence in any rep (over-length, a leaked term, a missed how-to, an invented feature) → tighten the recipe / `SKILL.md` → re-run the 5+ reps → recompare. **Operationalized exit:** all reps for **both** sections land the exemplar shape with no leaks. **Variance is the signal** — if reps interpret the recipe differently, the wording isn't binding yet; tighten it (`writing-skills` variance-as-a-metric, `SKILL.md:585`). Record any recurring failure as an explicit recipe line.
 
 - [ ] **Step 7 — structural + `writing-skills` conformance checks.**
 
@@ -131,11 +132,11 @@ git commit -m "Add generate-user-docs skill (TDD-authored via writing-skills): S
 
 ### Task 2: Enable the GitHub wiki (manual — Alex, on the box or web)
 
-`eq2auras.wiki.git` does not exist until the wiki is enabled and given a first page (`gh repo view --json hasWikiEnabled` currently returns `false`). This is a prerequisite for Task 4's clone/push and cannot be done from the Mac toolchain.
+`eq2auras.wiki.git` does not exist until the wiki is enabled and given a first page (`gh repo view --json hasWikiEnabled` currently returns `false`). This is a prerequisite for Task 4's clone/push. The **enable** step can be done from the Mac (`gh repo edit amdrake93/eq2auras --enable-wiki`, given repo-admin on the token); only the **first-page** creation (Step 2, which materializes `eq2auras.wiki.git`) is genuinely web-bound.
 
 **Files:** none in-repo (GitHub setting + wiki repo).
 
-- [ ] **Step 1: Enable the wiki.** In the repo on GitHub: Settings → Features → tick **Wikis**.
+- [ ] **Step 1: Enable the wiki.** From the Mac: `gh repo edit amdrake93/eq2auras --enable-wiki` (or on GitHub: Settings → Features → tick **Wikis**).
 
 - [ ] **Step 2: Create the first page.** Click the repo's **Wiki** tab → **Create the first page** → save a placeholder `Home` (any content — Task 4 overwrites it). This is what materializes `eq2auras.wiki.git`.
 
