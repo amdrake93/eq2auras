@@ -2,7 +2,7 @@
 
 [![build](https://img.shields.io/github/actions/workflow/status/amdrake93/eq2auras/build.yml?branch=main)](https://github.com/amdrake93/eq2auras/actions/workflows/build.yml) [![stable](https://img.shields.io/github/v/release/amdrake93/eq2auras?display_name=release&label=stable&color=009E73)](https://github.com/amdrake93/eq2auras/releases/tag/stable) [![beta](https://img.shields.io/badge/dynamic/json?url=https%3A%2F%2Fapi.github.com%2Frepos%2Famdrake93%2Feq2auras%2Freleases%2Ftags%2Fdev-latest&query=%24.name&label=beta&color=0072B2)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) [![license](https://img.shields.io/github/license/amdrake93/eq2auras?color=E69F00)](LICENSE)
 
-[install guide](docs/install.md) · [stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
+[install guide](docs/install.md) · [feature docs (wiki)](https://github.com/amdrake93/eq2auras/wiki) · [stable release](https://github.com/amdrake93/eq2auras/releases/tag/stable) · [beta (dev-latest)](https://github.com/amdrake93/eq2auras/releases/tag/dev-latest) · [all releases](https://github.com/amdrake93/eq2auras/releases) · [SPEC](docs/SPEC.md) · [backlog](docs/backlog.md)
 
 **eq2auras** is an [ACT (Advanced Combat Tracker)](https://advancedcombattracker.com/) overlay *suite* for **EverQuest 2** — a single plugin that draws clean, glanceable overlays on top of the combat data ACT already tracks. Under the hood it's **one UI framework fed by different data sources**: spell-timer data drives the **Timer Overlay**, live parse data drives the **Parse Meter**. Each new overlay is a new module on the same framework, not a new plugin.
 
@@ -12,8 +12,8 @@ It reads ACT's data only — presentation, never parsing. Your triggers and spel
 
 Two overlays today, each taking its cue from a WoW addon you may recognise — an inspiration to aim at, not a claim to have rebuilt it in EQ2:
 
-- **Timer Overlay** — a calm, glanceable list of your spell timers that escalates each ability into view as it comes due, so urgency reads at a glance instead of everything looking the same. *Inspired by [WeakAuras](https://github.com/WeakAuras/WeakAuras2).*
-- **Parse Meter** — a clean replacement for ACT's cramped mini-parse: who's doing what damage or healing, class-coloured and readable mid-fight. *Inspired by [Details!](https://github.com/Tercioo/Details-Damage-Meter).*
+- **[Timer Overlay](https://github.com/amdrake93/eq2auras/wiki/Timer-Overlay)** — a calm, glanceable list of your spell timers that escalates each ability into view as it comes due, so urgency reads at a glance instead of everything looking the same. *Inspired by [WeakAuras](https://github.com/WeakAuras/WeakAuras2).*
+- **[Parse Meter](https://github.com/amdrake93/eq2auras/wiki/Parse-Meter)** — a clean replacement for ACT's cramped mini-parse: who's doing what damage or healing, class-coloured and readable mid-fight. *Inspired by [Details!](https://github.com/Tercioo/Details-Damage-Meter).*
 
 Both drop into place where you want them, keep themselves updated, and surface what ACT already tracks — nothing to re-author.
 
