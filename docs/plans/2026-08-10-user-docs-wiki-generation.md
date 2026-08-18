@@ -40,17 +40,19 @@ The core deliverable: a repo-scoped skill that encodes what to generate (the pag
 Frontmatter + body. The body MUST specify, in order:
 
 1. **Resolve the source revision.** The maintainer supplies the promoted version (e.g. `1.4.0`); the skill reads the SPEC from that release's commit, never the working tree:
+   - **Fetch tags first** — `git -C <eq2auras-repo> fetch --tags --force origin`. The `vX.Y.Z` tags are minted *remotely* by the promote workflow, so a local clone won't have them until fetched; without this, the `git show`/`git diff` below fail with `invalid object name 'v<VERSION>'`.
    - `git -C <eq2auras-repo> show v<VERSION>:docs/SPEC.md` is the source text. (The `vX.Y.Z` tag exists per SPEC §"A promotion mints a permanent versioned release.")
 2. **Determine scope — full vs. incremental.**
    - **Full** (bootstrap, or `--full`): regenerate every page in the manifest.
    - **Incremental** (default at a promotion): read the wiki's `.generated-from` marker (the `vX.Y.Z` the wiki was last generated from — a plain-text file at the wiki root written by every run). Diff the two SPEC revisions — `git -C <repo> diff v<LAST>..v<VERSION> -- docs/SPEC.md` — map each changed section to its page(s) via the manifest, and **regenerate only those pages**. Pages whose source sections are unchanged are left **byte-identical** (this is what kills non-deterministic-LLM churn on unchanged docs and targets only what moved — the plan-watch mechanism).
-3. **Generate**, per page, following `references/page-manifest.md` (which SPEC sections feed the page) and `references/style-guide.md` (voice, structure, no screenshots, no internals).
+3. **Generate**, per page, following `references/page-manifest.md` (which SPEC sections feed the page) and `references/style-guide.md` (voice, structure, no screenshots, no internals). **Absent-section rule (load-bearing):** the manifest is version-static but the source is a *pinned* revision, so a mapped section may be **missing or renamed** at `v<VERSION>` — e.g. a feature that shipped *after* this version, or a section renamed since (the SPEC's Part III→IV renumbering is a real example between `v1.4.0`'s pinned tree and current `main`). Resolve each manifest section in the pinned SPEC by its **exact header**; **if it is not present, skip it and log `skipped <section> — not in v<VERSION>` — never emit an empty page or a stub section.** A page whose sources are *all* absent is not written at all (that version doesn't have the feature).
 4. **Write** the pages into a local clone of `eq2auras.wiki.git` (`git clone https://github.com/amdrake93/eq2auras.wiki.git`), update `.generated-from` to `v<VERSION>`, and regenerate `Home.md` + `_Sidebar.md` from the manifest's page list.
 5. **Hand off — do NOT push.** Print the wiki-repo `git status` / `git diff --stat` and stop. The maintainer reviews the diff (coverage, accuracy vs. SPEC, player voice, no screenshots, no internals) and pushes manually. State this explicitly: the skill never pushes; the maintainer is the review gate on AI prose.
 
 Invariants to state in `SKILL.md` (bold, non-negotiable):
 - **Source is the promoted `vX.Y.Z` SPEC, never live `main`.**
 - **Only manifest pages are written; nothing hand-maintained exists in the wiki to clobber.**
+- **A manifest section absent at the pinned revision is skipped + logged, never emitted empty.**
 - **No screenshots, no image references, ever.**
 - **The skill stops before push; the maintainer reviews and pushes.**
 
@@ -59,7 +61,8 @@ Invariants to state in `SKILL.md` (bold, non-negotiable):
 An explicit table. Initial page set is two feature pages plus the generated index/nav:
 
 ```
-Page: Timer-Overlay.md  ← SPEC §The core loop; §Escalation is driven by ACT's WarningValue;
+Page: Timer-Overlay.md  ← SPEC §The core loop; §Timer groups: N instances of one pipeline;
+                          §Escalation is driven by ACT's WarningValue;
                           §The timer lifecycle; §The escalated radial pie; §The Overdue visual;
                           §The center escalation zone; §Configuration: the knob model;
                           §Moving the overlay: unlock/move mode; §Element dimensions;
@@ -71,7 +74,7 @@ Page: Home.md           ← generated index of the above (derived from this mani
 Page: _Sidebar.md       ← generated nav (derived from this manifest's page list)
 ```
 
-Then an explicit **EXCLUDE** list naming the SPEC sections the manifest must never map (they are internals/meta, not player features): `§Architecture: shared core + feature modules`, `§Packaging`, `§Platform facts`, `§The theme system`, `§The one hard constraint`, `§The one data rule`, `§The shared rendering substrate`, `§Assembly split & polling`, `§Slice map`, every `§Testing strategy …`, `§Development & test cycle`, `§Release channels & public distribution`, `§Forward-compatible vocabulary`, `§Resolved by the Phase-0 spike`, `§Roadmap`, `§Open decisions`.
+Then an explicit **EXCLUDE** list naming the SPEC sections the manifest must never map (they are internals/meta, not player features): `§Architecture: shared core + feature modules`, `§Packaging`, `§Platform facts`, `§The theme system`, `§The one hard constraint`, `§The one data rule`, `§The shared rendering substrate`, `§Assembly split & polling`, `§Slice map`, every `§Testing strategy …`, `§Development & test cycle`, `§Release channels & public distribution`, `§Resolved by the Phase-0 spike`, `§Roadmap`, `§Open decisions`. (The "Forward-compatible vocabulary" material is a bolded paragraph *inside* `§The theme system`, already excluded — it is not its own section, so it is not listed here.)
 
 State the rule above the table: **if a SPEC section is not listed as a page source here, it is not player-facing and is not generated** — a new shipped feature is added to this manifest deliberately, not picked up automatically (so unbuilt/spec-first sections never leak into player docs even at the promoted commit).
 
@@ -154,13 +157,13 @@ Bootstraps the wiki content by running the Task 1 skill in **full** mode against
 **Interfaces:**
 - Consumes: the `generate-user-docs` skill (Task 1); the enabled wiki (Task 2).
 
-- [ ] **Step 1: Run the generator in full mode** against the current stable `vX.Y.Z` (today `v1.4.0`). Follow the skill: read `git show v1.4.0:docs/SPEC.md`, generate all manifest pages into a clone of `eq2auras.wiki.git`, write `.generated-from` = `v1.4.0`, regenerate `Home.md` + `_Sidebar.md`.
+- [ ] **Step 1: Run the generator in full mode** against the current stable `vX.Y.Z` (today `v1.4.0`). Follow the skill — which **fetches tags first**, then reads `git show v1.4.0:docs/SPEC.md`. (`v1.4.0` now points at the true 1.4.0 source `2693c1d`, which carries the full Parse Meter, so both feature pages generate; the tag was corrected 2026-08-17 — see backlog.) Generate all manifest pages into a clone of `eq2auras.wiki.git`, write `.generated-from` = `v1.4.0`, regenerate `Home.md` + `_Sidebar.md`. The absent-section rule (Task 1) applies: any manifest section not present in `v1.4.0`'s SPEC is skipped + logged, never emitted empty.
 
 - [ ] **Step 2: Verify structurally.** Each manifest page exists and is non-empty; no page contains image markdown (`![`) or internal terms (grep the clone for `![`, `CombatantData`, `MasterSwing`, `EncounterData`, `SPEC`); `_Sidebar.md` links every page; `.generated-from` reads `v1.4.0`.
 
 - [ ] **Step 3: Maintainer review (Alex — the human gate).** Read the wiki-repo `git diff` (all-new on first run): does each feature read as accurate player how-to vs. the SPEC, in the right voice, complete, no internals, no screenshots? This is the review gate; it is not automatable and stands in for the deferred CI review.
 
-- [ ] **Step 4: Push** (Alex, after approving). From the wiki clone: `git add -A && git commit -m "Generate feature docs from v1.4.0" && git push`. The wiki is live.
+- [ ] **Step 4: Push** (Alex, after approving). From the wiki clone: `git add -A && git commit -m "Generate feature docs from v1.4.0" && git push`. The wiki is live. (`git add -A` is fine **here** — this is the wiki clone, a separate 100%-generated repo; the eq2auras `-A` ban applies to the main repo, not this one.)
 
 - [ ] **Step 5: Confirm rendering.** Open `https://github.com/amdrake93/eq2auras/wiki`; the sidebar + both feature pages render; the README link (Task 3) resolves to it.
 
