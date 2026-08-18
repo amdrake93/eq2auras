@@ -35,5 +35,8 @@ packages/
 # Brainstorm / visual-companion artifacts (transient)
 .superpowers/
 
-# Agent worktrees / local Claude scratch
-.claude/
+# Agent worktrees / local Claude scratch — but ship the repo-scoped generator skill
+.claude/*
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/generate-user-docs/
