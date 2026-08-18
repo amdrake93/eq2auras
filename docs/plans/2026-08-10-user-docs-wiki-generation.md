@@ -45,7 +45,7 @@ Frontmatter + body. The body MUST specify, in order:
 2. **Determine scope — full vs. incremental.**
    - **Full** (bootstrap, or `--full`): regenerate every page in the manifest.
    - **Incremental** (default at a promotion): read the wiki's `.generated-from` marker (the `vX.Y.Z` the wiki was last generated from — a plain-text file at the wiki root written by every run). Diff the two SPEC revisions — `git -C <repo> diff v<LAST>..v<VERSION> -- docs/SPEC.md` — map each changed section to its page(s) via the manifest, and **regenerate only those pages**. Pages whose source sections are unchanged are left **byte-identical** (this is what kills non-deterministic-LLM churn on unchanged docs and targets only what moved — the plan-watch mechanism).
-3. **Generate**, per page, following `references/page-manifest.md` (which SPEC sections feed the page) and `references/style-guide.md` (voice, structure, no screenshots, no internals). **Absent-section rule (load-bearing):** the manifest is version-static but the source is a *pinned* revision, so a mapped section may be **missing or renamed** at `v<VERSION>` — e.g. a feature that shipped *after* this version, or a section renamed since (the SPEC's Part III→IV renumbering is a real example between `v1.4.0`'s pinned tree and current `main`). Resolve each manifest section in the pinned SPEC by its **exact header**; **if it is not present, skip it and log `skipped <section> — not in v<VERSION>` — never emit an empty page or a stub section.** A page whose sources are *all* absent is not written at all (that version doesn't have the feature).
+3. **Generate**, per page, following `references/page-manifest.md` (which SPEC sections feed the page) and `references/style-guide.md` (voice, structure, no screenshots, no internals). **Section resolution — by header prefix:** each manifest entry names the *leading* part of a `###` header; resolve it to the SPEC section whose header **begins with** that string. Prefixes are chosen unambiguous, so a header's descriptive suffix (`— warning-window semantics`, `: session-stable palette assignment`) need not be copied verbatim and won't break resolution if it later changes. **Absent-section rule (load-bearing):** the manifest is version-static but the source is a *pinned* revision, so a mapped section may be **absent** at `v<VERSION>` — e.g. a feature that shipped *after* this version (regenerating `v1.3.0`'s docs finds no segment-picker section, since it shipped in 1.4). If no header prefix-matches, **skip it and log `skipped <section> — not in v<VERSION>` — never emit an empty page or a stub section.** A page whose sources are *all* absent is not written at all (that version doesn't have the feature).
 4. **Write** the pages into a local clone of `eq2auras.wiki.git` (`git clone https://github.com/amdrake93/eq2auras.wiki.git`), update `.generated-from` to `v<VERSION>`, and regenerate `Home.md` + `_Sidebar.md` from the manifest's page list.
 5. **Hand off — do NOT push.** Print the wiki-repo `git status` / `git diff --stat` and stop. The maintainer reviews the diff (coverage, accuracy vs. SPEC, player voice, no screenshots, no internals) and pushes manually. State this explicitly: the skill never pushes; the maintainer is the review gate on AI prose.
 
@@ -61,18 +61,19 @@ Invariants to state in `SKILL.md` (bold, non-negotiable):
 An explicit table. Initial page set is two feature pages plus the generated index/nav:
 
 ```
-Page: Timer-Overlay.md  ← SPEC §The core loop; §Timer groups: N instances of one pipeline;
-                          §Escalation is driven by ACT's WarningValue;
+Page: Timer-Overlay.md  ← §The core loop; §Timer groups: N instances of one pipeline;
+                          §Escalation is driven by ACT's `WarningValue`;
                           §The timer lifecycle; §The escalated radial pie; §The Overdue visual;
                           §The center escalation zone; §Configuration: the knob model;
                           §Moving the overlay: unlock/move mode; §Element dimensions;
                           §Window growth: per-window grow direction; §Timer colors; §Typography: per-panel font
-Page: Parse-Meter.md    ← SPEC §The metric registry; §The meter window (multiple windows, right-click
-                          menu, ⚙ settings, row drill-down); §Deaths & the Death Recap;
-                          §Class colors; §The hover surface; §Segments mirror ACT's encounter list (segment picker)
+Page: Parse-Meter.md    ← §The metric registry; §The meter window; §Deaths & the Death Recap;
+                          §Class colors; §The hover surface; §Segments mirror ACT's encounter list
 Page: Home.md           ← generated index of the above (derived from this manifest's page list)
 Page: _Sidebar.md       ← generated nav (derived from this manifest's page list)
 ```
+
+**Both the manifest sources above and the EXCLUDE list below name header *prefixes*** (per Step 3's resolution rule — a name resolves to the section whose header begins with it). Sub-features live *inside* their section, not as separate entries: `§The meter window` covers the multiple-windows / right-click-menu / ⚙-settings / row-drill-down surfaces, and `§Segments mirror ACT's encounter list` covers the segment picker.
 
 Then an explicit **EXCLUDE** list naming the SPEC sections the manifest must never map (they are internals/meta, not player features): `§Architecture: shared core + feature modules`, `§Packaging`, `§Platform facts`, `§The theme system`, `§The one hard constraint`, `§The one data rule`, `§The shared rendering substrate`, `§Assembly split & polling`, `§Slice map`, every `§Testing strategy …`, `§Development & test cycle`, `§Release channels & public distribution`, `§Resolved by the Phase-0 spike`, `§Roadmap`, `§Open decisions`. (The "Forward-compatible vocabulary" material is a bolded paragraph *inside* `§The theme system`, already excluded — it is not its own section, so it is not listed here.)
 
