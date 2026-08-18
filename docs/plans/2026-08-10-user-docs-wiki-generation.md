@@ -111,7 +111,7 @@ Then a short **never** tail (bans, secondary to the recipe): image markdown / sc
 
 - [ ] **Step 6 — REFACTOR: close gaps.**
 
-  - Any divergence in any rep (over-length, a leaked term, a missed how-to, an invented feature) → tighten the recipe / `SKILL.md` → re-run the 5+ reps → recompare. **Operationalized exit:** all reps for **both** sections land the exemplar shape with no leaks. **Variance is the signal** — if reps interpret the recipe differently, the wording isn't binding yet; tighten it (`writing-skills` variance-as-a-metric, `SKILL.md:585`). Record any recurring failure as an explicit recipe line.
+  - Any divergence in any rep (over-length, a leaked term, a missed how-to, an invented feature) → tighten the recipe / `SKILL.md` → re-run the 5+ reps → recompare. **Operationalized exit:** all reps for **both** sections land the exemplar shape with no leaks. **Variance is the signal** — if reps interpret the recipe differently, the wording isn't binding yet; tighten it (`writing-skills`: "variance is a metric"). Record any recurring failure as an explicit recipe line.
 
 - [ ] **Step 7 — structural + `writing-skills` conformance checks.**
 
