@@ -2,6 +2,17 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-08-18
+
+### 🧭 SPEC DEBT (Alex, 2026-08-18) — reorganize the Parse Meter's SPEC sections (the meter outgrew its structure)
+Surfaced by the first wiki generation: the generated **Parse-Meter** page runs ~4,700 words — long because it faithfully **projects** an under-decomposed SPEC. §The meter window is one ~2,000-word catch-all covering the window, configuring (popup + cog), rows, the look, multiple windows, scrolling, animation, drilling, and hovering — the meter accreted across slices and grew a fat section instead of decomposing as it went. The generator did its job; it made the SPEC's organizational debt **visible**.
+
+**Fix is upstream, in the SPEC — not a manifest hack.** Decompose the meter sections (esp. §The meter window) into properly-scoped `###` sub-sections (candidates: *Configuring a meter*, *Rows & display*, *Drilling & hovering*, …). Because the wiki generator maps **section → page**, the multi-page wiki split then falls out for free, and the SPEC itself gets more navigable. Same principle held all along: fix the source of truth, let the projection follow.
+
+**Related SPEC-content gap (fold into the same pass):** the SPEC names the class-colour palette ("each subclass has one locked ARGB in `SubclassColors`") but **doesn't list the 12 colours** — they live only in `docs/plans/2026-07-27-class-colors-palette.md` + the Core source, so the wiki can't (and correctly doesn't) document them. Backfill the palette into the SPEC so it becomes player-documentable. (Noted 2026-08-10 during skill-fidelity testing.)
+
+**Process:** a SPEC **restructuring effort** → brainstorm / spec-amendment → review path. **Direction set, NOT started** — its own effort, not bolted onto the `user-docs-wiki` branch. The wiki-side sequel once it lands: remap the manifest to the new sections → regenerate → the split just happens.
+
 ## From Alex — 2026-08-10
 
 ### 🧩 PROCESS — adopted the `requesting-design-review` skill; scrapped `docs/review-workflow.md`
