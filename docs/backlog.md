@@ -2,6 +2,20 @@
 
 Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), field testing, spec roadmap.
 
+## From Alex — 2026-08-18
+
+### 🧭 SPEC DEBT (Alex, 2026-08-18) — reorganize the Parse Meter's SPEC sections (the meter outgrew its structure)
+Surfaced by the first wiki generation: the generated **Parse-Meter** page runs ~4,700 words — long because it faithfully **projects** an under-decomposed SPEC. §The meter window is one ~2,000-word catch-all covering the window, configuring (popup + cog), rows, the look, multiple windows, scrolling, animation, drilling, and hovering — the meter accreted across slices and grew a fat section instead of decomposing as it went. The generator did its job; it made the SPEC's organizational debt **visible**.
+
+**Fix is upstream, in the SPEC — not a manifest hack.** Decompose the meter sections (esp. §The meter window) into properly-scoped `###` sub-sections (candidates: *Configuring a meter*, *Rows & display*, *Drilling & hovering*, …). Because the wiki generator maps **section → page**, the multi-page wiki split then falls out for free, and the SPEC itself gets more navigable. Same principle held all along: fix the source of truth, let the projection follow.
+
+**Related SPEC-content gap (fold into the same pass):** the SPEC names the class-colour palette ("each subclass has one locked ARGB in `SubclassColors`") but **doesn't list the 12 colours** — they live only in `docs/plans/2026-07-27-class-colors-palette.md` + the Core source, so the wiki can't (and correctly doesn't) document them. Backfill the palette into the SPEC so it becomes player-documentable. (Noted 2026-08-10 during skill-fidelity testing.)
+
+**Process:** a SPEC **restructuring effort** → brainstorm / spec-amendment → review path. **Direction set, NOT started** — its own effort, not bolted onto the `user-docs-wiki` branch. The wiki-side sequel once it lands: remap the manifest to the new sections → regenerate → the split just happens.
+
+### 📝 REVIEW DECISION (Alex, 2026-08-19) — `generate-user-docs` skill design review closed (one recorded no-change)
+The skill got an independent design review (Fable-5, 2 rounds; branch `user-docs-wiki`). **6 of 7 round-1 findings applied** (`a72f3ea`): `.generated-from` hashes *both* references (manifest + style guide), prefix resolution must be unique (multi-match = authoring error), "page" defined as a `.md` file, plus corrected git/description/exclude-list text — all mechanics/factual fixes, no generation behavior touched. **One no-change, owner decision:** the reviewer flagged the Escalation *golden exemplar* in `style-guide.md` as Center-radial-specific (the mechanism list / "moves toward center") stated universally. **Left as-is** — an accuracy nit on an illustrative exemplar, empirically harmless: the actual generated Timer-Overlay page documents *both* `EscalationStyle` modes correctly. Per `writing-skills` discipline the skill is **not** ad-hoc-edited on an abstract finding with no RED test; a genuine revisit goes through the skill-authoring pipeline. Recorded so a later review doesn't re-raise it.
+
 ## From Alex — 2026-08-17
 
 ### ✅ SHIPPED (2026-08-17, merged to `main`) — `dev-latest` git tag was frozen → `vX.Y.Z` provenance fixed
@@ -11,6 +25,16 @@ Triaged feature/fix queue. Sources: guild feedback (streamed dev sessions), fiel
 
 ### 🧩 PROCESS — adopted the `requesting-design-review` skill; scrapped `docs/review-workflow.md`
 The generic writer/reviewer/loop review contract now lives in the user-scoped `requesting-design-review` skill (`~/.claude/skills/`, not in this repo); CLAUDE.md points at it. **Two review types retired** (over-formalized accretion on the old doc, never meant to be first-class): (1) **research / ground-truth doc review** — re-derivation of the ACT decompile docs stays documented in the engine docs themselves (`act-*-engine.md` "re-derive after any ACT upgrade" + the `ilspycmd` command); the existing `docs/research/` archive + review-status headers stand as-is; no separate review process going forward. (2) **code review of implemented plans** — code review, if ever needed, is `superpowers:requesting-code-review`, not an eq2auras-specific type. Recorded so the design-review loop doesn't re-raise either as a gap.
+
+### ✅ SHIPPED (2026-08-19, merged to `main`) — user-facing docs: the generated feature wiki (branch `user-docs-wiki`)
+SPEC amended (§Development & test cycle — new "Feature docs — the generated wiki" subsection): the GitHub wiki becomes the player-facing **feature/usage** layer, **generated from SPEC** (text-only, no screenshots — cross-feature-shot-rot + Windows-box-blocks-automation), via a **repo-scoped generator skill**; README + `docs/install.md` stay hand-maintained in-repo. Regenerate at stable promotion, **maintainer-run** (the maintainer is the review gate on the AI prose); CI automation deferred. **Delivered:** spec + plan third-party-reviewed to closure (Fable-5); the `generate-user-docs` skill authored via `superpowers:writing-skills` TDD (voice + fidelity guards empirically bound); wiki enabled + first full generation **live** (Timer-Overlay + Parse-Meter from `v1.4.0`); README wiki-links added; skill design-reviewed (6 findings applied, 1 recorded no-change). Follow-on captured 2026-08-18: meter SPEC-reorganization → multi-page split.
+
+**Plan-watch items (spec review carries; the plan verifies each landed):**
+1. **Which SPEC revision generation reads + shipped-vs-designed scoping** (the design's central honesty claim). Regeneration must read the SPEC at the **promoted build's `vX.Y.Z` source commit** (not live `main`), and the page manifest must map **only shipped feature sections** (never roadmap / forward-compatible scaffolding / design-meta) — so player docs reflect the bytes players run, not designed-but-unbuilt (SPEC:5 status line; §Forward-compatible vocabulary) or newer-than-promoted behavior (§Promote allows promoted-older-than-`main`). The plan pins the concrete mechanism — Alex's candidate: **ship the SPEC diff release-to-release so the generator targets only changed docs** (also addresses non-deterministic-LLM regen churn on unchanged sections).
+
+**Deferred (captured, not built):**
+- **CI automation of regeneration** — needs an LLM-in-CI rail (model credential, per-run cost, an automated review gate on the output); CI is deliberately unauthenticated today. Would ride the same rail as any future **contribution / PR-automation workflow** (automated spec/plan/code review on PRs) — a *possible* direction (cf. the tentative PR-based-change-management item, "From Alex — 2026-07-15"), **not** a committed plan.
+- **README hero shots** — general illustrative "look at my cool shit" screenshots, hand-maintained in the README, never in the generated wiki. Later.
 
 ## From Alex — 2026-08-06
 
