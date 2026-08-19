@@ -83,7 +83,7 @@ Every meter window shows one **metric** — what its rows measure. You pick it f
 
 ### Escalation
 
-Escalation makes the timers about to come due stand out from those further off. It is automatic — nothing to configure — and each timer's own warning time (set on its ACT trigger) is the threshold.
+Escalation makes the timers about to come due stand out from those further off. It happens on its own — you never turn it on — and each timer's own warning time (set on its ACT trigger) is the threshold.
 
 As a timer nears its warning threshold, it changes in several ways at once:
 - **Size** — it grows relative to the others.
