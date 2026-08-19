@@ -13,6 +13,9 @@ Surfaced by the first wiki generation: the generated **Parse-Meter** page runs ~
 
 **Process:** a SPEC **restructuring effort** → brainstorm / spec-amendment → review path. **Direction set, NOT started** — its own effort, not bolted onto the `user-docs-wiki` branch. The wiki-side sequel once it lands: remap the manifest to the new sections → regenerate → the split just happens.
 
+### 📝 REVIEW DECISION (Alex, 2026-08-19) — `generate-user-docs` skill design review closed (one recorded no-change)
+The skill got an independent design review (Fable-5, 2 rounds; branch `user-docs-wiki`). **6 of 7 round-1 findings applied** (`a72f3ea`): `.generated-from` hashes *both* references (manifest + style guide), prefix resolution must be unique (multi-match = authoring error), "page" defined as a `.md` file, plus corrected git/description/exclude-list text — all mechanics/factual fixes, no generation behavior touched. **One no-change, owner decision:** the reviewer flagged the Escalation *golden exemplar* in `style-guide.md` as Center-radial-specific (the mechanism list / "moves toward center") stated universally. **Left as-is** — an accuracy nit on an illustrative exemplar, empirically harmless: the actual generated Timer-Overlay page documents *both* `EscalationStyle` modes correctly. Per `writing-skills` discipline the skill is **not** ad-hoc-edited on an abstract finding with no RED test; a genuine revisit goes through the skill-authoring pipeline. Recorded so a later review doesn't re-raise it.
+
 ## From Alex — 2026-08-17
 
 ### ✅ SHIPPED (2026-08-17, merged to `main`) — `dev-latest` git tag was frozen → `vX.Y.Z` provenance fixed
