@@ -170,6 +170,23 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(debugBox);
             tab.Controls.Add(meterBox);
             tab.Controls.Add(BuildBuffBox(760));
+
+            SuppressSpinnerWheel(tab);
+        }
+
+        // NumericUpDown captures the mouse wheel to change its value, so scrolling the tall
+        // (AutoScroll) config tab over a spinner silently EDITS it — a field-hit data-corruption
+        // bug (2026-08-20). Eat the wheel on every spinner so it never changes on scroll; the
+        // wheel still scrolls the tab over the ample label/checkbox area of each row.
+        private static void SuppressSpinnerWheel(Control parent)
+        {
+            foreach (Control c in parent.Controls)
+            {
+                if (c is NumericUpDown nud)
+                    nud.MouseWheel += (s, e) => { if (e is HandledMouseEventArgs h) h.Handled = true; };
+                else if (c.HasChildren)
+                    SuppressSpinnerWheel(c);
+            }
         }
 
         // The per-buff tracked set + duration override (SPEC §Buff tracking). One row per catalog
