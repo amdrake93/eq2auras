@@ -16,7 +16,7 @@ namespace Eq2Auras.Plugin.Overlay
     /// non-overlapping); drag-end and re-lock persist them back via SettingsStore.
     public sealed class OverlayHost : IDisposable
     {
-        private static readonly string[] PanelNames = { "Panel A", "Panel B" };
+        private static readonly string[] PanelNames = { "Panel A", "Panel B", "Buffs" };
 
         private readonly Settings _settings;
         private readonly List<TimerListWindow> _listWindows = new List<TimerListWindow>();
