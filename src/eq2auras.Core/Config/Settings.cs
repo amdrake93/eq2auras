@@ -13,7 +13,7 @@ namespace Eq2Auras.Core.Config
     // running initializers, so a field missing from an old settings.json comes back
     // as 0 — which must mean "the default".
     public enum ColorSource { Palette = 0, Greyscale = 1, ActColor = 2 }
-    public enum EscalationStyle { CenterRadial = 0, HighlightInPlace = 1 }
+    public enum EscalationStyle { CenterRadial = 0, HighlightInPlace = 1, None = 2 }
     public enum GrowDirection { Down = 0, Up = 1 }
 
     /// The knob store (SPEC §Configuration): one plain object, every tunable a typed
@@ -181,8 +181,8 @@ namespace Eq2Auras.Core.Config
         public string ToJson()
         {
             Normalize();
-            ColorSource = Panels[0].ColorSource;         // legacy mirror: an older build
-            EscalationStyle = Panels[0].EscalationStyle; // reads the flat knobs as Panel A's
+            ColorSource = Panels[0].ColorSource;                            // legacy mirror: an older build
+            EscalationStyle = Panels[0].EscalationStyle ?? EscalationStyle.CenterRadial; // reads the flat knobs as Panel A's
 
             var serializer = new DataContractJsonSerializer(typeof(Settings));
             using (var stream = new MemoryStream())

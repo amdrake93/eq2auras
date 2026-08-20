@@ -143,7 +143,7 @@ public class SettingsTests
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(EscalationStyle.HighlightInPlace, parsed.Panels[0].EscalationStyle);
         Assert.Equal(ColorSource.Palette, parsed.Panels[1].ColorSource);
-        Assert.Equal(EscalationStyle.CenterRadial, parsed.Panels[1].EscalationStyle);
+        Assert.Equal(EscalationStyle.CenterRadial, EscalationDefaults.Resolve(parsed.Panels[1]));   // padded B stores null, resolves to CenterRadial
         Assert.Null(parsed.Panels[0].ListLeft);
     }
 
@@ -163,6 +163,45 @@ public class SettingsTests
             < json.IndexOf("\"panels\"", StringComparison.Ordinal));
         Assert.True(json.IndexOf("\"escalationStyle\":1", StringComparison.Ordinal)
             < json.IndexOf("\"panels\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void A_missing_escalation_style_deserializes_to_null_not_zero()
+    {
+        // The nullable-enum carve-out: absent -> null (resolve default), NOT 0/CenterRadial.
+        var s = Settings.Parse("{\"panels\":[{},{},{}]}");
+        Assert.Null(s.Panels[2].EscalationStyle);   // buff group unset -> null
+    }
+
+    [Fact]
+    public void An_explicit_escalation_style_round_trips_numerically()
+    {
+        var s = new Settings();
+        s.Panels[0].EscalationStyle = EscalationStyle.None;
+        var parsed = Settings.Parse(s.ToJson());
+        Assert.Equal(EscalationStyle.None, parsed.Panels[0].EscalationStyle);
+        Assert.Contains("\"escalationStyle\":2", parsed.ToJson());
+    }
+
+    [Fact]
+    public void An_unset_escalation_style_is_omitted_from_json_for_old_build_compat()
+    {
+        // EmitDefaultValue=false: a null (unset) style must NOT serialize as "escalationStyle":null,
+        // else an older stable build's non-nullable field throws on read -> Settings.Parse catch -> full
+        // reset (SPEC §Configuration old-build compat). The non-nullable flat top-level knob still emits.
+        var s = new Settings();
+        s.Panels[0].EscalationStyle = null;
+        Assert.DoesNotContain("\"escalationStyle\":null", s.ToJson());
+    }
+
+    [Fact]
+    public void The_flat_escalation_mirror_resolves_a_null_panel_A_to_center_radial()
+    {
+        // The non-nullable flat top-level knob (old-build compat anchor) must carry a concrete
+        // value even when Panel A's per-group style is unset.
+        var s = new Settings();
+        s.Panels[0].EscalationStyle = null;
+        Assert.Contains("\"escalationStyle\":0", s.ToJson());   // flat top-level = CenterRadial
     }
 
     [Theory]
