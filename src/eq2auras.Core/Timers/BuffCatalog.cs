@@ -21,7 +21,7 @@ namespace Eq2Auras.Core.Timers
         /// Inverse of InjectedName: the overlay strips the prefix so display, color identity, and
         /// catalog lookup all see the clean buff name. A non-injected (raider) name passes through.
         public static string StripInjectedPrefix(string name)
-            => name != null && name.StartsWith(InjectedNamePrefix, System.StringComparison.Ordinal)
+            => name != null && name.StartsWith(InjectedNamePrefix, System.StringComparison.OrdinalIgnoreCase)
                 ? name.Substring(InjectedNamePrefix.Length)
                 : name;
 

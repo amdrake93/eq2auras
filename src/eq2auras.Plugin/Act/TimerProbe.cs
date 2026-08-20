@@ -39,6 +39,15 @@ namespace Eq2Auras.Plugin.Act
 
         private static long NowMs() => DateTimeOffset.UtcNow.ToUnixTimeMilliseconds();
 
+        // Our injected buffs register under a namespaced name (eq2auras:<buff>) to dodge ACT's
+        // (Name, Combatant) frame collision with a raider's own same-named timer; strip it back to
+        // the clean buff name for our category so readings AND diagnostic records (poll + frame-event,
+        // joined by Name in ferried-log analysis) use one consistent name (SPEC §Buff tracking).
+        private static string CleanName(TimerData data, string rawName)
+            => data != null && string.Equals(data.Category, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)
+                ? BuffCatalog.StripInjectedPrefix(rawName ?? "")
+                : (rawName ?? "");
+
         private void OnPoll(object sender, EventArgs e)
         {
             // First line, before the timer-read early-outs: the meter's sampling
@@ -57,14 +66,8 @@ namespace Eq2Auras.Plugin.Act
                 var instances = frame.SpellTimers;
                 if (data == null || instances == null) continue;
 
-                // Our injected buffs register under a namespaced name (eq2auras:<buff>) to dodge ACT's
-                // (Name, Combatant) frame collision with a raider's own same-named timer; strip it back
-                // to the clean buff name for our category so display/color/lookup are unaffected (SPEC
-                // §Buff tracking — Name namespacing).
                 var category = data.Category ?? "";
-                var name = string.Equals(category, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)
-                    ? BuffCatalog.StripInjectedPrefix(frame.Name ?? "")
-                    : (frame.Name ?? "");
+                var name = CleanName(data, frame.Name);
 
                 foreach (var instance in instances)
                 {
@@ -134,7 +137,7 @@ namespace Eq2Auras.Plugin.Act
             {
                 Kind = kind,
                 TimestampUnixMs = NowMs(),
-                Name = frame.Name ?? "",
+                Name = CleanName(frame.TimerData, frame.Name),
                 Combatant = frame.Combatant ?? "",
                 TimeLeft = largestMaster,
                 WarningValue = frame.TimerData != null ? frame.TimerData.WarningValue : 0,
