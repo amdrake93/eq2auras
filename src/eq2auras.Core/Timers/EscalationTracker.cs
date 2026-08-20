@@ -115,6 +115,7 @@ namespace Eq2Auras.Core.Timers
             {
                 Name = reading.Name,
                 Combatant = reading.Combatant,
+                Category = reading.Category,   // must survive the copy — scopes the buff two-format label (§Display)
                 TimeLeft = reading.TimeLeft,
                 RawPreciseTimeLeft = reading.RawPreciseTimeLeft,
                 WarningValue = reading.WarningValue,

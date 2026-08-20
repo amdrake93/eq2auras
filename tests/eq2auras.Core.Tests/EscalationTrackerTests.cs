@@ -27,6 +27,22 @@ public class EscalationTrackerTests
         => new EscalationTracker(new PanelSettings { EscalationStyle = EscalationStyle.None }, new PaletteAssigner());
 
     [Fact]
+    public void A_buff_category_reading_keeps_its_category_through_tick_so_the_two_format_label_applies()
+    {
+        // Regression (round-2 finding): WithResolvedColor must copy Category through the governing
+        // copy, else every display element reaches Label with Category=null and our own injected buffs
+        // render BARE — the two-format label is inert. Drives the real Tick pipeline, not Label directly.
+        var r = Reading("Tortoise Shell", 20, combatant: "onlyfans");   // group-wide buff, caster captured
+        r.Category = BuffCatalog.Category;
+        var tracker = new EscalationTracker(
+            new PanelSettings { EscalationStyle = EscalationStyle.None, Sources = new List<SourceRule> { SourceRule.OfCategory(BuffCatalog.Category) } },
+            new PaletteAssigner());
+        var row = Assert.Single(tracker.Tick(R(r)).ListRows);
+        Assert.Equal(BuffCatalog.Category, row.Category);
+        Assert.Equal("Onlyfans: Tortoise Shell", TimerListBuilder.Label(row.Name, row.Combatant, row.Category));
+    }
+
+    [Fact]
     public void None_keeps_imminent_timers_as_calm_rows_with_no_center()
     {
         var frame = NoneTracker().Tick(R(Reading("boss", 3), Reading("calm", 25)));   // 3s would be Imminent
