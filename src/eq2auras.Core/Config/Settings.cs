@@ -77,6 +77,12 @@ namespace Eq2Auras.Core.Config
             return pref?.DurationOverride ?? def?.DurationSeconds ?? 0;
         }
 
+        public int EffectiveWarning(string id)
+            => (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id)?.WarnOverride ?? 0;
+
+        public int EffectiveRemove(string id)
+            => (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id)?.RemoveOverride ?? 0;
+
         private static List<PanelSettings> DefaultPanels() => SeededGroups(new List<PanelSettings>());
 
         // Pad UP to the three seeded groups and seed each seeded group's source when unset. Does NOT
@@ -142,8 +148,14 @@ namespace Eq2Auras.Core.Config
             // in the tab's NumericUpDown (Min 1, Max 3600) during InitPlugin -> the whole plugin fails
             // to load. Out of range -> revert to the catalog base (null).
             foreach (var pref in BuffPrefs)
+            {
                 if (pref.DurationOverride.HasValue && (pref.DurationOverride.Value < 1 || pref.DurationOverride.Value > 3600))
                     pref.DurationOverride = null;
+                if (pref.WarnOverride.HasValue && (pref.WarnOverride.Value < 0 || pref.WarnOverride.Value > 3600))
+                    pref.WarnOverride = null;
+                if (pref.RemoveOverride.HasValue && (pref.RemoveOverride.Value < -3600 || pref.RemoveOverride.Value > 0))
+                    pref.RemoveOverride = null;
+            }
 
             // One-time: a pre-amendment buff window carries the escalating default (escalationStyle:0),
             // indistinguishable by value from a later explicit CenterRadial pick — so the MARKER, not the

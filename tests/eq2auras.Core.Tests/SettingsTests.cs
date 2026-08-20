@@ -224,6 +224,26 @@ public class SettingsTests
         Assert.True(s.BuffEscalationReset);
     }
 
+    [Fact]
+    public void Effective_warning_and_remove_default_to_zero_and_honor_overrides()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}," +
+                               "{\"id\":\"tsunami\",\"enabled\":true,\"warnOverride\":5,\"removeOverride\":-3}]}");
+        Assert.Equal(0, s.EffectiveWarning("bolster"));
+        Assert.Equal(0, s.EffectiveRemove("bolster"));
+        Assert.Equal(5, s.EffectiveWarning("tsunami"));
+        Assert.Equal(-3, s.EffectiveRemove("tsunami"));
+    }
+
+    [Fact]
+    public void Out_of_range_warn_and_remove_overrides_revert_to_base_zero()
+    {
+        // A hand-edited absurd value must not survive into the tab's NumericUpDown (InitPlugin crash).
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"warnOverride\":99999,\"removeOverride\":-99999}]}");
+        Assert.Equal(0, s.EffectiveWarning("bolster"));
+        Assert.Equal(0, s.EffectiveRemove("bolster"));
+    }
+
     [Theory]
     [InlineData("{\"panels\":[]}")]                     // empty list
     [InlineData("{\"panels\":[{\"colorSource\":1}]}")]  // one entry

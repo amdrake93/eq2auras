@@ -16,5 +16,11 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "durationOverride")]
         public int? DurationOverride { get; set; }
+
+        [DataMember(Name = "warnOverride")]
+        public int? WarnOverride { get; set; }     // null = base 0 (no explicit warning point)
+
+        [DataMember(Name = "removeOverride")]
+        public int? RemoveOverride { get; set; }   // null = base 0 (remove at zero, no linger)
     }
 }
