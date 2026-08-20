@@ -54,6 +54,19 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "meter")]
         public MeterSettings Meter { get; set; } = new MeterSettings();
 
+        [DataMember(Name = "buffPrefs")]
+        public List<BuffPref> BuffPrefs { get; set; }   // null = never set -> backfilled all-on (SPEC §Buff tracking)
+
+        public IEnumerable<string> EnabledBuffIds()
+            => (BuffPrefs ?? new List<BuffPref>()).Where(p => p != null && p.Enabled).Select(p => p.Id);
+
+        public int EffectiveDuration(string id)
+        {
+            var pref = (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id);
+            var def = BuffCatalog.Find(id);
+            return pref?.DurationOverride ?? def?.DurationSeconds ?? 0;
+        }
+
         private static List<PanelSettings> DefaultPanels() => SeededGroups(new List<PanelSettings>());
 
         // Pad UP to the three seeded groups and seed each seeded group's source when unset. Does NOT
@@ -96,6 +109,11 @@ namespace Eq2Auras.Core.Config
 
             if (Meter == null) Meter = new MeterSettings();   // DCJS skips initializers
             Meter.Normalize();
+
+            // null = never set -> default the whole curated set on (harmless without macros), no
+            // overrides. A non-null list is the raider's choices (incl. an explicit empty = all off).
+            if (BuffPrefs == null)
+                BuffPrefs = BuffCatalog.All.Select(b => new BuffPref { Id = b.Id, Enabled = true }).ToList();
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.

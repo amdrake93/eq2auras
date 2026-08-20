@@ -29,6 +29,33 @@ public class SettingsTests
         Assert.Equal("eq2auras Buffs", s.Panels[2].Sources[0].Value);
     }
 
+    [Fact]
+    public void Buff_prefs_default_to_all_catalog_ids_enabled_and_no_override()
+    {
+        var s = Settings.Parse("{}");
+        Assert.Equal(BuffCatalog.All.Select(b => b.Id).OrderBy(x => x),
+                     s.EnabledBuffIds().OrderBy(x => x));
+        Assert.All(s.BuffPrefs, p => Assert.Null(p.DurationOverride));
+    }
+
+    [Fact]
+    public void An_explicit_empty_pref_list_is_preserved_as_none_enabled()
+        => Assert.Empty(Settings.Parse("{\"buffPrefs\":[]}").EnabledBuffIds());
+
+    [Fact]
+    public void A_duration_override_wins_over_the_catalog_base()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"durationOverride\":48}]}");
+        Assert.Equal(48, s.EffectiveDuration("bolster"));
+    }
+
+    [Fact]
+    public void Effective_duration_falls_back_to_the_catalog_base_with_no_override()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}]}");
+        Assert.Equal(36, s.EffectiveDuration("bolster"));   // census base
+    }
+
     [Theory]
     [InlineData("")]                       // empty file
     [InlineData("not json at all {{{")]    // corrupt file
