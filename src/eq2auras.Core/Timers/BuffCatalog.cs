@@ -11,6 +11,19 @@ namespace Eq2Auras.Core.Timers
     public static class BuffCatalog
     {
         public const string Category = "eq2auras Buffs";
+        public const string InjectedNamePrefix = "eq2auras:";
+
+        /// The name we register an injected timer under — prefixed so ACT's (Name, Combatant) frame
+        /// key and name-based trigger lookup can never collide with a raider's own same-named timer
+        /// (SPEC §Buff tracking — Name namespacing).
+        public static string InjectedName(string displayName) => InjectedNamePrefix + displayName;
+
+        /// Inverse of InjectedName: the overlay strips the prefix so display, color identity, and
+        /// catalog lookup all see the clean buff name. A non-injected (raider) name passes through.
+        public static string StripInjectedPrefix(string name)
+            => name != null && name.StartsWith(InjectedNamePrefix, System.StringComparison.Ordinal)
+                ? name.Substring(InjectedNamePrefix.Length)
+                : name;
 
         public static readonly IReadOnlyList<BuffDef> All = new List<BuffDef>
         {

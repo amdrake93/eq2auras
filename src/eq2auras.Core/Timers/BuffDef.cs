@@ -32,14 +32,17 @@ namespace Eq2Auras.Core.Timers
         // so non-matching lines fast-reject (the N-trigger runtime fix, SPEC-plan §REGEX RUNTIME):
         //   Single-target: `eq2auras <buff>` then capture the target token from the payload.
         //   Group-wide:    `eq2auras <buff>` with the SPEAKER captured via a variable-length LOOKBEHIND
-        //                  over the `<name>\/a say/tells …, "` chat wrapper (\/a = EQ2's speaker-link
-        //                  markup, optional to tolerate a markup-stripped line).
+        //                  over the `<name>[\/a] <say|tell|shout|yell>… , "` chat wrapper. \/a (EQ2's
+        //                  speaker-link markup) is optional — a self-authored line ("You tell …") has
+        //                  none. The channel descriptor is `[^,]*` (anything up to the `, "`), so it
+        //                  tolerates CUSTOM numbered channels whose descriptor carries digits/parens
+        //                  (`biff (6)`) — field-corrected 2026-08-20, the old `[a-zA-Z ]+` rejected them.
         private static string BuildPattern(string buff, bool isTargeted)
         {
             var lit = Regex.Escape(buff);
             return isTargeted
                 ? $"(?i)eq2auras {lit} (?<attacker>[a-zA-Z]+)"
-                : $"(?i)(?<=(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras {lit}";
+                : $"(?i)(?<=(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell|shout|yell)s?[^,]*, \"[^\"]*)eq2auras {lit}";
         }
 
         /// True if the line matches; `name` is the captured `attacker` group (the target for a

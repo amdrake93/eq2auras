@@ -64,6 +64,37 @@ public class BuffCatalogTests
         Assert.Equal("Onlyfans", name);
     }
 
+    [Theory]
+    [InlineData("You tell biff (6)", "You")]                        // self, custom numbered channel (field 2026-08-20)
+    [InlineData("\\aPC 111782 Bob:Bob\\/a tells biff (6)", "Bob")]  // someone else, custom numbered channel
+    [InlineData("\\aPC 111782 Bob:Bob\\/a shouts", "Bob")]          // /shout
+    [InlineData("\\aPC 111782 Bob:Bob\\/a yells", "Bob")]           // /yell
+    public void A_group_wide_buff_matches_custom_channels_and_self_tells(string wrapper, string caster)
+    {
+        // The channel descriptor carries digits/parens (biff (6)) and the self line has no \/a markup;
+        // the original [a-zA-Z ]+ descriptor rejected these, so custom-channel announces never fired.
+        var line = $"(1787254392)[Thu Aug 20 14:33:12 2026] {wrapper}, \"eq2auras Tortoise Shell\"";
+        Assert.True(BuffCatalog.Find("tortoise-shell").TryMatch(line, out var name));
+        Assert.Equal(caster, name);
+    }
+
+    [Fact]
+    public void An_injected_name_is_namespaced_and_strips_back_to_the_display_name()
+    {
+        var injected = BuffCatalog.InjectedName("Holy Shield");
+        Assert.Equal("eq2auras:Holy Shield", injected);
+        Assert.StartsWith(BuffCatalog.InjectedNamePrefix, injected);
+        Assert.Equal("Holy Shield", BuffCatalog.StripInjectedPrefix(injected));
+    }
+
+    [Fact]
+    public void Stripping_a_non_injected_name_returns_it_unchanged()
+    {
+        // A raider's own timer (no prefix) must pass through untouched.
+        Assert.Equal("Holy Shield", BuffCatalog.StripInjectedPrefix("Holy Shield"));
+        Assert.Null(BuffCatalog.StripInjectedPrefix(null));
+    }
+
     [Fact]
     public void A_non_matching_line_is_rejected()
         => Assert.False(BuffCatalog.Find("bolster").TryMatch("(1734900000)[date] Alex says, \"hello\"", out _));
