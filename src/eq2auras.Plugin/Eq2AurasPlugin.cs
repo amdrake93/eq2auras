@@ -197,21 +197,30 @@ namespace Eq2Auras.Plugin
             var box = new GroupBox
             {
                 Text = "Tracked buffs",
-                Left = 10, Top = top, Width = 360, Height = 56 + BuffCatalog.All.Count * 26 + 6
+                Left = 10, Top = top, Width = 420, Height = 112 + BuffCatalog.All.Count * 26
             };
+
+            var escLabel = new Label { Text = "Escalation:", Left = 10, Top = 22, Width = 70 };
+            var escBox = new ComboBox { Left = 84, Top = 18, Width = 140 };
+            WireEscalationCombo(escBox, _settings.Panels[2]);   // the buff group is the third seeded group
+            box.Controls.Add(escLabel);
+            box.Controls.Add(escBox);
+
             box.Controls.Add(new Label
             {
-                Left = 10, Top = 18, Width = 340, Height = 34, AutoSize = false,
+                Left = 10, Top = 48, Width = 400, Height = 34, AutoSize = false,
                 Text = "Macro emits — single-target:  eq2auras <buff> <target>  (any channel)\r\n"
                      + "group-wide (caster shown):  eq2auras <buff>  to group / raid chat"
             });
-            int y = 54;
+            box.Controls.Add(new Label { Text = "duration / warning (s)", Left = 216, Top = 86, Width = 190 });
+
+            int y = 104;
             foreach (var def in BuffCatalog.All)
             {
                 var d = def;   // capture per iteration
                 var pref = BuffPrefFor(d.Id);
 
-                var check = new CheckBox { Text = d.DisplayName, Left = 10, Top = y, Width = 220, Checked = pref.Enabled };
+                var check = new CheckBox { Text = d.DisplayName, Left = 10, Top = y, Width = 200, Checked = pref.Enabled };
                 check.CheckedChanged += (s, e) =>
                 {
                     SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).Enabled = check.Checked);
@@ -220,7 +229,7 @@ namespace Eq2Auras.Plugin
 
                 var dur = new NumericUpDown
                 {
-                    Left = 236, Top = y - 2, Width = 60, Minimum = 1, Maximum = 3600,
+                    Left = 216, Top = y - 2, Width = 54, Minimum = 1, Maximum = 3600,
                     Value = _settings.EffectiveDuration(d.Id)
                 };
                 dur.ValueChanged += (s, e) =>
@@ -230,11 +239,23 @@ namespace Eq2Auras.Plugin
                     SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).DurationOverride = v == d.DurationSeconds ? (int?)null : v);
                     _buffInjector?.SyncTo(_settings);
                 };
-                var sLabel = new Label { Text = "s", Left = 298, Top = y + 2, Width = 14 };
+
+                var warn = new NumericUpDown
+                {
+                    Left = 292, Top = y - 2, Width = 54, Minimum = 0, Maximum = 3600,
+                    Value = _settings.EffectiveWarning(d.Id)
+                };
+                warn.ValueChanged += (s, e) =>
+                {
+                    int v = (int)warn.Value;
+                    // 0 is the base (no explicit warning point) => clear the override; else store it.
+                    SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).WarnOverride = v == 0 ? (int?)null : v);
+                    _buffInjector?.SyncTo(_settings);
+                };
 
                 box.Controls.Add(check);
                 box.Controls.Add(dur);
-                box.Controls.Add(sLabel);
+                box.Controls.Add(warn);
                 y += 26;
             }
             return box;
@@ -248,6 +269,21 @@ namespace Eq2Auras.Plugin
         /// Dropdown changes apply live within a poll tick: the engine's trackers hold
         /// the same PanelSettings instance this mutates, and knob handlers + poll share
         /// ACT's UI thread. Persistence goes through the SettingsStore gate.
+        // Single source of truth for every escalation dropdown (Panel A/B + the buff window). Item
+        // order matches the enum's numeric values (CenterRadial=0, HighlightInPlace=1, None=2), so
+        // (int)Resolve seeds the index and (EscalationStyle)SelectedIndex reads it back. Resolve is
+        // null-safe: an unset style (fresh install, or a migrated buff window) shows its resolved
+        // default instead of throwing on (int)null.
+        private void WireEscalationCombo(ComboBox box, PanelSettings panel)
+        {
+            box.DropDownStyle = ComboBoxStyle.DropDownList;
+            box.Items.Clear();
+            box.Items.AddRange(new object[] { "Center radial", "Highlight in place", "None" });
+            box.SelectedIndex = (int)EscalationDefaults.Resolve(panel);
+            box.SelectedIndexChanged += (s, e) =>
+                SettingsStore.Update(_settings, () => panel.EscalationStyle = (EscalationStyle)box.SelectedIndex);
+        }
+
         private GroupBox BuildPanelGroupBox(string title, PanelSettings panel, int top)
         {
             var box = new GroupBox { Text = title, Left = 10, Top = top, Width = 250, Height = 250 };
@@ -269,10 +305,7 @@ namespace Eq2Auras.Plugin
                 Left = 82, Top = 54, Width = 150,
                 DropDownStyle = ComboBoxStyle.DropDownList
             };
-            styleBox.Items.AddRange(new object[] { "Center radial", "Highlight in place" });
-            styleBox.SelectedIndex = (int)panel.EscalationStyle;
-            styleBox.SelectedIndexChanged += (s, e) =>
-                SettingsStore.Update(_settings, () => panel.EscalationStyle = (EscalationStyle)styleBox.SelectedIndex);
+            WireEscalationCombo(styleBox, panel);
 
             var fontButton = new Button { Text = "Font…", Left = 8, Top = 86, Width = 70 };
             var fontLabel = new Label { Left = 82, Top = 90, Width = 160, Text = FontLabelText(panel) };

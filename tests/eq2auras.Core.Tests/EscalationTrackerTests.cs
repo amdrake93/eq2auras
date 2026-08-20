@@ -23,6 +23,26 @@ public class EscalationTrackerTests
 
     private static List<TimerReading> R(params TimerReading[] readings) => readings.ToList();
 
+    private static EscalationTracker NoneTracker()
+        => new EscalationTracker(new PanelSettings { EscalationStyle = EscalationStyle.None }, new PaletteAssigner());
+
+    [Fact]
+    public void None_keeps_imminent_timers_as_calm_rows_with_no_center()
+    {
+        var frame = NoneTracker().Tick(R(Reading("boss", 3), Reading("calm", 25)));   // 3s would be Imminent
+        Assert.Equal(new[] { "boss", "calm" }, frame.ListRows.Select(r => r.Name).ToArray());
+        Assert.Empty(frame.CenterElements);
+    }
+
+    [Fact]
+    public void None_drops_a_timer_at_zero_even_when_linger_configured()
+    {
+        // RemoveValue -15 would linger under CenterRadial; None shows nothing past zero.
+        var frame = NoneTracker().Tick(R(Reading("gone", -2, removeValue: -15)));
+        Assert.Empty(frame.ListRows);
+        Assert.Empty(frame.CenterElements);
+    }
+
     [Fact]
     public void Calm_timers_stay_in_the_list_and_center_is_empty()
     {

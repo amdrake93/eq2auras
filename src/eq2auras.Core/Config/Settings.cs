@@ -13,7 +13,7 @@ namespace Eq2Auras.Core.Config
     // running initializers, so a field missing from an old settings.json comes back
     // as 0 — which must mean "the default".
     public enum ColorSource { Palette = 0, Greyscale = 1, ActColor = 2 }
-    public enum EscalationStyle { CenterRadial = 0, HighlightInPlace = 1 }
+    public enum EscalationStyle { CenterRadial = 0, HighlightInPlace = 1, None = 2 }
     public enum GrowDirection { Down = 0, Up = 1 }
 
     /// The knob store (SPEC §Configuration): one plain object, every tunable a typed
@@ -34,6 +34,9 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "betaChannel")]
         public bool BetaChannel { get; set; }    // global knob (SPEC §Two channels): false (0-value) = stable channel
+
+        [DataMember(Name = "buffEscalationReset")]
+        public bool BuffEscalationReset { get; set; }   // one-shot: false in pre-amendment files -> migrate the buff window's escalation once
 
         public const int GroupCount = 3;   // the three SEEDED groups: panel:1, panel:2, category:"eq2auras Buffs"
         public const int MaxPaletteSize = 16;
@@ -73,6 +76,12 @@ namespace Eq2Auras.Core.Config
             var def = BuffCatalog.Find(id);
             return pref?.DurationOverride ?? def?.DurationSeconds ?? 0;
         }
+
+        public int EffectiveWarning(string id)
+            => (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id)?.WarnOverride ?? 0;
+
+        public int EffectiveRemove(string id)
+            => (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id)?.RemoveOverride ?? 0;
 
         private static List<PanelSettings> DefaultPanels() => SeededGroups(new List<PanelSettings>());
 
@@ -139,8 +148,27 @@ namespace Eq2Auras.Core.Config
             // in the tab's NumericUpDown (Min 1, Max 3600) during InitPlugin -> the whole plugin fails
             // to load. Out of range -> revert to the catalog base (null).
             foreach (var pref in BuffPrefs)
+            {
                 if (pref.DurationOverride.HasValue && (pref.DurationOverride.Value < 1 || pref.DurationOverride.Value > 3600))
                     pref.DurationOverride = null;
+                if (pref.WarnOverride.HasValue && (pref.WarnOverride.Value < 0 || pref.WarnOverride.Value > 3600))
+                    pref.WarnOverride = null;
+                if (pref.RemoveOverride.HasValue && (pref.RemoveOverride.Value < -3600 || pref.RemoveOverride.Value > 0))
+                    pref.RemoveOverride = null;
+            }
+
+            // One-time: a pre-amendment buff window carries the escalating default (escalationStyle:0),
+            // indistinguishable by value from a later explicit CenterRadial pick — so the MARKER, not the
+            // value, decides. First load (marker false): null the buff group's escalation (-> resolves to
+            // None) and set the marker; thereafter leave it, so a user's later pick persists (SPEC §Configuration).
+            if (!BuffEscalationReset)
+            {
+                var buffGroup = Panels.FirstOrDefault(p => p.Sources != null
+                    && p.Sources.Any(r => r != null && r.Type == SourceRuleType.Category
+                        && string.Equals(r.Value, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)));
+                if (buffGroup != null) buffGroup.EscalationStyle = null;
+                BuffEscalationReset = true;
+            }
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.
@@ -181,8 +209,8 @@ namespace Eq2Auras.Core.Config
         public string ToJson()
         {
             Normalize();
-            ColorSource = Panels[0].ColorSource;         // legacy mirror: an older build
-            EscalationStyle = Panels[0].EscalationStyle; // reads the flat knobs as Panel A's
+            ColorSource = Panels[0].ColorSource;                            // legacy mirror: an older build
+            EscalationStyle = Panels[0].EscalationStyle ?? EscalationStyle.CenterRadial; // reads the flat knobs as Panel A's
 
             var serializer = new DataContractJsonSerializer(typeof(Settings));
             using (var stream = new MemoryStream())

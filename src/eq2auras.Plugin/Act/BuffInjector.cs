@@ -33,7 +33,15 @@ namespace Eq2Auras.Plugin.Act
             // ensure its trigger.
             foreach (var def in desired)
             {
-                ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(def.DisplayName, false, settings.EffectiveDuration(def.Id), false, false, "", "", 5, true) { Category = Category });
+                ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(
+                        def.DisplayName, false, settings.EffectiveDuration(def.Id), false, false, "", "",
+                        settings.EffectiveWarning(def.Id), true)
+                    {
+                        Category = Category,
+                        RemoveValue = settings.EffectiveRemove(def.Id),
+                        Panel1Display = false,
+                        Panel2Display = false
+                    });
                 ActGlobals.oFormActMain.ActiveCustomTriggers[DictKey(def)] = BuildTrigger(def);
             }
             ActGlobals.oFormSpellTimers.RebuildSpellTreeView();

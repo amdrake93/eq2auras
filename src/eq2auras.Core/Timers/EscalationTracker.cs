@@ -42,7 +42,16 @@ namespace Eq2Auras.Core.Timers
                 .ToList();
 
             var live = governing.Where(r => r.TimeLeft > 0).ToList();
-            bool inPlace = _settings.EscalationStyle == EscalationStyle.HighlightInPlace;
+
+            var style = EscalationDefaults.Resolve(_settings);
+            if (style == EscalationStyle.None)
+                return new OverlayFrame
+                {
+                    ListRows = TimerListBuilder.Build(live, includeOverdue: false),   // live-only, gone at zero
+                    CenterElements = new List<CenterElement>()
+                };
+
+            bool inPlace = style == EscalationStyle.HighlightInPlace;
 
             // Overdue is CONFIG-DRIVEN: the timer's own RemoveValue decides whether an
             // overdue window exists. Remove-at-0 timers show NOTHING past zero — even

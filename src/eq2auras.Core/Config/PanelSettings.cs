@@ -13,8 +13,8 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "colorSource")]
         public ColorSource ColorSource { get; set; } = ColorSource.Palette;
 
-        [DataMember(Name = "escalationStyle")]
-        public EscalationStyle EscalationStyle { get; set; } = EscalationStyle.CenterRadial;
+        [DataMember(Name = "escalationStyle", EmitDefaultValue = false)]
+        public EscalationStyle? EscalationStyle { get; set; }   // null = unset -> EscalationDefaults.Resolve (omitted from JSON so an old non-nullable build never reads null)
 
         [DataMember(Name = "listLeft")]
         public double? ListLeft { get; set; }
