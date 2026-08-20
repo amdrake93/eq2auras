@@ -14,7 +14,8 @@ namespace Eq2Auras.Plugin.Act
     public sealed class BuffInjector
     {
         private const string Category = BuffCatalog.Category;            // "eq2auras Buffs" — our namespace
-        private static string DictKey(BuffDef b) => "eq2auras:" + b.Id;  // OUR ActiveCustomTriggers key — never a reconstructed CustomTrigger.Key
+        private const string KeyPrefix = "eq2auras:";                    // our ActiveCustomTriggers key namespace
+        private static string DictKey(BuffDef b) => KeyPrefix + b.Id;    // OUR key — never a reconstructed CustomTrigger.Key
 
         /// Reconcile ACT's live state to the enabled prefs at their EFFECTIVE durations. Called on
         /// init (after SweepAll) and on every toggle/override change. Idempotent.
@@ -25,7 +26,7 @@ namespace Eq2Auras.Plugin.Act
 
             // Withdraw any of OUR category defs no longer desired (matched by name — no catalog lookup).
             foreach (var td in OurDefs().Where(t => !desiredNames.Contains(t.Name)).ToList())
-                WithdrawByName(td.Name);
+                Withdraw(td);
 
             // Upsert EVERY desired def at its effective duration — AddEditTimerDef edits-or-adds, so an
             // override change on an already-tracked buff propagates (not just newly-enabled ones) — and
@@ -53,20 +54,23 @@ namespace Eq2Auras.Plugin.Act
         {
             foreach (var td in OurDefs().ToList())
                 ActGlobals.oFormSpellTimers.RemoveTimerDef(td);
-            foreach (var key in ActGlobals.oFormActMain.ActiveCustomTriggers.Keys.Where(k => k.StartsWith("eq2auras:")).ToList())
+            foreach (var key in ActGlobals.oFormActMain.ActiveCustomTriggers.Keys.Where(k => k.StartsWith(KeyPrefix)).ToList())
                 ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(key);
             ActGlobals.oFormSpellTimers.RebuildSpellTreeView();
         }
 
+        // Case-insensitive: TimerData defs round-trip through ACT's persisted XML across sessions,
+        // so we don't assume ACT preserves the exact casing we wrote.
         private static IEnumerable<TimerData> OurDefs()
-            => ActGlobals.oFormSpellTimers.TimerDefs.Values.Where(td => td.Category == Category);
+            => ActGlobals.oFormSpellTimers.TimerDefs.Values
+                .Where(td => string.Equals(td.Category, Category, StringComparison.OrdinalIgnoreCase));
 
-        private static void WithdrawByName(string timerName)
+        private static void Withdraw(TimerData td)
         {
-            var td = OurDefs().FirstOrDefault(t => t.Name == timerName);
-            if (td != null) ActGlobals.oFormSpellTimers.RemoveTimerDef(td);
+            ActGlobals.oFormSpellTimers.RemoveTimerDef(td);
             foreach (var key in ActGlobals.oFormActMain.ActiveCustomTriggers
-                        .Where(e => e.Value.Category == Category && e.Value.TimerName == timerName)
+                        .Where(e => string.Equals(e.Value.Category, Category, StringComparison.OrdinalIgnoreCase)
+                                 && string.Equals(e.Value.TimerName, td.Name, StringComparison.OrdinalIgnoreCase))
                         .Select(e => e.Key).ToList())
                 ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(key);
         }

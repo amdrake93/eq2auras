@@ -69,6 +69,14 @@ public class BuffCatalogTests
         => Assert.False(BuffCatalog.Find("bolster").TryMatch("(1734900000)[date] Alex says, \"hello\"", out _));
 
     [Fact]
+    public void A_targeted_buff_with_no_target_does_not_match()
+    {
+        // A targeted macro fired with no %T target -> no timer (the target is mandatory).
+        var line = "(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the group, \"eq2auras Bolster\"";
+        Assert.False(BuffCatalog.Find("bolster").TryMatch(line, out _));
+    }
+
+    [Fact]
     public void Find_by_id_and_by_name_both_resolve_the_same_entry()
     {
         Assert.Null(BuffCatalog.Find("nope"));

@@ -54,8 +54,15 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "meter")]
         public MeterSettings Meter { get; set; } = new MeterSettings();
 
+        // Field initializer (like Panels) so a directly-constructed Settings — new Settings() from
+        // SettingsStore.Load()'s missing-file branch and Parse()'s corrupt-file catch — defaults
+        // all-on. DCJS skips the initializer on deserialize, so a loaded file still flows through
+        // Normalize's null->all-on backfill (SPEC §Buff tracking).
         [DataMember(Name = "buffPrefs")]
-        public List<BuffPref> BuffPrefs { get; set; }   // null = never set -> backfilled all-on (SPEC §Buff tracking)
+        public List<BuffPref> BuffPrefs { get; set; } = DefaultBuffPrefs();
+
+        private static List<BuffPref> DefaultBuffPrefs()
+            => BuffCatalog.All.Select(b => new BuffPref { Id = b.Id, Enabled = true }).ToList();
 
         public IEnumerable<string> EnabledBuffIds()
             => (BuffPrefs ?? new List<BuffPref>()).Where(p => p != null && p.Enabled).Select(p => p.Id);
@@ -73,6 +80,8 @@ namespace Eq2Auras.Core.Config
         // truncate: a hand-authored 4th+ group survives and routes by its own rule (SPEC §Timer groups —
         // "a new destination is a new config entry"; v1 withholds only the authoring UI). Runs on BOTH
         // construction (DefaultPanels) and load (Normalize) so new Settings() never routes nothing.
+        // Only indices 0-2 get a DEFAULT source: a 4th+ group with no Sources of its own matches
+        // nothing (intended — it's the author's job to give it a rule).
         private static List<PanelSettings> SeededGroups(List<PanelSettings> panels)
         {
             while (panels.Count < GroupCount) panels.Add(new PanelSettings());
@@ -110,10 +119,28 @@ namespace Eq2Auras.Core.Config
             if (Meter == null) Meter = new MeterSettings();   // DCJS skips initializers
             Meter.Normalize();
 
-            // null = never set -> default the whole curated set on (harmless without macros), no
-            // overrides. A non-null list is the raider's choices (incl. an explicit empty = all off).
             if (BuffPrefs == null)
-                BuffPrefs = BuffCatalog.All.Select(b => new BuffPref { Id = b.Id, Enabled = true }).ToList();
+            {
+                BuffPrefs = DefaultBuffPrefs();   // never-set -> the whole curated set on (harmless without macros)
+            }
+            else
+            {
+                // Forward-compat: a catalog buff absent from the raider's saved list defaults OFF —
+                // they've customized, so a newer version's new buff isn't auto-enabled (distinct from
+                // the never-set all-on default). Guarantees every catalog id has a pref, so BuffPrefFor
+                // (the tab UI) is a pure lookup that can't miss.
+                BuffPrefs = BuffPrefs.Where(p => p != null).ToList();
+                var have = new HashSet<string>(BuffPrefs.Select(p => p.Id), StringComparer.OrdinalIgnoreCase);
+                foreach (var def in BuffCatalog.All)
+                    if (!have.Contains(def.Id)) BuffPrefs.Add(new BuffPref { Id = def.Id, Enabled = false });
+            }
+
+            // Clamp discipline (like the panel dimensions): an absurd/hand-edited override would throw
+            // in the tab's NumericUpDown (Min 1, Max 3600) during InitPlugin -> the whole plugin fails
+            // to load. Out of range -> revert to the catalog base (null).
+            foreach (var pref in BuffPrefs)
+                if (pref.DurationOverride.HasValue && (pref.DurationOverride.Value < 1 || pref.DurationOverride.Value > 3600))
+                    pref.DurationOverride = null;
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.

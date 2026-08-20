@@ -1040,6 +1040,7 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
 7. **Regex runtime at raid scale:** with all enabled buffs injected (group-wide on the **lookbehind fast-reject** form, so every buff pattern leads with the `eq2auras` literal), confirm ACT's poll-loop health through a **flooded combat** encounter (the backlog’s standing raid-scale-validation item) — no new poll hiccups vs. baseline.
+8. **No collision with a raider's own timer (code-review rec):** create a personal spell timer named e.g. `Bolster` in a **different** category, load the plugin, then unload it — confirm the raider's timer **survives** (our `AddEditTimerDef`/`SweepAll` key on our reserved `eq2auras Buffs` category, so they must not recategorize or delete a same-named def in another category).
 
 ---
 

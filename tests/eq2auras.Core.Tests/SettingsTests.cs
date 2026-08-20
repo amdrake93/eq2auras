@@ -56,6 +56,48 @@ public class SettingsTests
         Assert.Equal(36, s.EffectiveDuration("bolster"));   // census base
     }
 
+    [Fact]
+    public void A_freshly_constructed_settings_defaults_all_buffs_on()
+    {
+        // The missing-file / corrupt-file path returns new Settings() WITHOUT Normalize — the field
+        // initializer must still yield all-on, else a fresh install injects nothing (code review Critical 1).
+        Assert.Equal(BuffCatalog.All.Select(b => b.Id).OrderBy(x => x),
+                     new Settings().EnabledBuffIds().OrderBy(x => x));
+    }
+
+    [Fact]
+    public void An_out_of_range_duration_override_reverts_to_the_catalog_base()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"durationOverride\":0}," +
+                               "{\"id\":\"tsunami\",\"enabled\":true,\"durationOverride\":99999}]}");
+        Assert.Equal(36, s.EffectiveDuration("bolster"));   // 0 -> base
+        Assert.Equal(21, s.EffectiveDuration("tsunami"));   // 99999 -> base
+    }
+
+    [Fact]
+    public void A_newer_catalog_buff_absent_from_a_saved_list_defaults_off()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}]}");
+        Assert.Contains("bolster", s.EnabledBuffIds());
+        Assert.DoesNotContain("tsunami", s.EnabledBuffIds());    // present-but-off, not auto-enabled
+        Assert.Equal(BuffCatalog.All.Count, s.BuffPrefs.Count);  // every catalog id now has a pref
+    }
+
+    [Fact]
+    public void Sources_buff_prefs_and_a_fourth_group_survive_a_json_round_trip()
+    {
+        var s = new Settings();
+        s.Panels.Add(new PanelSettings { Sources = new List<SourceRule> { SourceRule.OfName("Special") } });
+        s.BuffPrefs.First(p => p.Id == "bolster").DurationOverride = 50;
+
+        var parsed = Settings.Parse(s.ToJson());
+
+        Assert.Equal(4, parsed.Panels.Count);                          // no truncation across persistence
+        Assert.Equal("Special", parsed.Panels[3].Sources[0].Value);
+        Assert.Equal("eq2auras Buffs", parsed.Panels[2].Sources[0].Value);
+        Assert.Equal(50, parsed.EffectiveDuration("bolster"));         // override round-trips
+    }
+
     [Theory]
     [InlineData("")]                       // empty file
     [InlineData("not json at all {{{")]    // corrupt file

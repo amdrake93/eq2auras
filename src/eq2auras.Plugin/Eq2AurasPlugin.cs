@@ -179,10 +179,16 @@ namespace Eq2Auras.Plugin
         {
             var box = new GroupBox
             {
-                Text = "Tracked buffs  (macro emits:  eq2auras <buff> <target>  to any chat channel)",
-                Left = 10, Top = top, Width = 360, Height = 28 + BuffCatalog.All.Count * 26 + 6
+                Text = "Tracked buffs",
+                Left = 10, Top = top, Width = 360, Height = 56 + BuffCatalog.All.Count * 26 + 6
             };
-            int y = 22;
+            box.Controls.Add(new Label
+            {
+                Left = 10, Top = 18, Width = 340, Height = 34, AutoSize = false,
+                Text = "Macro emits — single-target:  eq2auras <buff> <target>  (any channel)\r\n"
+                     + "group-wide (caster shown):  eq2auras <buff>  to group / raid chat"
+            });
+            int y = 54;
             foreach (var def in BuffCatalog.All)
             {
                 var d = def;   // capture per iteration
@@ -217,17 +223,9 @@ namespace Eq2Auras.Plugin
             return box;
         }
 
-        private BuffPref BuffPrefFor(string id)
-        {
-            if (_settings.BuffPrefs == null) _settings.BuffPrefs = new List<BuffPref>();
-            var pref = _settings.BuffPrefs.FirstOrDefault(p => p != null && p.Id == id);
-            if (pref == null)
-            {
-                pref = new BuffPref { Id = id, Enabled = true };
-                _settings.BuffPrefs.Add(pref);
-            }
-            return pref;
-        }
+        // Pure lookup: Settings.Normalize (and the BuffPrefs field initializer) guarantee every
+        // catalog id has a pref, so this can't miss — no outside-the-gate mutation at tab-build time.
+        private BuffPref BuffPrefFor(string id) => _settings.BuffPrefs.First(p => p.Id == id);
 
         /// One labeled control set per group (SPEC §Configuration — no group selector).
         /// Dropdown changes apply live within a poll tick: the engine's trackers hold

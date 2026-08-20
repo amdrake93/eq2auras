@@ -24,7 +24,6 @@ namespace Eq2Auras.Core.Timers
             DurationSeconds = durationSeconds;
             IsTargeted = isTargeted;
             Pattern = BuildPattern(displayName, isTargeted);
-            _rx = new Regex(Pattern, RegexOptions.Compiled);   // (?i) is inline in the pattern
         }
 
         // One shape per kind (adapted from Alex's field-proven announce trigger). Case-insensitive
@@ -49,7 +48,9 @@ namespace Eq2Auras.Core.Timers
         {
             name = null;
             if (line == null) return false;
-            var m = _rx.Match(line);
+            // Lazy: the runtime Plugin only hands `Pattern` to ACT (ACT does the matching); this
+            // validator is test-only, so we don't compile 22 regexes on ACT's UI thread at init.
+            var m = (_rx ?? (_rx = new Regex(Pattern))).Match(line);
             if (!m.Success) return false;
             var g = m.Groups["attacker"];
             if (g.Success && g.Value.Length > 0) name = g.Value;
