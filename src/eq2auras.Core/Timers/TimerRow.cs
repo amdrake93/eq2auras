@@ -7,6 +7,7 @@ namespace Eq2Auras.Core.Timers
     {
         public string Name { get; set; }
         public string Combatant { get; set; }
+        public string Category { get; set; }   // TimerData.Category — scopes the buff two-format label (SPEC §Display)
         public int TimeLeft { get; set; }
         public double PreciseTimeLeft { get; set; } // sub-second, drives the smooth drain animation
         public int TotalSeconds { get; set; }

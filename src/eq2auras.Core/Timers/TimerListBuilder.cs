@@ -22,11 +22,14 @@ namespace Eq2Auras.Core.Timers
                 .ToList();
         }
 
-        /// The row's displayed label. A catalog buff renders in one of two mutually-exclusive
+        /// The row's displayed label. A buff in OUR category renders in one of two mutually-exclusive
         /// formats (SPEC §Display) — single-target `{Buff} → {Target}`, group-wide `{Caster}: {Buff}`.
-        /// A reading whose name is NOT a catalog buff renders unchanged, so panel timers are untouched.
-        public static string Label(string name, string combatant)
+        /// The format is **category-scoped**, not name-scoped: a raider's own timer that merely shares
+        /// a catalog buff's name (their own `Holy Shield`) is NOT relabeled — only our injected readings
+        /// (category `eq2auras Buffs`) are. Everything else renders its bare name unchanged.
+        public static string Label(string name, string combatant, string category)
         {
+            if (!string.Equals(category, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)) return name;
             var def = BuffCatalog.FindByName(name);
             if (def == null) return name;
             var who = TitleCase(combatant);
@@ -47,6 +50,7 @@ namespace Eq2Auras.Core.Timers
             {
                 Name = reading.Name,
                 Combatant = reading.Combatant,
+                Category = reading.Category,
                 TimeLeft = reading.TimeLeft,
                 PreciseTimeLeft = TimerMath.PreciseOf(reading),
                 TotalSeconds = reading.TotalSeconds,

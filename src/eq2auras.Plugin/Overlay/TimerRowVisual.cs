@@ -27,7 +27,7 @@ namespace Eq2Auras.Plugin.Overlay
 
         public void Update(TimerRow row)
         {
-            _bar.NameText.Text = TimerListBuilder.Label(row.Name, row.Combatant);   // buff rows get their two-format label; other timers unchanged
+            _bar.NameText.Text = TimerListBuilder.Label(row.Name, row.Combatant, row.Category);   // OUR buff rows get their two-format label; other timers (incl. a raider's own same-named one) unchanged
             // Wall-clock seconds so the text agrees with the smooth fill; overdue rows
             // (HighlightInPlace mode, linger-configured timers) count up as LATE.
             _bar.TrailingText.Text = row.Urgency == TimerUrgency.Overdue
