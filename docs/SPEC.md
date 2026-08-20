@@ -286,7 +286,7 @@ Scope is **duration-only**. A buff's **cooldown is not tracked** — recast time
 **The one raider-side requirement — a chat line in our normalized format.** Not every outgoing buff emits a native combat-log line, so we do not depend on native lines: for **every** catalog buff, tracking keys off a **normalized chat line** the raider emits on cast, of a fixed shape our regex matches. Defining that **format** is our contract; *how* the raider produces a matching line is **theirs** — everything downstream (registering triggers and timers into ACT, matching, spawning, cleanup) is automatic inside the self-updating plugin. The format:
 
 - **Single-target:** the line's payload is `eq2auras <buff> <target>`, matched anywhere in the line (channel-agnostic), where `<target>` is the buff's **actual** target. A simple `/g eq2auras <buff> %T` works *when the spell's target is the current target* — but **click-to-cast / mouseover UIs decouple the two** (the spell lands on one player while `%T` names another), so the raider fills the target from whatever their own setup provides. We define the format, never the macro.
-- **Group/raid-wide:** the raider emits `eq2auras <buff>` **to group chat**; we capture the **caster** from the chat wrapper (`<speaker> says to the group, "eq2auras <buff>"`, §The catalog). The group channel is part of the format here because that wrapper is what names the caster.
+- **Group/raid-wide:** the raider emits `eq2auras <buff>` **to group *or* raid chat**; we capture the **caster** from the chat wrapper — the *speaker* named ahead of the payload — **regardless of which channel** (§The catalog). A buff announced to **both** channels produces two matching lines in the same instant; ACT's **2-second trigger dedup** (`docs/act-timer-engine.md`) collapses them to one timer (same buff + same caster = same frame). The exact per-channel wrapper phrasing is confirmed against real captured lines (the injection spike).
 
 Every EQ2 line also carries a `(unixtime)[date]` prefix (`ACT_English_Parser.cs:319`). We may *document* an example line per buff, but producing one — and getting the correct target into it — is the raider's own UI/macro setup, not something we generate.
 
@@ -294,7 +294,7 @@ Every EQ2 line also carries a `(unixtime)[date]` prefix (`ACT_English_Parser.cs:
 
 ```
 Single-target:  eq2auras Bolster (?<attacker>[^"]+)                         →  "…Bolster Bob"              captures Bob (target)
-Group-wide:     (?<attacker>\S+) says to the group, "eq2auras Tortoise Shell"  →  "Alex says …Tortoise Shell"  captures Alex (caster)
+Group-wide:     (?<attacker>\S+) says to the (?:group|raid), "eq2auras Tortoise Shell"  →  captures Alex (caster), group OR raid channel
 ```
 
 The single-target pattern is **payload-local** (robust); the group-wide pattern must match the chat **wrapper** (speaker + verb + quotes), so its exact shape is **confirmed against a real captured line** (the injection spike). The v1 seed catalog is **22 buffs** — **12 single-target and 10 group-wide** — a bounded set curated from guild practice; a future release opens **user-defined presets** over the same catalog shape (§v1 bound). Per-buff **base durations** are catalog data sourced from **EQ2 census** (both the spell and AA collections); a raider can **override** any duration for their own character (§User selection).

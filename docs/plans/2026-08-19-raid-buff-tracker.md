@@ -428,7 +428,7 @@ git commit -m "feat(timers): route by source rules; seed three groups (panel:1/2
 **Interfaces:**
 - Produces: `class BuffDef { string Id; string DisplayName; int DurationSeconds; string Pattern; bool IsTargeted; bool TryMatch(string line, out string name); }`; `static class BuffCatalog { const string Category = "eq2auras Buffs"; IReadOnlyList<BuffDef> All; BuffDef Find(string id); }`.
 
-**DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the expected log-line text, and the census ability name all match. **Still Task-0-confirmed:** the group-wide **wrapper** shape (`\S+ says to the group, "…"`) — the single-target payload patterns are robust.
+**DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the expected log-line text, and the census ability name all match. **Still Task-0-confirmed:** the group-wide **wrapper** shape (`\S+ says to the (?:group|raid), "…"`) — channel-tolerant (group *or* raid; both-channel emission collapses to one timer via ACT's 2s dedup). The single-target payload patterns are robust and channel-agnostic.
 
 - [ ] **Step 1: Write the failing tests** (regex correctness is the Mac-testable heart — validate against representative full log lines):
 
@@ -473,14 +473,16 @@ public class BuffCatalogTests
         Assert.Equal("Bob", name);   // the target
     }
 
-    [Fact]
-    public void A_group_wide_buff_captures_the_caster_from_the_wrapper()
+    [Theory]
+    [InlineData("group")]
+    [InlineData("raid")]
+    public void A_group_wide_buff_captures_the_caster_from_either_channel(string channel)
     {
         var turtle = BuffCatalog.Find("tortoise-shell");
         Assert.False(turtle.IsTargeted);
-        var line = "(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the group, \"eq2auras Tortoise Shell\"";
+        var line = $"(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the {channel}, \"eq2auras Tortoise Shell\"";
         Assert.True(turtle.TryMatch(line, out var name));
-        Assert.Equal("Alex", name);   // the caster — the group proxy (SPEC §Display)
+        Assert.Equal("Alex", name);   // the caster — group OR raid channel (SPEC §Display)
     }
 
     [Fact]
@@ -564,9 +566,11 @@ namespace Eq2Auras.Core.Timers
         public const string Category = "eq2auras Buffs";
 
         // Durations are census BASE values (spell + AA collections), filled from the census pull.
-        // Single-target: `attacker` captures the %T target from the payload. Group-wide: `attacker`
-        // captures the CASTER from the chat wrapper — the exact wrapper (verb/quotes) is confirmed
-        // by the Task-0 captured line; the `\S+ says to the group, "…"` shape below is provisional.
+        // Single-target: `attacker` captures the target from the payload (channel-agnostic).
+        // Group-wide: `attacker` captures the CASTER from the chat wrapper, channel-tolerant
+        // (group OR raid — a raider may announce to either or both; both-channel emission is one
+        // timer via ACT's 2s dedup). The exact wrapper phrasing is confirmed by the Task-0 line;
+        // the `\S+ says to the (?:group|raid), "…"` shape below is provisional.
         public static readonly IReadOnlyList<BuffDef> All = new List<BuffDef>
         {
             // --- Single-target (12) — captures the target from the payload ---
@@ -585,16 +589,16 @@ namespace Eq2Auras.Core.Timers
             new BuffDef("gravitas",            "Gravitas",            30,  "eq2auras Gravitas (?<attacker>[^\"]+)",            isTargeted: true),
 
             // --- Group/raid-wide (10) — captures the caster from the chat wrapper ---
-            new BuffDef("tortoise-shell",            "Tortoise Shell",            30, "(?<attacker>\\S+) says to the group, \"eq2auras Tortoise Shell\"",            isTargeted: false),
-            new BuffDef("bladedance",                "Bladedance",                30, "(?<attacker>\\S+) says to the group, \"eq2auras Bladedance\"",                isTargeted: false),
-            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       12, "(?<attacker>\\S+) says to the group, \"eq2auras Cacophony of Blades\"",       isTargeted: false),
-            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", 20, "(?<attacker>\\S+) says to the group, \"eq2auras Perfection of the Maestro\"", isTargeted: false),
-            new BuffDef("frigid-gift",               "Frigid Gift",               24, "(?<attacker>\\S+) says to the group, \"eq2auras Frigid Gift\"",               isTargeted: false),
-            new BuffDef("curse-of-darkness",         "Curse of Darkness",         12, "(?<attacker>\\S+) says to the group, \"eq2auras Curse of Darkness\"",         isTargeted: false),
-            new BuffDef("peace-of-mind",             "Peace of Mind",             20, "(?<attacker>\\S+) says to the group, \"eq2auras Peace of Mind\"",             isTargeted: false),
-            new BuffDef("death-march",               "Death March",               60, "(?<attacker>\\S+) says to the group, \"eq2auras Death March\"",               isTargeted: false),
-            new BuffDef("sanctuary",                 "Sanctuary",                 31, "(?<attacker>\\S+) says to the group, \"eq2auras Sanctuary\"",                 isTargeted: false), // †30.9
-            new BuffDef("advance-warning",           "Advance Warning",           13, "(?<attacker>\\S+) says to the group, \"eq2auras Advance Warning\"",           isTargeted: false),
+            new BuffDef("tortoise-shell",            "Tortoise Shell",            30, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Tortoise Shell\"",            isTargeted: false),
+            new BuffDef("bladedance",                "Bladedance",                30, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Bladedance\"",                isTargeted: false),
+            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       12, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Cacophony of Blades\"",       isTargeted: false),
+            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", 20, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Perfection of the Maestro\"", isTargeted: false),
+            new BuffDef("frigid-gift",               "Frigid Gift",               24, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Frigid Gift\"",               isTargeted: false),
+            new BuffDef("curse-of-darkness",         "Curse of Darkness",         12, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Curse of Darkness\"",         isTargeted: false),
+            new BuffDef("peace-of-mind",             "Peace of Mind",             20, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Peace of Mind\"",             isTargeted: false),
+            new BuffDef("death-march",               "Death March",               60, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Death March\"",               isTargeted: false),
+            new BuffDef("sanctuary",                 "Sanctuary",                 31, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Sanctuary\"",                 isTargeted: false), // †30.9
+            new BuffDef("advance-warning",           "Advance Warning",           13, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Advance Warning\"",           isTargeted: false),
         };
 
         public static BuffDef Find(string id) => All.FirstOrDefault(b => b.Id == id);
@@ -1008,7 +1012,7 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 
 1. **Timer regression:** existing Panel A / Panel B timers appear, escalate, drain, and color exactly as before (trigger a known panel-1 and panel-2 timer). Confirm no display change to existing timers (or, if the general suffix shipped, that any caster suffix is acceptable — the Task-7 decision).
 2. **Buff spawn (targeted):** with the Bolster macro set up, `/g eq2auras Bolster <target>` → a `Bolster — <Target>` row appears in the buff window for the buff's duration, title-cased.
-3. **Buff spawn (group-wide):** `/g eq2auras Tortoise Shell` → a `Tortoise Shell — <Caster>` row appears (the caster captured from the chat line, title-cased).
+3. **Buff spawn (group-wide, either channel):** `/g eq2auras Tortoise Shell` **and** `/r eq2auras Tortoise Shell` each → a `Tortoise Shell — <Caster>` row (caster captured from the chat line, title-cased); firing **both** in the same instant yields **one** timer (ACT 2s dedup).
 4. **Toggle:** disable Bolster in the tab → its macro no longer spawns a row; re-enable → it works again (inject/withdraw live).
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
