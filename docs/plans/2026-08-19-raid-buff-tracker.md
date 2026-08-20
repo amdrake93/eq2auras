@@ -65,6 +65,7 @@ _Copied from SPEC.md; every task's requirements implicitly include these._
 - [ ] **Register a trigger** into the runtime-only set: `var ct = new CustomTrigger("eq2auras SpikeTest(?: (?<attacker>[^\"]+))?", 0, "", true, "eq2auras-spiketest", false) { Category = "eq2auras Buffs" }; ActGlobals.oFormActMain.ActiveCustomTriggers[ct.Key] = ct;`
 - [ ] **Emit the macro** in-game: `/g eq2auras SpikeTest %T` (targeted) and `/g eq2auras SpikeTest` (bare). **Capture the raw log lines** from `%APPDATA%\...\eq2auras\logs` or ACT's log view — record the exact wrapper (channel verb + quoting) so Task 4's regex tail anchor is confirmed.
 - [ ] **Verify a frame spawns:** `ActGlobals.oFormSpellTimers.GetTimerFrames()` contains a frame named `eq2auras-spiketest` with `Combatant` = the (lowercased) target; the bare cast yields `Combatant` `"None"`.
+- [ ] **Verify the LOOKBEHIND capture (decides group-wide default vs fallback, §REGEX RUNTIME):** register a second trigger with the group-wide lookbehind pattern — `var ctg = new CustomTrigger("(?i)(?<=(?<attacker>[a-zA-Z]+)\\\\/a (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras SpikeGroup", 0, "", true, "eq2auras-spikegroup", false) { Category = "eq2auras Buffs" };` (+ its `TimerData`). Emit `/g eq2auras SpikeGroup` and confirm the frame's `Combatant` = the **caster** (i.e. ACT populated `attacker` from *inside* the lookbehind). **PASS → ship the lookbehind default; FAIL → use the leading-speaker fallback form.**
 - [ ] **Verify transience:** confirm the trigger is NOT written to ACT's saved config (inspect the saved triggers XML after a settings save — the `ActiveCustomTriggers`-only entry must be absent from persisted `CustomTriggers`).
 - [ ] **Verify zone-rebuild eviction:** change zones; confirm the trigger vanishes from `ActiveCustomTriggers` (this is what Task 6's poll-based re-ensure defends against).
 - [ ] **Verify clean removal:** `ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(ct.Key)` + `ActGlobals.oFormSpellTimers.RemoveTimerDef(theDef)` + `RebuildSpellTreeView()` leaves ACT's timer list clean.
@@ -432,9 +433,9 @@ git commit -m "feat(timers): route by source rules; seed three groups (panel:1/2
 
 **REGEX RUNTIME — N triggers × every log line (Alex, 2026-08-19).** ACT runs **every** `ActiveCustomTrigger`'s regex against **every** log line (`ParseCustomFor`), so each enabled buff adds one regex per line — on top of the raider's own triggers and the parser — and raid combat floods the log (the untested regime SPEC §raid-scale validation already flags). Two shapes, two cost profiles:
 - **Single-target** (`(?i)eq2auras <buff> …`) — leads with the literal `eq2auras`, so .NET's first-char search **fast-rejects** the ~all lines without it. Near-zero cost. The 12 of these are cheap.
-- **Group-wide** (`(?i)(?<attacker>[a-zA-Z]+)(?:\/a)? …`) — **no leading literal**, so the engine tries `[a-zA-Z]+` at each position → **O(line length)** attempts per line, each failing fast at the next required token (` say`/`, "`). **No catastrophic backtracking** — every quantifier is separated by a required literal (`\/a`, ` say`, `, "`, `eq2auras`), so cost is linear, not exponential. But the constant × 10 group-wide triggers × a flooded line rate is the watch item.
-- **Mitigation, if measurement shows cost:** restructure the group-wide template to **lead with the literal** and capture the speaker via a variable-length lookbehind — `(?i)(?<=(?<attacker>[a-zA-Z]+)\/a (?:say|tell)s? [a-zA-Z ]+, "[^"]*)eq2auras <buff>` — so `eq2auras` drives the first-char search and non-matching lines fast-reject like the single-target ones. Cost: more complex regex + a **Task-0 check that ACT reads a named capture from inside a lookbehind** (`NotifySpell` reads `match.Groups["attacker"]`, which includes lookbehind captures — verify). It's a one-line change in `BuildPattern`.
-- **Decision (default):** ship the simple proven shape and **measure at raid scale** (ACT is built to run many triggers — raiders already run dozens — so 10 more linear patterns is likely marginal); switch to the lookbehind form only if the raid-scale measurement flags it. Either way it's a single-place template change.
+- **Group-wide** (default: the **lookbehind** form) — `(?i)(?<=(?<attacker>[a-zA-Z]+)\/a (?:say|tell)s? [a-zA-Z ]+, "[^"]*)eq2auras <buff>`. The first *consuming* atom is the `eq2auras` literal, so .NET's first-char search **fast-rejects** non-matching lines exactly like the single-target patterns; the speaker is captured by a variable-length lookbehind over the chat wrapper, evaluated only at the rare `eq2auras` hits. **No catastrophic backtracking** (quantifiers fenced by required literals). The **Core TDD test proves the .NET regex captures the speaker** (same engine, Mac); the only ACT-specific unknown — does `NotifySpell` read a lookbehind-nested `match.Groups["attacker"]` (the decompile shows it dicts *all* groups by name, so almost certainly yes) — is a one-assertion **Task-0 check**.
+- **Fallback (only if Task 0 finds ACT can't read the lookbehind capture):** the leading-speaker form `(?i)(?<attacker>[a-zA-Z]+)(?:\/a)? (?:say|tell)s? [a-zA-Z ]+, ".*eq2auras <buff>.*"` — correct but **no fast-reject** (O(line-length) scan per line, no catastrophic backtracking); ship it and measure at raid scale, since ACT already runs dozens of triggers. A one-line `BuildPattern` swap either way.
+- **Decision (Alex, 2026-08-19):** default to the **lookbehind fast-reject** form — the perf feedback loop is a raid night, and Task 0 retires the only risk cheaply; fall back to the simple form only if that check fails.
 
 - [ ] **Step 1: Write the failing tests** (regex correctness is the Mac-testable heart — validate against representative full log lines):
 
@@ -541,18 +542,21 @@ namespace Eq2Auras.Core.Timers
             _rx = new Regex(Pattern, RegexOptions.Compiled);   // (?i) is inline in the pattern
         }
 
-        // One shape for all buffs (adapted from Alex's field-proven announce trigger). Case-insensitive
+        // One shape per kind (adapted from Alex's field-proven announce trigger). Case-insensitive
         // (inline `(?i)`), channel-agnostic, position-agnostic — ACT only needs the payload to appear
-        // ANYWHERE in the line, in any chat channel:
-        //   Single-target: capture the target token right after the buff name in the payload.
-        //   Group-wide:    capture the SPEAKER (caster) ahead of any "…say/tells …," chat wrapper.
-        // The optional \/a is EQ2's speaker-link markup (present or stripped — Task-0 confirms).
+        // ANYWHERE in the line, in any chat channel. BOTH lead the scan with the literal `eq2auras`
+        // so non-matching lines fast-reject (the N-trigger runtime fix, §REGEX RUNTIME):
+        //   Single-target: `eq2auras <buff>` then capture the target token from the payload.
+        //   Group-wide:    `eq2auras <buff>` with the SPEAKER captured via a variable-length LOOKBEHIND
+        //                  over the `<name>\/a say/tells …, "` chat wrapper (\/a = EQ2's speaker-link
+        //                  markup). Fallback if Task 0 finds ACT can't read a lookbehind capture: the
+        //                  leading-speaker form `(?i)(?<attacker>[a-zA-Z]+)(?:\/a)? (?:say|tell)s? [a-zA-Z ]+, ".*eq2auras <buff>.*"`.
         private static string BuildPattern(string buff, bool isTargeted)
         {
             var lit = Regex.Escape(buff);
             return isTargeted
                 ? $"(?i)eq2auras {lit} (?<attacker>[a-zA-Z]+)"
-                : $"(?i)(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell)s? [a-zA-Z ]+, \".*eq2auras {lit}.*\"";
+                : $"(?i)(?<=(?<attacker>[a-zA-Z]+)\\\\/a (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras {lit}";
         }
 
         /// True if the line matches; `name` is the captured `attacker` group (the target for a
@@ -1034,7 +1038,7 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 4. **Toggle:** disable Bolster in the tab → its macro no longer spawns a row; re-enable → it works again (inject/withdraw live).
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
-7. **Regex runtime at raid scale:** with all enabled buffs injected, confirm ACT's poll-loop health through a **flooded combat** encounter (SPEC §raid-scale validation) — no new poll hiccups vs. baseline. If cost shows, switch the group-wide template to the lookbehind fast-reject form (§REGEX RUNTIME, Task 4).
+7. **Regex runtime at raid scale:** with all enabled buffs injected (group-wide on the **lookbehind fast-reject** form, so every buff pattern leads with the `eq2auras` literal), confirm ACT's poll-loop health through a **flooded combat** encounter (SPEC §raid-scale validation) — no new poll hiccups vs. baseline.
 
 ---
 
