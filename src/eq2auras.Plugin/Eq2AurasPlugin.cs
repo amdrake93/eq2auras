@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
@@ -167,6 +169,64 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(moveBox);
             tab.Controls.Add(debugBox);
             tab.Controls.Add(meterBox);
+            tab.Controls.Add(BuildBuffBox(760));
+        }
+
+        // The per-buff tracked set + duration override (SPEC §Buff tracking). One row per catalog
+        // buff: an enable checkbox and a duration field (the override; seeded with the effective
+        // value, reset to the catalog base clears it). Toggling/editing re-syncs the live injection.
+        private GroupBox BuildBuffBox(int top)
+        {
+            var box = new GroupBox
+            {
+                Text = "Tracked buffs  (macro emits:  eq2auras <buff> <target>  to any chat channel)",
+                Left = 10, Top = top, Width = 360, Height = 28 + BuffCatalog.All.Count * 26 + 6
+            };
+            int y = 22;
+            foreach (var def in BuffCatalog.All)
+            {
+                var d = def;   // capture per iteration
+                var pref = BuffPrefFor(d.Id);
+
+                var check = new CheckBox { Text = d.DisplayName, Left = 10, Top = y, Width = 220, Checked = pref.Enabled };
+                check.CheckedChanged += (s, e) =>
+                {
+                    SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).Enabled = check.Checked);
+                    _buffInjector?.SyncTo(_settings);
+                };
+
+                var dur = new NumericUpDown
+                {
+                    Left = 236, Top = y - 2, Width = 60, Minimum = 1, Maximum = 3600,
+                    Value = _settings.EffectiveDuration(d.Id)
+                };
+                dur.ValueChanged += (s, e) =>
+                {
+                    int v = (int)dur.Value;
+                    // Equal to the catalog base => clear the override (null); else store it.
+                    SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).DurationOverride = v == d.DurationSeconds ? (int?)null : v);
+                    _buffInjector?.SyncTo(_settings);
+                };
+                var sLabel = new Label { Text = "s", Left = 298, Top = y + 2, Width = 14 };
+
+                box.Controls.Add(check);
+                box.Controls.Add(dur);
+                box.Controls.Add(sLabel);
+                y += 26;
+            }
+            return box;
+        }
+
+        private BuffPref BuffPrefFor(string id)
+        {
+            if (_settings.BuffPrefs == null) _settings.BuffPrefs = new List<BuffPref>();
+            var pref = _settings.BuffPrefs.FirstOrDefault(p => p != null && p.Id == id);
+            if (pref == null)
+            {
+                pref = new BuffPref { Id = id, Enabled = true };
+                _settings.BuffPrefs.Add(pref);
+            }
+            return pref;
         }
 
         /// One labeled control set per group (SPEC §Configuration — no group selector).
