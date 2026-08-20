@@ -428,7 +428,13 @@ git commit -m "feat(timers): route by source rules; seed three groups (panel:1/2
 **Interfaces:**
 - Produces: `class BuffDef { string Id; string DisplayName; int DurationSeconds; string Pattern; bool IsTargeted; bool TryMatch(string line, out string name); }`; `static class BuffCatalog { const string Category = "eq2auras Buffs"; IReadOnlyList<BuffDef> All; BuffDef Find(string id); }`.
 
-**DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the expected log-line text, and the census ability name all match. **Still Task-0-confirmed:** the group-wide **wrapper** shape (`\S+ says to the (?:group|raid), "…"`) — channel-tolerant (group *or* raid; both-channel emission collapses to one timer via ACT's 2s dedup). The single-target payload patterns are robust and channel-agnostic.
+**DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the expected log-line text, and the census ability name all match. **Chat format CONFIRMED (`spike-data/2026-08-09/`):** real EQ2 lines are `\aPC <id> <Name>:<Name>\/a <says to the group | says to the raid party | tells you>, "…"`. So the channel phrase genuinely varies (`[a-zA-Z ]+` is required, not `(?:group|raid)`), and the `\/a` speaker-link markup is present in the raw log (the "weird stuff"). The template's `(?:\\/a)?` is optional only to tolerate ACT delivering a markup/timestamp-stripped line — the **one** thing Task 0 still checks (whether custom triggers see the raw line). A both-channel emission collapses to one timer via ACT's 2s dedup. Single-target payloads are robust and channel/position-agnostic (`eq2auras <buff> <target>` matched anywhere).
+
+**REGEX RUNTIME — N triggers × every log line (Alex, 2026-08-19).** ACT runs **every** `ActiveCustomTrigger`'s regex against **every** log line (`ParseCustomFor`), so each enabled buff adds one regex per line — on top of the raider's own triggers and the parser — and raid combat floods the log (the untested regime SPEC §raid-scale validation already flags). Two shapes, two cost profiles:
+- **Single-target** (`(?i)eq2auras <buff> …`) — leads with the literal `eq2auras`, so .NET's first-char search **fast-rejects** the ~all lines without it. Near-zero cost. The 12 of these are cheap.
+- **Group-wide** (`(?i)(?<attacker>[a-zA-Z]+)(?:\/a)? …`) — **no leading literal**, so the engine tries `[a-zA-Z]+` at each position → **O(line length)** attempts per line, each failing fast at the next required token (` say`/`, "`). **No catastrophic backtracking** — every quantifier is separated by a required literal (`\/a`, ` say`, `, "`, `eq2auras`), so cost is linear, not exponential. But the constant × 10 group-wide triggers × a flooded line rate is the watch item.
+- **Mitigation, if measurement shows cost:** restructure the group-wide template to **lead with the literal** and capture the speaker via a variable-length lookbehind — `(?i)(?<=(?<attacker>[a-zA-Z]+)\/a (?:say|tell)s? [a-zA-Z ]+, "[^"]*)eq2auras <buff>` — so `eq2auras` drives the first-char search and non-matching lines fast-reject like the single-target ones. Cost: more complex regex + a **Task-0 check that ACT reads a named capture from inside a lookbehind** (`NotifySpell` reads `match.Groups["attacker"]`, which includes lookbehind captures — verify). It's a one-line change in `BuildPattern`.
+- **Decision (default):** ship the simple proven shape and **measure at raid scale** (ACT is built to run many triggers — raiders already run dozens — so 10 more linear patterns is likely marginal); switch to the lookbehind form only if the raid-scale measurement flags it. Either way it's a single-place template change.
 
 - [ ] **Step 1: Write the failing tests** (regex correctness is the Mac-testable heart — validate against representative full log lines):
 
@@ -474,15 +480,17 @@ public class BuffCatalogTests
     }
 
     [Theory]
-    [InlineData("group")]
-    [InlineData("raid")]
-    public void A_group_wide_buff_captures_the_caster_from_either_channel(string channel)
+    [InlineData("says to the group")]
+    [InlineData("says to the raid party")]
+    [InlineData("tells you")]
+    public void A_group_wide_buff_captures_the_caster_from_any_channel(string wrapper)
     {
         var turtle = BuffCatalog.Find("tortoise-shell");
         Assert.False(turtle.IsTargeted);
-        var line = $"(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the {channel}, \"eq2auras Tortoise Shell\"";
+        // Real EQ2 chat format (spike-data/2026-08-09): \aPC <id> <Name>:<Name>\/a <wrapper>, "…"
+        var line = $"(1786327033)[Sun Aug  9 20:57:13 2026] \\aPC 111782 Onlyfans:Onlyfans\\/a {wrapper}, \"eq2auras Tortoise Shell\"";
         Assert.True(turtle.TryMatch(line, out var name));
-        Assert.Equal("Alex", name);   // the caster — group OR raid channel (SPEC §Display)
+        Assert.Equal("Onlyfans", name);   // the caster — any channel (SPEC §Display)
     }
 
     [Fact]
@@ -518,19 +526,33 @@ namespace Eq2Auras.Core.Timers
         public string Id { get; }
         public string DisplayName { get; }
         public int DurationSeconds { get; }   // catalog BASE duration (census); a raider may override (BuffPref)
-        public string Pattern { get; }
         public bool IsTargeted { get; }
+        public string Pattern { get; }        // built from the shared template — handed verbatim to ACT
 
         private readonly Regex _rx;
 
-        public BuffDef(string id, string displayName, int durationSeconds, string pattern, bool isTargeted)
+        public BuffDef(string id, string displayName, int durationSeconds, bool isTargeted)
         {
             Id = id;
             DisplayName = displayName;
             DurationSeconds = durationSeconds;
-            Pattern = pattern;
             IsTargeted = isTargeted;
-            _rx = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
+            Pattern = BuildPattern(displayName, isTargeted);
+            _rx = new Regex(Pattern, RegexOptions.Compiled);   // (?i) is inline in the pattern
+        }
+
+        // One shape for all buffs (adapted from Alex's field-proven announce trigger). Case-insensitive
+        // (inline `(?i)`), channel-agnostic, position-agnostic — ACT only needs the payload to appear
+        // ANYWHERE in the line, in any chat channel:
+        //   Single-target: capture the target token right after the buff name in the payload.
+        //   Group-wide:    capture the SPEAKER (caster) ahead of any "…say/tells …," chat wrapper.
+        // The optional \/a is EQ2's speaker-link markup (present or stripped — Task-0 confirms).
+        private static string BuildPattern(string buff, bool isTargeted)
+        {
+            var lit = Regex.Escape(buff);
+            return isTargeted
+                ? $"(?i)eq2auras {lit} (?<attacker>[a-zA-Z]+)"
+                : $"(?i)(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell)s? [a-zA-Z ]+, \".*eq2auras {lit}.*\"";
         }
 
         /// True if the line matches; `name` is the captured `attacker` group (the target for a
@@ -565,40 +587,36 @@ namespace Eq2Auras.Core.Timers
     {
         public const string Category = "eq2auras Buffs";
 
-        // Durations are census BASE values (spell + AA collections), filled from the census pull.
-        // Single-target: `attacker` captures the target from the payload (channel-agnostic).
-        // Group-wide: `attacker` captures the CASTER from the chat wrapper, channel-tolerant
-        // (group OR raid — a raider may announce to either or both; both-channel emission is one
-        // timer via ACT's 2s dedup). The exact wrapper phrasing is confirmed by the Task-0 line;
-        // the `\S+ says to the (?:group|raid), "…"` shape below is provisional.
+        // BASE durations = census (spell + AA collections). †tier-variable → Grandmaster max; the
+        // per-character override corrects. Regex is built by BuffDef from the shared template
+        // (case-insensitive, channel-agnostic, payload-anywhere) — entries carry only name/duration.
         public static readonly IReadOnlyList<BuffDef> All = new List<BuffDef>
         {
-            // --- Single-target (12) — captures the target from the payload ---
-            // Durations = census base (Grandmaster max ÷ 10s). †tier-variable → GM max, per-char override corrects.
-            new BuffDef("bolster",             "Bolster",             36,  "eq2auras Bolster (?<attacker>[^\"]+)",             isTargeted: true),
-            new BuffDef("jesters-cap",         "Jester's Cap",        30,  "eq2auras Jester's Cap (?<attacker>[^\"]+)",        isTargeted: true),
-            new BuffDef("ritual-of-alacrity",  "Ritual of Alacrity",  30,  "eq2auras Ritual of Alacrity (?<attacker>[^\"]+)",  isTargeted: true),
-            new BuffDef("holy-shield",         "Holy Shield",         30,  "eq2auras Holy Shield (?<attacker>[^\"]+)",         isTargeted: true),
-            new BuffDef("animal-form",         "Animal Form",         60,  "eq2auras Animal Form (?<attacker>[^\"]+)",         isTargeted: true),
-            new BuffDef("got-your-back",       "Got Your Back",       15,  "eq2auras Got Your Back (?<attacker>[^\"]+)",       isTargeted: true),
-            new BuffDef("tsunami",             "Tsunami",             21,  "eq2auras Tsunami (?<attacker>[^\"]+)",             isTargeted: true),   // †20.6
-            new BuffDef("divine-aura",         "Divine Aura",         10,  "eq2auras Divine Aura (?<attacker>[^\"]+)",         isTargeted: true),
-            new BuffDef("adrenaline",          "Adrenaline",          33,  "eq2auras Adrenaline (?<attacker>[^\"]+)",          isTargeted: true),   // †33.0
-            new BuffDef("unyielding-will",     "Unyielding Will",     180, "eq2auras Unyielding Will (?<attacker>[^\"]+)",     isTargeted: true),
-            new BuffDef("brutal-inspiration",  "Brutal Inspiration",  30,  "eq2auras Brutal Inspiration (?<attacker>[^\"]+)",  isTargeted: true),
-            new BuffDef("gravitas",            "Gravitas",            30,  "eq2auras Gravitas (?<attacker>[^\"]+)",            isTargeted: true),
+            // --- Single-target (12) — capture the target from the payload ---
+            new BuffDef("bolster",             "Bolster",             36,  isTargeted: true),
+            new BuffDef("jesters-cap",         "Jester's Cap",        30,  isTargeted: true),
+            new BuffDef("ritual-of-alacrity",  "Ritual of Alacrity",  30,  isTargeted: true),
+            new BuffDef("holy-shield",         "Holy Shield",         30,  isTargeted: true),
+            new BuffDef("animal-form",         "Animal Form",         60,  isTargeted: true),
+            new BuffDef("got-your-back",       "Got Your Back",       15,  isTargeted: true),
+            new BuffDef("tsunami",             "Tsunami",             21,  isTargeted: true),   // †20.6
+            new BuffDef("divine-aura",         "Divine Aura",         10,  isTargeted: true),
+            new BuffDef("adrenaline",          "Adrenaline",          33,  isTargeted: true),   // †33.0
+            new BuffDef("unyielding-will",     "Unyielding Will",     180, isTargeted: true),
+            new BuffDef("brutal-inspiration",  "Brutal Inspiration",  30,  isTargeted: true),
+            new BuffDef("gravitas",            "Gravitas",            30,  isTargeted: true),
 
-            // --- Group/raid-wide (10) — captures the caster from the chat wrapper ---
-            new BuffDef("tortoise-shell",            "Tortoise Shell",            30, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Tortoise Shell\"",            isTargeted: false),
-            new BuffDef("bladedance",                "Bladedance",                30, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Bladedance\"",                isTargeted: false),
-            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       12, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Cacophony of Blades\"",       isTargeted: false),
-            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", 20, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Perfection of the Maestro\"", isTargeted: false),
-            new BuffDef("frigid-gift",               "Frigid Gift",               24, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Frigid Gift\"",               isTargeted: false),
-            new BuffDef("curse-of-darkness",         "Curse of Darkness",         12, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Curse of Darkness\"",         isTargeted: false),
-            new BuffDef("peace-of-mind",             "Peace of Mind",             20, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Peace of Mind\"",             isTargeted: false),
-            new BuffDef("death-march",               "Death March",               60, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Death March\"",               isTargeted: false),
-            new BuffDef("sanctuary",                 "Sanctuary",                 31, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Sanctuary\"",                 isTargeted: false), // †30.9
-            new BuffDef("advance-warning",           "Advance Warning",           13, "(?<attacker>\\S+) says to the (?:group|raid), \"eq2auras Advance Warning\"",           isTargeted: false),
+            // --- Group/raid-wide (10) — capture the caster (speaker), any channel ---
+            new BuffDef("tortoise-shell",            "Tortoise Shell",            30, isTargeted: false),
+            new BuffDef("bladedance",                "Bladedance",                30, isTargeted: false),
+            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       12, isTargeted: false),
+            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", 20, isTargeted: false),
+            new BuffDef("frigid-gift",               "Frigid Gift",               24, isTargeted: false),
+            new BuffDef("curse-of-darkness",         "Curse of Darkness",         12, isTargeted: false),
+            new BuffDef("peace-of-mind",             "Peace of Mind",             20, isTargeted: false),
+            new BuffDef("death-march",               "Death March",               60, isTargeted: false),
+            new BuffDef("sanctuary",                 "Sanctuary",                 31, isTargeted: false), // †30.9
+            new BuffDef("advance-warning",           "Advance Warning",           13, isTargeted: false),
         };
 
         public static BuffDef Find(string id) => All.FirstOrDefault(b => b.Id == id);
@@ -1016,6 +1034,7 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 4. **Toggle:** disable Bolster in the tab → its macro no longer spawns a row; re-enable → it works again (inject/withdraw live).
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
+7. **Regex runtime at raid scale:** with all enabled buffs injected, confirm ACT's poll-loop health through a **flooded combat** encounter (SPEC §raid-scale validation) — no new poll hiccups vs. baseline. If cost shows, switch the group-wide template to the lookbehind fast-reject form (§REGEX RUNTIME, Task 4).
 
 ---
 
