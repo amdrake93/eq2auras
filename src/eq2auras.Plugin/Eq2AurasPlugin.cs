@@ -1,5 +1,7 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Reflection;
 using System.Windows.Forms;
 using Advanced_Combat_Tracker;
@@ -24,6 +26,8 @@ namespace Eq2Auras.Plugin
         private OverlayEngine _engine;
         private EncounterProbe _encounterProbe;
         private Settings _settings;
+        private BuffInjector _buffInjector;
+        private int _buffEnsureTick;
         private Timer _updatePollTimer;
 
         public void InitPlugin(TabPage pluginScreenSpace, Label pluginStatusText)
@@ -40,6 +44,9 @@ namespace Eq2Auras.Plugin
             _overlay = new OverlayHost(_settings);
             _overlay.Start();
             _engine = new OverlayEngine(_settings);   // trackers hold the same PanelSettings instances the tab mutates
+            _buffInjector = new BuffInjector();
+            _buffInjector.SweepAll();                 // clear any leftover "eq2auras Buffs" defs from a prior version
+            _buffInjector.SyncTo(_settings);          // register the enabled set at effective durations
             _encounterProbe = new EncounterProbe(
                 () => _settings.Meter.Enabled,
                 () => _overlay.CurrentDrillRequests(),
@@ -50,7 +57,13 @@ namespace Eq2Auras.Plugin
                 () => _settings.DebugLogging,
                 readings => _overlay.UpdateFrames(
                     _engine.Tick(readings)),
-                onPollTick: () => _encounterProbe.OnTick());
+                onPollTick: () =>
+                {
+                    _encounterProbe.OnTick();
+                    // Re-ensure our triggers survive a zone rebuild (ActiveCustomTriggers eviction),
+                    // on a divider — the defs persist, only the transient triggers need re-adding.
+                    if (++_buffEnsureTick % 5 == 0) _buffInjector.EnsurePresent(_settings);
+                });
 
             pluginScreenSpace.Text = "eq2auras";
             BuildConfigTab(pluginScreenSpace);
@@ -74,6 +87,8 @@ namespace Eq2Auras.Plugin
             _updatePollTimer = null;
             _probe?.Dispose();
             _probe = null;
+            _buffInjector?.SweepAll();   // remove our injected defs + triggers from ACT
+            _buffInjector = null;
             _encounterProbe = null;   // no timers/subscriptions of its own — driven by the probe's tick
             _engine = null;
             _overlay?.Dispose();
@@ -154,7 +169,63 @@ namespace Eq2Auras.Plugin
             tab.Controls.Add(moveBox);
             tab.Controls.Add(debugBox);
             tab.Controls.Add(meterBox);
+            tab.Controls.Add(BuildBuffBox(760));
         }
+
+        // The per-buff tracked set + duration override (SPEC §Buff tracking). One row per catalog
+        // buff: an enable checkbox and a duration field (the override; seeded with the effective
+        // value, reset to the catalog base clears it). Toggling/editing re-syncs the live injection.
+        private GroupBox BuildBuffBox(int top)
+        {
+            var box = new GroupBox
+            {
+                Text = "Tracked buffs",
+                Left = 10, Top = top, Width = 360, Height = 56 + BuffCatalog.All.Count * 26 + 6
+            };
+            box.Controls.Add(new Label
+            {
+                Left = 10, Top = 18, Width = 340, Height = 34, AutoSize = false,
+                Text = "Macro emits — single-target:  eq2auras <buff> <target>  (any channel)\r\n"
+                     + "group-wide (caster shown):  eq2auras <buff>  to group / raid chat"
+            });
+            int y = 54;
+            foreach (var def in BuffCatalog.All)
+            {
+                var d = def;   // capture per iteration
+                var pref = BuffPrefFor(d.Id);
+
+                var check = new CheckBox { Text = d.DisplayName, Left = 10, Top = y, Width = 220, Checked = pref.Enabled };
+                check.CheckedChanged += (s, e) =>
+                {
+                    SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).Enabled = check.Checked);
+                    _buffInjector?.SyncTo(_settings);
+                };
+
+                var dur = new NumericUpDown
+                {
+                    Left = 236, Top = y - 2, Width = 60, Minimum = 1, Maximum = 3600,
+                    Value = _settings.EffectiveDuration(d.Id)
+                };
+                dur.ValueChanged += (s, e) =>
+                {
+                    int v = (int)dur.Value;
+                    // Equal to the catalog base => clear the override (null); else store it.
+                    SettingsStore.Update(_settings, () => BuffPrefFor(d.Id).DurationOverride = v == d.DurationSeconds ? (int?)null : v);
+                    _buffInjector?.SyncTo(_settings);
+                };
+                var sLabel = new Label { Text = "s", Left = 298, Top = y + 2, Width = 14 };
+
+                box.Controls.Add(check);
+                box.Controls.Add(dur);
+                box.Controls.Add(sLabel);
+                y += 26;
+            }
+            return box;
+        }
+
+        // Pure lookup: Settings.Normalize (and the BuffPrefs field initializer) guarantee every
+        // catalog id has a pref, so this can't miss — no outside-the-gate mutation at tab-build time.
+        private BuffPref BuffPrefFor(string id) => _settings.BuffPrefs.First(p => p.Id == id);
 
         /// One labeled control set per group (SPEC §Configuration — no group selector).
         /// Dropdown changes apply live within a poll tick: the engine's trackers hold

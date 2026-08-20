@@ -1,9 +1,103 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Eq2Auras.Core.Config;
+using Eq2Auras.Core.Timers;
 using Xunit;
 
 public class SettingsTests
 {
+    [Fact]
+    public void Normalize_seeds_three_groups_with_panel_and_buff_sources()
+    {
+        var s = Settings.Parse("{}");
+        Assert.Equal(3, s.Panels.Count);
+        Assert.Equal(SourceRuleType.Panel, s.Panels[0].Sources[0].Type);
+        Assert.Equal("1", s.Panels[0].Sources[0].Value);
+        Assert.Equal("2", s.Panels[1].Sources[0].Value);
+        Assert.Equal(SourceRuleType.Category, s.Panels[2].Sources[0].Type);
+        Assert.Equal("eq2auras Buffs", s.Panels[2].Sources[0].Value);
+    }
+
+    [Fact]
+    public void A_legacy_two_panel_file_migrates_forward_to_three_groups()
+    {
+        // A saved file from before the buff window: two panels, no sources, no buff group.
+        var s = Settings.Parse("{\"panels\":[{\"colorSource\":0},{\"colorSource\":0}]}");
+        Assert.Equal(3, s.Panels.Count);
+        Assert.Equal("1", s.Panels[0].Sources[0].Value);
+        Assert.Equal("eq2auras Buffs", s.Panels[2].Sources[0].Value);
+    }
+
+    [Fact]
+    public void Buff_prefs_default_to_all_catalog_ids_enabled_and_no_override()
+    {
+        var s = Settings.Parse("{}");
+        Assert.Equal(BuffCatalog.All.Select(b => b.Id).OrderBy(x => x),
+                     s.EnabledBuffIds().OrderBy(x => x));
+        Assert.All(s.BuffPrefs, p => Assert.Null(p.DurationOverride));
+    }
+
+    [Fact]
+    public void An_explicit_empty_pref_list_is_preserved_as_none_enabled()
+        => Assert.Empty(Settings.Parse("{\"buffPrefs\":[]}").EnabledBuffIds());
+
+    [Fact]
+    public void A_duration_override_wins_over_the_catalog_base()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"durationOverride\":48}]}");
+        Assert.Equal(48, s.EffectiveDuration("bolster"));
+    }
+
+    [Fact]
+    public void Effective_duration_falls_back_to_the_catalog_base_with_no_override()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}]}");
+        Assert.Equal(36, s.EffectiveDuration("bolster"));   // census base
+    }
+
+    [Fact]
+    public void A_freshly_constructed_settings_defaults_all_buffs_on()
+    {
+        // The missing-file / corrupt-file path returns new Settings() WITHOUT Normalize — the field
+        // initializer must still yield all-on, else a fresh install injects nothing (code review Critical 1).
+        Assert.Equal(BuffCatalog.All.Select(b => b.Id).OrderBy(x => x),
+                     new Settings().EnabledBuffIds().OrderBy(x => x));
+    }
+
+    [Fact]
+    public void An_out_of_range_duration_override_reverts_to_the_catalog_base()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"durationOverride\":0}," +
+                               "{\"id\":\"tsunami\",\"enabled\":true,\"durationOverride\":99999}]}");
+        Assert.Equal(36, s.EffectiveDuration("bolster"));   // 0 -> base
+        Assert.Equal(21, s.EffectiveDuration("tsunami"));   // 99999 -> base
+    }
+
+    [Fact]
+    public void A_newer_catalog_buff_absent_from_a_saved_list_defaults_off()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}]}");
+        Assert.Contains("bolster", s.EnabledBuffIds());
+        Assert.DoesNotContain("tsunami", s.EnabledBuffIds());    // present-but-off, not auto-enabled
+        Assert.Equal(BuffCatalog.All.Count, s.BuffPrefs.Count);  // every catalog id now has a pref
+    }
+
+    [Fact]
+    public void Sources_buff_prefs_and_a_fourth_group_survive_a_json_round_trip()
+    {
+        var s = new Settings();
+        s.Panels.Add(new PanelSettings { Sources = new List<SourceRule> { SourceRule.OfName("Special") } });
+        s.BuffPrefs.First(p => p.Id == "bolster").DurationOverride = 50;
+
+        var parsed = Settings.Parse(s.ToJson());
+
+        Assert.Equal(4, parsed.Panels.Count);                          // no truncation across persistence
+        Assert.Equal("Special", parsed.Panels[3].Sources[0].Value);
+        Assert.Equal("eq2auras Buffs", parsed.Panels[2].Sources[0].Value);
+        Assert.Equal(50, parsed.EffectiveDuration("bolster"));         // override round-trips
+    }
+
     [Theory]
     [InlineData("")]                       // empty file
     [InlineData("not json at all {{{")]    // corrupt file
@@ -15,7 +109,7 @@ public class SettingsTests
 
         Assert.Equal(ColorSource.Palette, parsed.ColorSource);
         Assert.Equal(EscalationStyle.CenterRadial, parsed.EscalationStyle);
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
     }
 
     [Fact]
@@ -30,7 +124,7 @@ public class SettingsTests
 
         var parsed = Settings.Parse(settings.ToJson());
 
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(42.5, parsed.Panels[0].ListLeft);
         Assert.Equal(0.0, parsed.Panels[0].ListTop);
@@ -45,7 +139,7 @@ public class SettingsTests
     {
         var parsed = Settings.Parse("{\"colorSource\":1,\"escalationStyle\":1}");
 
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(EscalationStyle.HighlightInPlace, parsed.Panels[0].EscalationStyle);
         Assert.Equal(ColorSource.Palette, parsed.Panels[1].ColorSource);
@@ -75,9 +169,9 @@ public class SettingsTests
     [InlineData("{\"panels\":[]}")]                     // empty list
     [InlineData("{\"panels\":[{\"colorSource\":1}]}")]  // one entry
     [InlineData("{\"panels\":[{},{},{}]}")]             // three entries
-    public void Panel_list_normalizes_to_exactly_two(string json)
+    public void Short_panel_list_pads_up_to_the_three_seeded_groups(string json)
     {
-        Assert.Equal(2, Settings.Parse(json).Panels.Count);
+        Assert.Equal(3, Settings.Parse(json).Panels.Count);
     }
 
     [Fact]
@@ -187,7 +281,7 @@ public class SettingsTests
     {
         var parsed = Settings.Parse("{\"panels\":[{\"listScale\":1.5},{\"centerScale\":0.7}]}");
 
-        Assert.Equal(2, parsed.Panels.Count);              // parses fine, keys dropped
+        Assert.Equal(3, parsed.Panels.Count);              // parses fine, keys dropped
         Assert.Null(parsed.Panels[0].RowWidth);
     }
 

@@ -20,6 +20,7 @@ namespace Eq2Auras.Core.Timers
         public int FillArgb { get; set; }        // TimerData.FillColor.ToArgb()
         public bool ShowInPanelA { get; set; }   // TimerData.Panel1Display — group routing
         public bool ShowInPanelB { get; set; }   // TimerData.Panel2Display
+        public string Category { get; set; }     // TimerData.Category — the category: routing source (SPEC §Timer groups)
         public bool IsMaster { get; set; }       // SpellTimer.MasterTimer — display candidacy; non-masters are diagnostics-only (SPEC §Timer identity)
         public DateTime StartTime { get; set; }  // SpellTimer.StartTime — governing order: newest master wins
     }

@@ -5,6 +5,15 @@ using Xunit;
 
 public class TimerListBuilderTests
 {
+    [Theory]
+    [InlineData("Bolster", "bob", "Bolster → Bob")]                        // single-target: ability → target
+    [InlineData("Tortoise Shell", "onlyfans", "Onlyfans: Tortoise Shell")] // group-wide: caster: ability
+    [InlineData("Tortoise Shell", "None", "Tortoise Shell")]               // defensive: no capture
+    [InlineData("Soul Paralysis", "boss", "Soul Paralysis")]              // NOT a catalog buff → unchanged
+    [InlineData("Bolster", "", "Bolster")]                                 // no target → bare
+    public void Buff_rows_use_two_formats_and_other_timers_are_unchanged(string name, string combatant, string expected)
+        => Assert.Equal(expected, TimerListBuilder.Label(name, combatant));
+
     private static TimerReading Reading(string name, int timeLeft,
         int warning = 10, int total = 30, string combatant = "none", int argb = -16776961)
         => new TimerReading

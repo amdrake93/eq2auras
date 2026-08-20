@@ -22,6 +22,25 @@ namespace Eq2Auras.Core.Timers
                 .ToList();
         }
 
+        /// The row's displayed label. A catalog buff renders in one of two mutually-exclusive
+        /// formats (SPEC §Display) — single-target `{Buff} → {Target}`, group-wide `{Caster}: {Buff}`.
+        /// A reading whose name is NOT a catalog buff renders unchanged, so panel timers are untouched.
+        public static string Label(string name, string combatant)
+        {
+            var def = BuffCatalog.FindByName(name);
+            if (def == null) return name;
+            var who = TitleCase(combatant);
+            if (string.IsNullOrEmpty(who)) return name;   // defensive: no captured name
+            return def.IsTargeted ? name + " → " + who : who + ": " + name;
+        }
+
+        // Single-token EQ2 names: upper first, lower rest. "none"/"" -> "" so callers treat it as absent.
+        private static string TitleCase(string s)
+        {
+            if (string.IsNullOrWhiteSpace(s) || s.Equals("none", StringComparison.OrdinalIgnoreCase)) return "";
+            return char.ToUpperInvariant(s[0]) + s.Substring(1).ToLowerInvariant();
+        }
+
         private static TimerRow ToRow(TimerReading reading)
         {
             return new TimerRow
