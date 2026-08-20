@@ -15,7 +15,7 @@ namespace Eq2Auras.Core.Timers
         public bool IsTargeted { get; }
         public string Pattern { get; }        // built from the shared template — handed verbatim to ACT
 
-        private readonly Regex _rx;
+        private Regex _rx;   // lazily built by TryMatch (test-only); the runtime uses Pattern
 
         public BuffDef(string id, string displayName, int durationSeconds, bool isTargeted)
         {
