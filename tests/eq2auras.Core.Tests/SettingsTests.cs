@@ -1,9 +1,34 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Eq2Auras.Core.Config;
+using Eq2Auras.Core.Timers;
 using Xunit;
 
 public class SettingsTests
 {
+    [Fact]
+    public void Normalize_seeds_three_groups_with_panel_and_buff_sources()
+    {
+        var s = Settings.Parse("{}");
+        Assert.Equal(3, s.Panels.Count);
+        Assert.Equal(SourceRuleType.Panel, s.Panels[0].Sources[0].Type);
+        Assert.Equal("1", s.Panels[0].Sources[0].Value);
+        Assert.Equal("2", s.Panels[1].Sources[0].Value);
+        Assert.Equal(SourceRuleType.Category, s.Panels[2].Sources[0].Type);
+        Assert.Equal("eq2auras Buffs", s.Panels[2].Sources[0].Value);
+    }
+
+    [Fact]
+    public void A_legacy_two_panel_file_migrates_forward_to_three_groups()
+    {
+        // A saved file from before the buff window: two panels, no sources, no buff group.
+        var s = Settings.Parse("{\"panels\":[{\"colorSource\":0},{\"colorSource\":0}]}");
+        Assert.Equal(3, s.Panels.Count);
+        Assert.Equal("1", s.Panels[0].Sources[0].Value);
+        Assert.Equal("eq2auras Buffs", s.Panels[2].Sources[0].Value);
+    }
+
     [Theory]
     [InlineData("")]                       // empty file
     [InlineData("not json at all {{{")]    // corrupt file
@@ -15,7 +40,7 @@ public class SettingsTests
 
         Assert.Equal(ColorSource.Palette, parsed.ColorSource);
         Assert.Equal(EscalationStyle.CenterRadial, parsed.EscalationStyle);
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
     }
 
     [Fact]
@@ -30,7 +55,7 @@ public class SettingsTests
 
         var parsed = Settings.Parse(settings.ToJson());
 
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(42.5, parsed.Panels[0].ListLeft);
         Assert.Equal(0.0, parsed.Panels[0].ListTop);
@@ -45,7 +70,7 @@ public class SettingsTests
     {
         var parsed = Settings.Parse("{\"colorSource\":1,\"escalationStyle\":1}");
 
-        Assert.Equal(2, parsed.Panels.Count);
+        Assert.Equal(3, parsed.Panels.Count);
         Assert.Equal(ColorSource.Greyscale, parsed.Panels[0].ColorSource);
         Assert.Equal(EscalationStyle.HighlightInPlace, parsed.Panels[0].EscalationStyle);
         Assert.Equal(ColorSource.Palette, parsed.Panels[1].ColorSource);
@@ -75,9 +100,9 @@ public class SettingsTests
     [InlineData("{\"panels\":[]}")]                     // empty list
     [InlineData("{\"panels\":[{\"colorSource\":1}]}")]  // one entry
     [InlineData("{\"panels\":[{},{},{}]}")]             // three entries
-    public void Panel_list_normalizes_to_exactly_two(string json)
+    public void Short_panel_list_pads_up_to_the_three_seeded_groups(string json)
     {
-        Assert.Equal(2, Settings.Parse(json).Panels.Count);
+        Assert.Equal(3, Settings.Parse(json).Panels.Count);
     }
 
     [Fact]
@@ -187,7 +212,7 @@ public class SettingsTests
     {
         var parsed = Settings.Parse("{\"panels\":[{\"listScale\":1.5},{\"centerScale\":0.7}]}");
 
-        Assert.Equal(2, parsed.Panels.Count);              // parses fine, keys dropped
+        Assert.Equal(3, parsed.Panels.Count);              // parses fine, keys dropped
         Assert.Null(parsed.Panels[0].RowWidth);
     }
 

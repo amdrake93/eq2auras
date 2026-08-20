@@ -1,4 +1,6 @@
+using System.Collections.Generic;
 using System.Runtime.Serialization;
+using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Core.Config
 {
@@ -49,5 +51,8 @@ namespace Eq2Auras.Core.Config
 
         [DataMember(Name = "rowSpacing")]
         public double? RowSpacing { get; set; }       // null = 4; 0 = touching (meaningful)
+
+        [DataMember(Name = "sources")]
+        public List<SourceRule> Sources { get; set; }   // null/empty = seeded by Settings.Normalize (SPEC §Timer groups)
     }
 }

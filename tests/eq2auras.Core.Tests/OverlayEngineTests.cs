@@ -28,9 +28,10 @@ public class OverlayEngineTests
             Reading("neither", 22)
         });
 
-        Assert.Equal(2, frames.Count);
+        Assert.Equal(3, frames.Count);   // panel A, panel B, + the seeded buff group (empty here)
         Assert.Equal(new[] { "both", "a-only" }, frames[0].ListRows.Select(r => r.Name).ToArray());
         Assert.Equal(new[] { "both", "b-only" }, frames[1].ListRows.Select(r => r.Name).ToArray());
+        Assert.Empty(frames[2].ListRows);
     }
 
     [Fact]

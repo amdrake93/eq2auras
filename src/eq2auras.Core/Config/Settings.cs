@@ -5,6 +5,7 @@ using System.Linq;
 using System.Runtime.Serialization;
 using System.Runtime.Serialization.Json;
 using System.Text;
+using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Core.Config
 {
@@ -34,7 +35,7 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "betaChannel")]
         public bool BetaChannel { get; set; }    // global knob (SPEC §Two channels): false (0-value) = stable channel
 
-        public const int GroupCount = 2;
+        public const int GroupCount = 3;   // the three SEEDED groups: panel:1, panel:2, category:"eq2auras Buffs"
         public const int MaxPaletteSize = 16;
         public const double MinRowWidth = 100, MaxRowWidth = 800;
         public const double MinRowHeight = 16, MaxRowHeight = 100;
@@ -53,14 +54,25 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "meter")]
         public MeterSettings Meter { get; set; } = new MeterSettings();
 
-        private static List<PanelSettings> DefaultPanels()
+        private static List<PanelSettings> DefaultPanels() => SeededGroups(new List<PanelSettings>());
+
+        // Pad UP to the three seeded groups and seed each seeded group's source when unset. Does NOT
+        // truncate: a hand-authored 4th+ group survives and routes by its own rule (SPEC §Timer groups —
+        // "a new destination is a new config entry"; v1 withholds only the authoring UI). Runs on BOTH
+        // construction (DefaultPanels) and load (Normalize) so new Settings() never routes nothing.
+        private static List<PanelSettings> SeededGroups(List<PanelSettings> panels)
         {
-            var panels = new List<PanelSettings>();
-            for (int i = 0; i < GroupCount; i++)
-            {
-                panels.Add(new PanelSettings());
-            }
+            while (panels.Count < GroupCount) panels.Add(new PanelSettings());
+            SeedSources(panels[0], SourceRule.Panel(1));
+            SeedSources(panels[1], SourceRule.Panel(2));
+            SeedSources(panels[2], SourceRule.OfCategory("eq2auras Buffs"));
             return panels;
+        }
+
+        private static void SeedSources(PanelSettings group, SourceRule seed)
+        {
+            if (group.Sources == null || group.Sources.Count == 0)
+                group.Sources = new List<SourceRule> { seed };
         }
 
         /// DCJS skips initializers, so a deserialized instance may carry a null or
@@ -71,9 +83,7 @@ namespace Eq2Auras.Core.Config
         {
             bool legacyFile = Panels == null;
 
-            Panels = (Panels ?? new List<PanelSettings>()).Where(p => p != null).ToList();
-            while (Panels.Count < GroupCount) Panels.Add(new PanelSettings());
-            if (Panels.Count > GroupCount) Panels = Panels.Take(GroupCount).ToList();
+            Panels = SeededGroups((Panels ?? new List<PanelSettings>()).Where(p => p != null).ToList());
 
             if (legacyFile)
             {
