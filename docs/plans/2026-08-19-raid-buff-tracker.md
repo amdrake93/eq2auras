@@ -32,12 +32,13 @@ _Copied from SPEC.md; every task's requirements implicitly include these._
 - `src/eq2auras.Core/Timers/BuffDef.cs` — one catalog entry (id, name, duration, pattern, target-flag) + a `TryMatch` validation helper.
 - `src/eq2auras.Core/Timers/BuffCatalog.cs` — the compiled 7-entry catalog + `Category` const + `Find`.
 - `src/eq2auras.Core/Timers/BuffSync.cs` — `BuffSyncPlan` + the pure `Desired`/`Plan` diff.
+- `src/eq2auras.Core/Config/BuffPref.cs` — one raider preference (`{id, enabled, duration override}`).
 
 **Core (modified):**
 - `src/eq2auras.Core/Timers/TimerReading.cs` — add `Category`.
 - `src/eq2auras.Core/Timers/OverlayEngine.cs` — route via source rules instead of `RoutesTo`.
 - `src/eq2auras.Core/Config/PanelSettings.cs` — add `Sources` (`List<SourceRule>`).
-- `src/eq2auras.Core/Config/Settings.cs` — `GroupCount` 2→3; seed the three groups' `Sources` + backfill `EnabledBuffs` in `Normalize`; add `EnabledBuffs`.
+- `src/eq2auras.Core/Config/Settings.cs` — `GroupCount` 2→3; seed the three groups' `Sources`; add `BuffPrefs` + `EnabledBuffIds()`/`EffectiveDuration()` + backfill in `Normalize`.
 
 **Plugin (new):**
 - `src/eq2auras.Plugin/Act/BuffInjector.cs` — the ACT injection adapter.
@@ -273,7 +274,7 @@ git commit -m "feat(timers): generic SourceRule + Matches predicate (the associa
 
 **Files:**
 - Modify: `src/eq2auras.Core/Config/PanelSettings.cs` (add `Sources`, after `RowSpacing`, `:51`)
-- Modify: `src/eq2auras.Core/Config/Settings.cs` (`GroupCount` `:37` 2→3; seed sources + add `EnabledBuffs` — `EnabledBuffs` lands in Task 5; here only `GroupCount` + source-seeding)
+- Modify: `src/eq2auras.Core/Config/Settings.cs` (`GroupCount` `:37` 2→3; seed sources — `BuffPrefs` lands in Task 5; here only `GroupCount` + source-seeding)
 - Modify: `src/eq2auras.Core/Timers/OverlayEngine.cs` (`Tick` routes via `MatchesAny`; delete `RoutesTo`)
 - Test: `tests/eq2auras.Core.Tests/OverlayEngineAssociationTests.cs`, additions to `tests/eq2auras.Core.Tests/SettingsTests.cs`
 
@@ -425,9 +426,9 @@ git commit -m "feat(timers): route by source rules; seed three groups (panel:1/2
 - Test: `tests/eq2auras.Core.Tests/BuffCatalogTests.cs`
 
 **Interfaces:**
-- Produces: `class BuffDef { string Id; string DisplayName; int DurationSeconds; string Pattern; bool HasTarget; bool TryMatch(string line, out string target); }`; `static class BuffCatalog { const string Category = "eq2auras Buffs"; IReadOnlyList<BuffDef> All; BuffDef Find(string id); }`.
+- Produces: `class BuffDef { string Id; string DisplayName; int DurationSeconds; string Pattern; bool IsTargeted; bool TryMatch(string line, out string name); }`; `static class BuffCatalog { const string Category = "eq2auras Buffs"; IReadOnlyList<BuffDef> All; BuffDef Find(string id); }`.
 
-**DATA DEPENDENCY (Alex, box-side):** the seven `DurationSeconds` values and the exact regex **tail anchor** are field data confirmed by Task 0. Below, durations are marked `/* DURATION: confirm */` and the pattern tail uses `[^"]+` (EQ2 chat quotes the message — confirm against the Task-0 captured line). **Do not merge with unconfirmed durations.**
+**DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the macro text, and the census ability name all match (and the future `/useability` auto-macro casts by that same name, no alias mapping). **Still Task-0-confirmed:** the group-wide **wrapper** shape (`\S+ says to the group, "…"`) — the single-target payload patterns are robust.
 
 - [ ] **Step 1: Write the failing tests** (regex correctness is the Mac-testable heart — validate against representative full log lines):
 
@@ -444,12 +445,14 @@ public class BuffCatalogTests
         => Assert.Equal("eq2auras Buffs", BuffCatalog.Category);
 
     [Fact]
-    public void Seeds_the_seven_v1_buffs()
+    public void Seeds_the_twenty_two_v1_buffs()
     {
         var ids = BuffCatalog.All.Select(b => b.Id).ToList();
-        Assert.Equal(7, ids.Count);
+        Assert.Equal(22, ids.Count);
+        Assert.Equal(12, BuffCatalog.All.Count(b => b.IsTargeted));
+        Assert.Equal(10, BuffCatalog.All.Count(b => !b.IsTargeted));
         Assert.Contains("bolster", ids);
-        Assert.Contains("perfection-of-the-maestro", ids);
+        Assert.Contains("advance-warning", ids);
     }
 
     [Fact]
@@ -461,24 +464,23 @@ public class BuffCatalogTests
         => Assert.Equal(BuffCatalog.All.Count, BuffCatalog.All.Select(b => b.Id).Distinct().Count());
 
     [Fact]
-    public void A_targeted_buff_captures_the_target_from_a_real_chat_line()
+    public void A_single_target_buff_captures_the_target_from_the_payload()
     {
         var bolster = BuffCatalog.Find("bolster");
-        Assert.True(bolster.HasTarget);
-        // A representative EQ2 group-chat log line carrying the macro payload.
+        Assert.True(bolster.IsTargeted);
         var line = "(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the group, \"eq2auras Bolster Bob\"";
-        Assert.True(bolster.TryMatch(line, out var target));
-        Assert.Equal("Bob", target);
+        Assert.True(bolster.TryMatch(line, out var name));
+        Assert.Equal("Bob", name);   // the target
     }
 
     [Fact]
-    public void A_targetless_buff_matches_bare_and_captures_no_target()
+    public void A_group_wide_buff_captures_the_caster_from_the_wrapper()
     {
-        var turtle = BuffCatalog.Find("turtle-shell");
-        Assert.False(turtle.HasTarget);
-        var line = "(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the group, \"eq2auras Turtle Shell\"";
-        Assert.True(turtle.TryMatch(line, out var target));
-        Assert.Null(target);
+        var turtle = BuffCatalog.Find("tortoise-shell");
+        Assert.False(turtle.IsTargeted);
+        var line = "(1734900000)[Wed Aug 19 20:00:00 2026] Alex says to the group, \"eq2auras Tortoise Shell\"";
+        Assert.True(turtle.TryMatch(line, out var name));
+        Assert.Equal("Alex", name);   // the caster — the group proxy (SPEC §Display)
     }
 
     [Fact]
@@ -506,36 +508,39 @@ namespace Eq2Auras.Core.Timers
 {
     /// One catalog entry: the bounded library's atom. `Pattern` is handed verbatim to ACT's
     /// CustomTrigger (ACT does the matching); `TryMatch` is the Mac-testable validator that
-    /// proves the shipped regex captures the target correctly (SPEC §Buff tracking).
+    /// proves the shipped regex captures the right NAME (SPEC §Buff tracking). `IsTargeted`
+    /// distinguishes single-target buffs (macro carries %T; regex captures the target from the
+    /// payload) from group-wide ones (no %T; regex captures the CASTER from the chat wrapper).
     public sealed class BuffDef
     {
         public string Id { get; }
         public string DisplayName { get; }
-        public int DurationSeconds { get; }
+        public int DurationSeconds { get; }   // catalog BASE duration (census); a raider may override (BuffPref)
         public string Pattern { get; }
-        public bool HasTarget { get; }
+        public bool IsTargeted { get; }
 
         private readonly Regex _rx;
 
-        public BuffDef(string id, string displayName, int durationSeconds, string pattern, bool hasTarget)
+        public BuffDef(string id, string displayName, int durationSeconds, string pattern, bool isTargeted)
         {
             Id = id;
             DisplayName = displayName;
             DurationSeconds = durationSeconds;
             Pattern = pattern;
-            HasTarget = hasTarget;
+            IsTargeted = isTargeted;
             _rx = new Regex(pattern, RegexOptions.IgnoreCase | RegexOptions.Compiled);
         }
 
-        /// True if the line matches; `target` is the captured `attacker` group, or null when absent/empty.
-        public bool TryMatch(string line, out string target)
+        /// True if the line matches; `name` is the captured `attacker` group (the target for a
+        /// targeted buff, the caster for a group-wide one), or null when absent/empty.
+        public bool TryMatch(string line, out string name)
         {
-            target = null;
+            name = null;
             if (line == null) return false;
             var m = _rx.Match(line);
             if (!m.Success) return false;
             var g = m.Groups["attacker"];
-            if (g.Success && g.Value.Length > 0) target = g.Value;
+            if (g.Success && g.Value.Length > 0) name = g.Value;
             return true;
         }
     }
@@ -558,18 +563,38 @@ namespace Eq2Auras.Core.Timers
     {
         public const string Category = "eq2auras Buffs";
 
+        // Durations are census BASE values (spell + AA collections), filled from the census pull.
+        // Single-target: `attacker` captures the %T target from the payload. Group-wide: `attacker`
+        // captures the CASTER from the chat wrapper — the exact wrapper (verb/quotes) is confirmed
+        // by the Task-0 captured line; the `\S+ says to the group, "…"` shape below is provisional.
         public static readonly IReadOnlyList<BuffDef> All = new List<BuffDef>
         {
-            // Targeted (single-target) — the `attacker` capture holds the target.
-            new BuffDef("bolster",            "Bolster",            /* DURATION: confirm */ 30, "eq2auras Bolster(?: (?<attacker>[^\"]+))?",            hasTarget: true),
-            new BuffDef("jesters-cap",        "Jester's Cap",       /* DURATION: confirm */ 30, "eq2auras Jester's Cap(?: (?<attacker>[^\"]+))?",       hasTarget: true),
-            new BuffDef("ritual-of-alacrity", "Ritual of Alacrity", /* DURATION: confirm */ 30, "eq2auras Ritual of Alacrity(?: (?<attacker>[^\"]+))?", hasTarget: true),
+            // --- Single-target (12) — captures the target from the payload ---
+            // Durations = census base (Grandmaster max ÷ 10s). †tier-variable → GM max, per-char override corrects.
+            new BuffDef("bolster",             "Bolster",             36,  "eq2auras Bolster (?<attacker>[^\"]+)",             isTargeted: true),
+            new BuffDef("jesters-cap",         "Jester's Cap",        30,  "eq2auras Jester's Cap (?<attacker>[^\"]+)",        isTargeted: true),
+            new BuffDef("ritual-of-alacrity",  "Ritual of Alacrity",  30,  "eq2auras Ritual of Alacrity (?<attacker>[^\"]+)",  isTargeted: true),
+            new BuffDef("holy-shield",         "Holy Shield",         30,  "eq2auras Holy Shield (?<attacker>[^\"]+)",         isTargeted: true),
+            new BuffDef("animal-form",         "Animal Form",         60,  "eq2auras Animal Form (?<attacker>[^\"]+)",         isTargeted: true),
+            new BuffDef("got-your-back",       "Got Your Back",       15,  "eq2auras Got Your Back (?<attacker>[^\"]+)",       isTargeted: true),
+            new BuffDef("tsunami",             "Tsunami",             21,  "eq2auras Tsunami (?<attacker>[^\"]+)",             isTargeted: true),   // †20.6
+            new BuffDef("divine-aura",         "Divine Aura",         10,  "eq2auras Divine Aura (?<attacker>[^\"]+)",         isTargeted: true),
+            new BuffDef("adrenaline",          "Adrenaline",          33,  "eq2auras Adrenaline (?<attacker>[^\"]+)",          isTargeted: true),   // †33.0
+            new BuffDef("unyielding-will",     "Unyielding Will",     180, "eq2auras Unyielding Will (?<attacker>[^\"]+)",     isTargeted: true),
+            new BuffDef("brutal-inspiration",  "Brutal Inspiration",  30,  "eq2auras Brutal Inspiration (?<attacker>[^\"]+)",  isTargeted: true),
+            new BuffDef("gravitas",            "Gravitas",            30,  "eq2auras Gravitas (?<attacker>[^\"]+)",            isTargeted: true),
 
-            // Group/raid-wide targetless — no capture segment; renders bare.
-            new BuffDef("turtle-shell",              "Turtle Shell",              /* DURATION: confirm */ 30, "eq2auras Turtle Shell",              hasTarget: false),
-            new BuffDef("bladedance",                "Bladedance",                /* DURATION: confirm */ 30, "eq2auras Bladedance",                hasTarget: false),
-            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       /* DURATION: confirm */ 30, "eq2auras Cacophony of Blades",       hasTarget: false),
-            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", /* DURATION: confirm */ 30, "eq2auras Perfection of the Maestro", hasTarget: false),
+            // --- Group/raid-wide (10) — captures the caster from the chat wrapper ---
+            new BuffDef("tortoise-shell",            "Tortoise Shell",            30, "(?<attacker>\\S+) says to the group, \"eq2auras Tortoise Shell\"",            isTargeted: false),
+            new BuffDef("bladedance",                "Bladedance",                30, "(?<attacker>\\S+) says to the group, \"eq2auras Bladedance\"",                isTargeted: false),
+            new BuffDef("cacophony-of-blades",       "Cacophony of Blades",       12, "(?<attacker>\\S+) says to the group, \"eq2auras Cacophony of Blades\"",       isTargeted: false),
+            new BuffDef("perfection-of-the-maestro", "Perfection of the Maestro", 20, "(?<attacker>\\S+) says to the group, \"eq2auras Perfection of the Maestro\"", isTargeted: false),
+            new BuffDef("frigid-gift",               "Frigid Gift",               24, "(?<attacker>\\S+) says to the group, \"eq2auras Frigid Gift\"",               isTargeted: false),
+            new BuffDef("curse-of-darkness",         "Curse of Darkness",         12, "(?<attacker>\\S+) says to the group, \"eq2auras Curse of Darkness\"",         isTargeted: false),
+            new BuffDef("peace-of-mind",             "Peace of Mind",             20, "(?<attacker>\\S+) says to the group, \"eq2auras Peace of Mind\"",             isTargeted: false),
+            new BuffDef("death-march",               "Death March",               60, "(?<attacker>\\S+) says to the group, \"eq2auras Death March\"",               isTargeted: false),
+            new BuffDef("sanctuary",                 "Sanctuary",                 31, "(?<attacker>\\S+) says to the group, \"eq2auras Sanctuary\"",                 isTargeted: false), // †30.9
+            new BuffDef("advance-warning",           "Advance Warning",           13, "(?<attacker>\\S+) says to the group, \"eq2auras Advance Warning\"",           isTargeted: false),
         };
 
         public static BuffDef Find(string id) => All.FirstOrDefault(b => b.Id == id);
@@ -591,15 +616,16 @@ git commit -m "feat(timers): bounded buff catalog (7 v1 seeds) + regex validator
 
 ---
 
-### Task 5: The enabled-set (`Settings.EnabledBuffs`) + the pure sync plan (`BuffSync`)
+### Task 5: The per-buff prefs (`BuffPref` + `Settings.BuffPrefs`) + the pure sync plan (`BuffSync`)
 
 **Files:**
-- Modify: `src/eq2auras.Core/Config/Settings.cs` (add `EnabledBuffs` + backfill in `Normalize`)
+- Create: `src/eq2auras.Core/Config/BuffPref.cs`
+- Modify: `src/eq2auras.Core/Config/Settings.cs` (add `BuffPrefs` + `EnabledBuffIds()`/`EffectiveDuration()` + backfill in `Normalize`)
 - Create: `src/eq2auras.Core/Timers/BuffSync.cs`
 - Test: `tests/eq2auras.Core.Tests/BuffSyncTests.cs`, additions to `SettingsTests.cs`
 
 **Interfaces:**
-- Produces: `Settings.EnabledBuffs` (`List<string>`, null → backfilled to all catalog ids = default all-on); `class BuffSyncPlan { IReadOnlyList<string> ToAdd; IReadOnlyList<string> ToRemove; }`; `static class BuffSync { IReadOnlyList<BuffDef> Desired(IEnumerable<string> enabledIds); BuffSyncPlan Plan(IReadOnlyCollection<string> currentlyInjectedIds, IEnumerable<string> enabledIds); }`.
+- Produces: `class BuffPref { string Id; bool Enabled; int? DurationOverride; }`; `Settings.BuffPrefs` (`List<BuffPref>`, null → backfilled to one pref per catalog id, `Enabled=true`, no override = default all-on); `Settings.EnabledBuffIds()` (the enabled prefs' ids); `Settings.EffectiveDuration(string id)` (`pref.DurationOverride ?? BuffCatalog.Find(id).DurationSeconds`); `class BuffSyncPlan { IReadOnlyList<string> ToAdd; IReadOnlyList<string> ToRemove; }`; `static class BuffSync { IReadOnlyList<BuffDef> Desired(IEnumerable<string> enabledIds); BuffSyncPlan Plan(IReadOnlyCollection<string> currentlyInjectedIds, IEnumerable<string> enabledIds); }` (BuffSync stays id-based — it only diffs membership; the effective duration is applied by the injector at build time, Task 6).
 
 - [ ] **Step 1: Write the failing tests.**
 
@@ -654,47 +680,89 @@ public class BuffSyncTests
 Additions to `SettingsTests.cs`:
 ```csharp
     [Fact]
-    public void Enabled_buffs_defaults_to_all_catalog_ids_when_unset()
+    public void Buff_prefs_default_to_all_catalog_ids_enabled_and_no_override()
     {
         var s = Settings.Parse("{}");
         Assert.Equal(Eq2Auras.Core.Timers.BuffCatalog.All.Select(b => b.Id).OrderBy(x => x),
-                     s.EnabledBuffs.OrderBy(x => x));
+                     s.EnabledBuffIds().OrderBy(x => x));
+        Assert.All(s.BuffPrefs, p => Assert.Null(p.DurationOverride));
     }
 
     [Fact]
-    public void An_explicit_empty_enabled_set_is_preserved_as_none()
+    public void An_explicit_empty_pref_list_is_preserved_as_none_enabled()
     {
-        var s = Settings.Parse("{\"enabledBuffs\":[]}");
-        Assert.Empty(s.EnabledBuffs);
+        var s = Settings.Parse("{\"buffPrefs\":[]}");
+        Assert.Empty(s.EnabledBuffIds());
     }
 
     [Fact]
-    public void A_partial_enabled_set_is_preserved()
+    public void A_duration_override_wins_over_the_catalog_base()
     {
-        var s = Settings.Parse("{\"enabledBuffs\":[\"bolster\"]}");
-        Assert.Equal(new[] { "bolster" }, s.EnabledBuffs);
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true,\"durationOverride\":48}]}");
+        Assert.Equal(48, s.EffectiveDuration("bolster"));
+    }
+
+    [Fact]
+    public void Effective_duration_falls_back_to_the_catalog_base_with_no_override()
+    {
+        var s = Settings.Parse("{\"buffPrefs\":[{\"id\":\"bolster\",\"enabled\":true}]}");
+        Assert.Equal(36, s.EffectiveDuration("bolster"));   // census base
     }
 ```
 
 - [ ] **Step 2: Run to verify failure.**
 
 Run: `dotnet test tests/eq2auras.Core.Tests/eq2auras.Core.Tests.csproj --filter "BuffSyncTests|SettingsTests"`
-Expected: FAIL — `BuffSync` / `Settings.EnabledBuffs` missing.
+Expected: FAIL — `BuffSync` / `BuffPref` / `Settings.BuffPrefs` missing.
 
-- [ ] **Step 3: Implement — `Settings.EnabledBuffs` + backfill.** Add the property near `Panels` (`Settings.cs:50`):
+- [ ] **Step 3: Implement — `BuffPref` + `Settings.BuffPrefs` + helpers + backfill.**
 
+Create `src/eq2auras.Core/Config/BuffPref.cs`:
 ```csharp
-    [DataMember(Name = "enabledBuffs")]
-    public List<string> EnabledBuffs { get; set; }   // null = never set → default all-on (backfilled); [] = explicitly none
+using System.Runtime.Serialization;
+
+namespace Eq2Auras.Core.Config
+{
+    /// One raider preference for one catalog buff: tracked or not, and an optional per-character
+    /// duration override (null = use the catalog base). DCJS: Enabled's 0-value is false, so the
+    /// backfill sets it explicitly (SPEC §Buff tracking — the tracked set and per-buff overrides).
+    [DataContract]
+    public sealed class BuffPref
+    {
+        [DataMember(Name = "id")]
+        public string Id { get; set; }
+
+        [DataMember(Name = "enabled")]
+        public bool Enabled { get; set; }
+
+        [DataMember(Name = "durationOverride")]
+        public int? DurationOverride { get; set; }
+    }
+}
+```
+
+Add to `Settings.cs`, near `Panels` (`:50`):
+```csharp
+    [DataMember(Name = "buffPrefs")]
+    public List<BuffPref> BuffPrefs { get; set; }   // null = never set → backfilled all-on (SPEC §Buff tracking)
+
+    public IEnumerable<string> EnabledBuffIds()
+        => (BuffPrefs ?? new List<BuffPref>()).Where(p => p != null && p.Enabled).Select(p => p.Id);
+
+    public int EffectiveDuration(string id)
+    {
+        var pref = (BuffPrefs ?? new List<BuffPref>()).FirstOrDefault(p => p != null && p.Id == id);
+        var def = BuffCatalog.Find(id);
+        return pref?.DurationOverride ?? def?.DurationSeconds ?? 0;
+    }
 ```
 
 In `Normalize()`, after the source-seeding block (Task 3), backfill:
-
 ```csharp
-        // null = never set → default the whole curated set on (harmless without macros); an
-        // explicit [] means the raider turned them all off. Preserve any non-null list (SPEC §Buff tracking).
-        if (EnabledBuffs == null)
-            EnabledBuffs = BuffCatalog.All.Select(b => b.Id).ToList();
+        // null = never set → default the whole curated set on (harmless without macros), no overrides.
+        // A non-null list is the raider's own choices (incl. an explicit empty = all off) — preserved.
+        if (BuffPrefs == null)
+            BuffPrefs = BuffCatalog.All.Select(b => new BuffPref { Id = b.Id, Enabled = true }).ToList();
 ```
 
 - [ ] **Step 4: Implement — `BuffSync`.**
@@ -769,7 +837,7 @@ git commit -m "feat(timers): enabled-buff set (default all-on) + pure BuffSync p
 - Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (construct, `InitPlugin` sweep+sync, hook the poll for ensure-present, `DeInitPlugin` teardown)
 
 **Interfaces:**
-- Consumes: `BuffCatalog`, `BuffSync`, `BuffSyncPlan`, `Settings.EnabledBuffs` (Core).
+- Consumes: `BuffCatalog`, `BuffSync`, `BuffSyncPlan`, `Settings.EnabledBuffIds()`, `Settings.EffectiveDuration()` (Core).
 - Produces: `class BuffInjector { void SyncTo(IEnumerable<string> enabledIds); void EnsurePresent(); void TearDown(); }`.
 
 - [ ] **Step 1: Write `BuffInjector` (transcribe-only).** Uses the Task-0-verified API. Each buff = a persisted `TimerData` def (registered once, swept on init) + a transient `CustomTrigger` in `ActiveCustomTriggers` (re-ensured each poll).
@@ -779,6 +847,7 @@ git commit -m "feat(timers): enabled-buff set (default all-on) + pure BuffSync p
 using System.Collections.Generic;
 using System.Linq;
 using Advanced_Combat_Tracker;
+using Eq2Auras.Core.Config;
 using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Act
@@ -794,16 +863,16 @@ namespace Eq2Auras.Plugin.Act
 
         /// Idempotently make the live ACT state match `enabledIds`: sweep stale eq2auras defs,
         /// register/withdraw defs, and (re)inject triggers. Called on init and on every toggle.
-        public void SyncTo(IEnumerable<string> enabledIds)
+        public void SyncTo(Settings settings)
         {
             var injectedNow = CurrentlyInjectedIds();
-            var plan = BuffSync.Plan(injectedNow, enabledIds);
+            var plan = BuffSync.Plan(injectedNow, settings.EnabledBuffIds());
 
             foreach (var id in plan.ToRemove) Remove(id);
             foreach (var id in plan.ToAdd)
             {
                 var def = BuffCatalog.Find(id);
-                if (def != null) Add(def);
+                if (def != null) Add(def, settings.EffectiveDuration(id));   // override ?? catalog base
             }
             ActGlobals.oFormSpellTimers.RebuildSpellTreeView();
         }
@@ -834,9 +903,9 @@ namespace Eq2Auras.Plugin.Act
                 .Select(td => BuffCatalog.Find(td.Name.StartsWith("eq2auras-") ? td.Name.Substring("eq2auras-".Length) : td.Name))
                 .Where(b => b != null);
 
-        private static void Add(BuffDef def)
+        private static void Add(BuffDef def, int effectiveDuration)
         {
-            ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(DefName(def), false, def.DurationSeconds, false, false, "", "", 5, true) { Category = BuffCatalog.Category });
+            ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(DefName(def), false, effectiveDuration, false, false, "", "", 5, true) { Category = BuffCatalog.Category });
             ActGlobals.oFormActMain.ActiveCustomTriggers[TriggerKey(def)] = BuildTrigger(def);
         }
 
@@ -860,7 +929,7 @@ namespace Eq2Auras.Plugin.Act
 
 - [ ] **Step 2: Wire into the plugin lifecycle (transcribe-only).** In `Eq2AurasPlugin.cs`:
 - Construct `private readonly BuffInjector _buffInjector = new BuffInjector();`
-- In `InitPlugin`, after settings load: `_buffInjector.SyncTo(_settings.EnabledBuffs);`
+- In `InitPlugin`, after settings load: `_buffInjector.SyncTo(_settings);`
 - In the poll handler (the existing `TimerProbe` `_onPollTick` or the 100 ms tick), on a divider (~every 5th tick): `_buffInjector.EnsurePresent();`
 - In `DeInitPlugin`: `_buffInjector.TearDown();`
 
@@ -889,8 +958,8 @@ Expected: CI green (compiles against the real ACT reference).
 ```csharp
     [Theory]
     [InlineData("Bloodlust", "bob", "Bloodlust — Bob")]
-    [InlineData("Turtle Shell", "none", "Turtle Shell")]
-    [InlineData("Turtle Shell", "None", "Turtle Shell")]
+    [InlineData("Tortoise Shell", "none", "Tortoise Shell")]
+    [InlineData("Tortoise Shell", "None", "Tortoise Shell")]
     [InlineData("Soul Paralysis", "you", "Soul Paralysis")]
     [InlineData("Bloodlust", "", "Bloodlust")]
     public void Label_appends_a_title_cased_target_only_when_meaningful(string name, string combatant, string expected)
@@ -917,9 +986,9 @@ git push
 ### Task 8: Per-buff enable toggles (settings UI)
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (the plugin tab — a checkbox per catalog buff, bound to `Settings.EnabledBuffs`, re-syncing on change)
+- Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (the plugin tab — a checkbox + duration field per catalog buff, bound to `Settings.BuffPrefs`, re-syncing on change)
 
-- [ ] **Step 1: Implement (transcribe-only).** In the plugin's config tab, add a group box "Tracked buffs" with one checkbox per `BuffCatalog.All` entry (label = `DisplayName`), checked = id in `_settings.EnabledBuffs`. On check/uncheck: update `_settings.EnabledBuffs`, persist, and call `_buffInjector.SyncTo(_settings.EnabledBuffs)` so the toggle injects/withdraws live.
+- [ ] **Step 1: Implement (transcribe-only).** In the plugin's config tab, add a group box "Tracked buffs" with one **row per `BuffCatalog.All` entry**: an enable **checkbox** (label = `DisplayName`, checked = the buff's `BuffPref.Enabled`) and a numeric **duration field** (the override — shows the effective value; a `NumericUpDown` seeded with `_settings.EffectiveDuration(id)`, its placeholder/reset being the catalog base). On any change: update that buff's `BuffPref` in `_settings.BuffPrefs` (`Enabled`, or `DurationOverride` = the field value when it differs from the base, else null to clear the override), persist, and call `_buffInjector.SyncTo(_settings)` so the toggle/override injects or re-injects live.
 
 - [ ] **Step 2: Publish the macro text.** Beside the toggles, show the exact macro line per buff (e.g. read-only text `/g eq2auras Bolster %T`) so raiders can copy it — the only raider-side setup (SPEC §Buff tracking).
 
@@ -939,7 +1008,7 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 
 1. **Timer regression:** existing Panel A / Panel B timers appear, escalate, drain, and color exactly as before (trigger a known panel-1 and panel-2 timer). Confirm no display change to existing timers (or, if the general suffix shipped, that any caster suffix is acceptable — the Task-7 decision).
 2. **Buff spawn (targeted):** with the Bolster macro set up, `/g eq2auras Bolster <target>` → a `Bolster — <Target>` row appears in the buff window for the buff's duration, title-cased.
-3. **Buff spawn (targetless):** `/g eq2auras Turtle Shell` → a bare `Turtle Shell` row appears.
+3. **Buff spawn (group-wide):** `/g eq2auras Tortoise Shell` → a `Tortoise Shell — <Caster>` row appears (the caster captured from the chat line, title-cased).
 4. **Toggle:** disable Bolster in the tab → its macro no longer spawns a row; re-enable → it works again (inject/withdraw live).
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
@@ -948,16 +1017,16 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 
 ## Data dependencies & open items (resolve before merge)
 
-- **Durations (Alex, box/wiki):** the seven `DurationSeconds` in `BuffCatalog` are `/* DURATION: confirm */` placeholders — fill with real values before merge.
-- **Macro channel + regex tail (Task 0):** confirm the exact EQ2 chat log-line format and that `[^"]+` is the right target-capture terminator; adjust the catalog patterns if the captured sample differs.
-- **Display suffix rule (Task 7):** confirm general-vs-buff-only suffix at plan review.
+- **Durations — RESOLVED (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection. Three tier-variable buffs (Tsunami, Adrenaline, Sanctuary) use the Grandmaster max; the per-buff **override** is the correction for characters running higher tiers.
+- **Macro channel + the group-wide wrapper (Task 0):** confirm the exact EQ2 chat log-line format on the box — the **single-target** payload patterns are robust, but the **group-wide** caster capture depends on the wrapper shape (`\S+ says to the group, "…"`); adjust the group-wide patterns to the captured sample.
+- **Display suffix rule (Task 7):** with group-wide buffs now capturing the caster, *every* buff renders `{Buff} — {Name}`; confirm at plan review that the general meaningful-combatant suffix (vs. buff-group-only) is acceptable for existing timers.
 
 ---
 
 ## Self-review
 
-**Spec coverage:** association model (Tasks 2–3) ✓; `Category` reading (Task 1) ✓; bounded catalog + macro regex + optional target (Task 4) ✓; enabled-set + sync/sweep/zone-reinject (Task 5–6) ✓; transient two-object injection (Task 6) ✓; buff window display + title-case + targetless bare (Task 7) ✓; per-buff toggles + published macro (Task 8) ✓; three-group migration (Task 3) ✓; the reviewer plan-watch field gates (merge-gate script) ✓. The display-suffix rule is the one spec-underspecified point, flagged as an open decision rather than silently chosen.
+**Spec coverage:** association model (Tasks 2–3) ✓; `Category` reading (Task 1) ✓; bounded 22-buff catalog + per-buff regex, single-target payload capture *and* group-wide caster capture (Task 4) ✓; per-buff prefs (enabled + duration override) + effective-duration resolution + sync/sweep/zone-reinject (Task 5–6) ✓; transient two-object injection at the effective duration (Task 6) ✓; buff window display — `{Buff} — {Name}` title-cased, target or caster (Task 7) ✓; per-buff toggles + duration field + published macro (Task 8) ✓; three-group migration (Task 3) ✓; the reviewer plan-watch field gates (merge-gate script) ✓. The display-suffix rule (general vs buff-group-only) is the one spec-underspecified point, flagged as an open decision rather than silently chosen.
 
-**Type consistency:** `SourceRule.Panel/OfCategory/OfName`, `SourceRules.Matches/MatchesAny`, `TimerReading.Category`, `PanelSettings.Sources`, `Settings.GroupCount==3`/`EnabledBuffs`, `BuffDef.{Id,DisplayName,DurationSeconds,Pattern,HasTarget,TryMatch}`, `BuffCatalog.{Category,All,Find}`, `BuffSync.{Desired,Plan}`/`BuffSyncPlan.{ToAdd,ToRemove}`, `BuffInjector.{SyncTo,EnsurePresent,TearDown}` — used consistently across tasks.
+**Type consistency:** `SourceRule.Panel/OfCategory/OfName`, `SourceRules.Matches/MatchesAny`, `TimerReading.Category`, `PanelSettings.Sources`, `Settings.GroupCount==3`/`BuffPrefs`/`EnabledBuffIds`/`EffectiveDuration`, `BuffPref.{Id,Enabled,DurationOverride}`, `BuffDef.{Id,DisplayName,DurationSeconds,Pattern,IsTargeted,TryMatch}`, `BuffCatalog.{Category,All,Find}`, `BuffSync.{Desired,Plan}`/`BuffSyncPlan.{ToAdd,ToRemove}`, `BuffInjector.{SyncTo,EnsurePresent,TearDown}` — used consistently across tasks.
 
-**Placeholder scan:** the only intentional placeholders are the seven durations (a field-data dependency, marked and gated), never code vagueness.
+**Placeholder scan:** durations are resolved (census); no code-vagueness placeholders remain. The only field-confirmed item is the group-wide chat-wrapper shape (Task 0).
