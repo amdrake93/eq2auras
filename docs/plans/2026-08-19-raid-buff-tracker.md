@@ -30,8 +30,8 @@ _Copied from SPEC.md; every task's requirements implicitly include these._
 - `src/eq2auras.Core/Timers/SourceRule.cs` — `SourceRuleType` enum + `SourceRule` DCJS class.
 - `src/eq2auras.Core/Timers/SourceRules.cs` — the `Matches` / `MatchesAny` predicate (the one routing primitive).
 - `src/eq2auras.Core/Timers/BuffDef.cs` — one catalog entry (id, name, duration, pattern, target-flag) + a `TryMatch` validation helper.
-- `src/eq2auras.Core/Timers/BuffCatalog.cs` — the compiled 7-entry catalog + `Category` const + `Find`.
-- `src/eq2auras.Core/Timers/BuffSync.cs` — `BuffSyncPlan` + the pure `Desired`/`Plan` diff.
+- `src/eq2auras.Core/Timers/BuffCatalog.cs` — the compiled 22-entry catalog + `Category` const + `Find`/`FindByName`.
+- `src/eq2auras.Core/Timers/BuffSync.cs` — the pure `Desired` policy (catalog ∩ enabled).
 - `src/eq2auras.Core/Config/BuffPref.cs` — one raider preference (`{id, enabled, duration override}`).
 
 **Core (modified):**
@@ -65,7 +65,7 @@ _Copied from SPEC.md; every task's requirements implicitly include these._
 - [ ] **Register a trigger** into the runtime-only set: `var ct = new CustomTrigger("eq2auras SpikeTest(?: (?<attacker>[^\"]+))?", 0, "", true, "eq2auras-spiketest", false) { Category = "eq2auras Buffs" }; ActGlobals.oFormActMain.ActiveCustomTriggers[ct.Key] = ct;`
 - [ ] **Emit the macro** in-game: `/g eq2auras SpikeTest %T` (targeted) and `/g eq2auras SpikeTest` (bare). **Capture the raw log lines** from `%APPDATA%\...\eq2auras\logs` or ACT's log view — record the exact wrapper (channel verb + quoting) so Task 4's regex tail anchor is confirmed.
 - [ ] **Verify a frame spawns:** `ActGlobals.oFormSpellTimers.GetTimerFrames()` contains a frame named `eq2auras-spiketest` with `Combatant` = the (lowercased) target; the bare cast yields `Combatant` `"None"`.
-- [ ] **Verify the LOOKBEHIND capture (decides group-wide default vs fallback, §REGEX RUNTIME):** register a second trigger with the group-wide lookbehind pattern — `var ctg = new CustomTrigger("(?i)(?<=(?<attacker>[a-zA-Z]+)\\\\/a (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras SpikeGroup", 0, "", true, "eq2auras-spikegroup", false) { Category = "eq2auras Buffs" };` (+ its `TimerData`). Emit `/g eq2auras SpikeGroup` and confirm the frame's `Combatant` = the **caster** (i.e. ACT populated `attacker` from *inside* the lookbehind). **PASS → ship the lookbehind default; FAIL → use the leading-speaker fallback form.**
+- [ ] **Verify the LOOKBEHIND capture (decides group-wide default vs fallback, §REGEX RUNTIME):** register a second trigger with the group-wide lookbehind pattern — `var ctg = new CustomTrigger("(?i)(?<=(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras SpikeGroup", 0, "", true, "eq2auras-spikegroup", false) { Category = "eq2auras Buffs" };` (+ its `TimerData`). Emit `/g eq2auras SpikeGroup` and confirm the frame's `Combatant` = the **caster** (i.e. ACT populated `attacker` from *inside* the lookbehind). **PASS → ship the lookbehind default; FAIL → use the leading-speaker fallback form.**
 - [ ] **Verify transience:** confirm the trigger is NOT written to ACT's saved config (inspect the saved triggers XML after a settings save — the `ActiveCustomTriggers`-only entry must be absent from persisted `CustomTriggers`).
 - [ ] **Verify zone-rebuild eviction:** change zones; confirm the trigger vanishes from `ActiveCustomTriggers` (this is what Task 6's poll-based re-ensure defends against).
 - [ ] **Verify clean removal:** `ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(ct.Key)` + `ActGlobals.oFormSpellTimers.RemoveTimerDef(theDef)` + `RebuildSpellTreeView()` leaves ACT's timer list clean.
@@ -319,10 +319,24 @@ public class OverlayEngineAssociationTests
     [Fact]
     public void There_are_exactly_three_seeded_groups()
         => Assert.Equal(3, new OverlayEngine(new Settings()).Tick(new List<TimerReading>()).Count);
+
+    [Fact]
+    public void A_hand_authored_fourth_group_routes_by_its_own_rule_with_no_new_code()
+    {
+        // The anti-panel-C litmus at the Settings+engine layer: adding a 4th group bound to a
+        // name: rule (as a hand-edited config would) routes correctly — no new branch/boolean,
+        // and Normalize must NOT have truncated it (SPEC §Timer groups).
+        var s = new Settings();
+        s.Panels.Add(new PanelSettings { Sources = new List<SourceRule> { SourceRule.OfName("Special") } });
+        var frames = new OverlayEngine(s).Tick(new List<TimerReading> { R("Special") });
+        Assert.Equal(4, frames.Count);
+        Assert.Equal("Special", Assert.Single(frames[3].ListRows).Name);
+        Assert.Empty(frames[0].ListRows);   // untouched by the name rule
+    }
 }
 ```
 
-Additions to `tests/eq2auras.Core.Tests/SettingsTests.cs` (new `[Fact]`s in the existing class):
+Additions to `tests/eq2auras.Core.Tests/SettingsTests.cs` (new `[Fact]`s in the existing class). **First add `using Eq2Auras.Core.Timers;` to the file's using block** (`SettingsTests.cs:1-3` currently imports only `System`, `Eq2Auras.Core.Config`, `Xunit`) — these tests reference `SourceRule`/`SourceRuleType`:
 ```csharp
     [Fact]
     public void Normalize_seeds_three_groups_with_panel_and_buff_sources()
@@ -362,25 +376,29 @@ Expected: FAIL — `PanelSettings.Sources` missing; only two groups.
 
 Add `using System.Collections.Generic;` and `using Eq2Auras.Core.Timers;` to `PanelSettings.cs` if absent.
 
-- [ ] **Step 4: Implement — `GroupCount` + seeding in `Settings.cs`.** Change `GroupCount` (`:37`):
+- [ ] **Step 4: Implement — `GroupCount = 3`, seed on BOTH construction and load, and stop truncating.** Change `GroupCount` (`:37`):
 
 ```csharp
-    public const int GroupCount = 3;   // panel:1, panel:2, category:"eq2auras Buffs" (SPEC §Timer groups)
+    public const int GroupCount = 3;   // the three SEEDED groups: panel:1, panel:2, category:"eq2auras Buffs"
 ```
 
-In `Normalize()`, after the pad/truncate block (`while (Panels.Count < GroupCount) ...; if (Panels.Count > GroupCount) ...`) and before the `legacyFile` block, add source-seeding:
+Seeding must run on **every** path that produces a `Settings` — not only `Normalize()` (which `Parse` calls), but **direct construction** too: `new Settings()` is used by the routing tests *and* by `Parse`'s corrupt/missing-file catch branch (`Settings.cs:120-123`), and without seeding there `Sources == null` → `MatchesAny(null, r)` is false → the overlay routes **nothing** (a dead overlay). So seed in a shared helper reached by both `DefaultPanels()` and `Normalize()`. Replace `DefaultPanels` (`Settings.cs:56-64`):
 
 ```csharp
-        // Seed each group's source when unset. v1 has no source-authoring UI, so the three
-        // seeds are deterministic; a future UI writes user rules that survive here (SPEC §Timer groups).
-        SeedSources(Panels[0], SourceRule.Panel(1));
-        SeedSources(Panels[1], SourceRule.Panel(2));
-        SeedSources(Panels[2], SourceRule.OfCategory(BuffCatalog.Category));
-```
+    private static List<PanelSettings> DefaultPanels() => SeededGroups(new List<PanelSettings>());
 
-Add the helper (private static, alongside `OutOfRange`):
+    // Pad UP to the three seeded groups and seed each seeded group's source when unset. Does NOT
+    // truncate: a hand-authored 4th+ group survives and routes by its own rule (SPEC §Timer groups —
+    // "a new destination is a new config entry"; v1 withholds only the authoring UI).
+    private static List<PanelSettings> SeededGroups(List<PanelSettings> panels)
+    {
+        while (panels.Count < GroupCount) panels.Add(new PanelSettings());
+        SeedSources(panels[0], SourceRule.Panel(1));
+        SeedSources(panels[1], SourceRule.Panel(2));
+        SeedSources(panels[2], SourceRule.OfCategory(BuffCatalog.Category));
+        return panels;
+    }
 
-```csharp
     private static void SeedSources(PanelSettings group, SourceRule seed)
     {
         if (group.Sources == null || group.Sources.Count == 0)
@@ -388,7 +406,14 @@ Add the helper (private static, alongside `OutOfRange`):
     }
 ```
 
-Add `using Eq2Auras.Core.Timers;` to `Settings.cs` if absent. (`BuffCatalog.Category` is defined in Task 4 — if implementing Task 3 first, temporarily inline the literal `"eq2auras Buffs"` and swap to `BuffCatalog.Category` when Task 4 lands; the tests use the literal either way.)
+In `Normalize()`, replace the null-filter + pad/**truncate** block (`Settings.cs:73-76`) with a single call through the shared helper — keeping the `legacyFile` capture that precedes it (`:72`) and dropping `Take(GroupCount)` so extra groups survive:
+
+```csharp
+        bool legacyFile = Panels == null;
+        Panels = SeededGroups((Panels ?? new List<PanelSettings>()).Where(p => p != null).ToList());
+```
+
+Add `using Eq2Auras.Core.Timers;` to `Settings.cs`. (`BuffCatalog.Category` is defined in Task 4 — if implementing Task 3 first, temporarily inline `"eq2auras Buffs"` and swap when Task 4 lands.)
 
 - [ ] **Step 5: Implement — route `OverlayEngine` by rules.** Replace the `Tick` body and delete `RoutesTo` (`OverlayEngine.cs:26-40`):
 
@@ -431,9 +456,9 @@ git commit -m "feat(timers): route by source rules; seed three groups (panel:1/2
 
 **DATA — durations now sourced (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection (`duration.max_sec_tenths ÷ 10`; AAs carry `alternate_advancement:1`). Three are **tier-variable** (`†`: Tsunami 20.6, Adrenaline 33.0, Sanctuary 30.9 — rounded to Grandmaster max; the per-buff **override** corrects for a character running higher tiers). Our tracker names are kept **consistent with census** (Alex, 2026-08-19): two were mis-typed and corrected — **Tortoise Shell** (was "Turtle Shell") and **Advance Warning** (was "Advanced Warning") — so the display name, the expected log-line text, and the census ability name all match. **Chat format CONFIRMED (`spike-data/2026-08-09/`):** real EQ2 lines are `\aPC <id> <Name>:<Name>\/a <says to the group | says to the raid party | tells you>, "…"`. So the channel phrase genuinely varies (`[a-zA-Z ]+` is required, not `(?:group|raid)`), and the `\/a` speaker-link markup is present in the raw log (the "weird stuff"). The template's `(?:\\/a)?` is optional only to tolerate ACT delivering a markup/timestamp-stripped line — the **one** thing Task 0 still checks (whether custom triggers see the raw line). A both-channel emission collapses to one timer via ACT's 2s dedup. Single-target payloads are robust and channel/position-agnostic (`eq2auras <buff> <target>` matched anywhere).
 
-**REGEX RUNTIME — N triggers × every log line (Alex, 2026-08-19).** ACT runs **every** `ActiveCustomTrigger`'s regex against **every** log line (`ParseCustomFor`), so each enabled buff adds one regex per line — on top of the raider's own triggers and the parser — and raid combat floods the log (the untested regime SPEC §raid-scale validation already flags). Two shapes, two cost profiles:
+**REGEX RUNTIME — N triggers × every log line (Alex, 2026-08-19).** ACT runs **every** `ActiveCustomTrigger`'s regex against **every** log line (`ParseCustomFor`), so each enabled buff adds one regex per line — on top of the raider's own triggers and the parser — and raid combat floods the log (the untested regime the backlog’s standing raid-scale-validation item already flags). Two shapes, two cost profiles:
 - **Single-target** (`(?i)eq2auras <buff> …`) — leads with the literal `eq2auras`, so .NET's first-char search **fast-rejects** the ~all lines without it. Near-zero cost. The 12 of these are cheap.
-- **Group-wide** (default: the **lookbehind** form) — `(?i)(?<=(?<attacker>[a-zA-Z]+)\/a (?:say|tell)s? [a-zA-Z ]+, "[^"]*)eq2auras <buff>`. The first *consuming* atom is the `eq2auras` literal, so .NET's first-char search **fast-rejects** non-matching lines exactly like the single-target patterns; the speaker is captured by a variable-length lookbehind over the chat wrapper, evaluated only at the rare `eq2auras` hits. **No catastrophic backtracking** (quantifiers fenced by required literals). The **Core TDD test proves the .NET regex captures the speaker** (same engine, Mac); the only ACT-specific unknown — does `NotifySpell` read a lookbehind-nested `match.Groups["attacker"]` (the decompile shows it dicts *all* groups by name, so almost certainly yes) — is a one-assertion **Task-0 check**.
+- **Group-wide** (default: the **lookbehind** form) — `(?i)(?<=(?<attacker>[a-zA-Z]+)(?:\/a)? (?:say|tell)s? [a-zA-Z ]+, "[^"]*)eq2auras <buff>`. The first *consuming* atom is the `eq2auras` literal, so .NET's first-char search **fast-rejects** non-matching lines exactly like the single-target patterns; the speaker is captured by a variable-length lookbehind over the chat wrapper, evaluated only at the rare `eq2auras` hits. **No catastrophic backtracking** (quantifiers fenced by required literals). The **Core TDD test proves the .NET regex captures the speaker** (same engine, Mac); the only ACT-specific unknown — does `NotifySpell` read a lookbehind-nested `match.Groups["attacker"]` (the decompile shows it dicts *all* groups by name, so almost certainly yes) — is a one-assertion **Task-0 check**.
 - **Fallback (only if Task 0 finds ACT can't read the lookbehind capture):** the leading-speaker form `(?i)(?<attacker>[a-zA-Z]+)(?:\/a)? (?:say|tell)s? [a-zA-Z ]+, ".*eq2auras <buff>.*"` — correct but **no fast-reject** (O(line-length) scan per line, no catastrophic backtracking); ship it and measure at raid scale, since ACT already runs dozens of triggers. A one-line `BuildPattern` swap either way.
 - **Decision (Alex, 2026-08-19):** default to the **lookbehind fast-reject** form — the perf feedback loop is a raid night, and Task 0 retires the only risk cheaply; fall back to the simple form only if that check fails.
 
@@ -556,7 +581,7 @@ namespace Eq2Auras.Core.Timers
             var lit = Regex.Escape(buff);
             return isTargeted
                 ? $"(?i)eq2auras {lit} (?<attacker>[a-zA-Z]+)"
-                : $"(?i)(?<=(?<attacker>[a-zA-Z]+)\\\\/a (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras {lit}";
+                : $"(?i)(?<=(?<attacker>[a-zA-Z]+)(?:\\\\/a)? (?:say|tell)s? [a-zA-Z ]+, \"[^\"]*)eq2auras {lit}";
         }
 
         /// True if the line matches; `name` is the captured `attacker` group (the target for a
@@ -575,7 +600,7 @@ namespace Eq2Auras.Core.Timers
 }
 ```
 
-- [ ] **Step 4: Implement — `BuffCatalog`.** The pattern is a substring match on the chat payload; the `[^"]+` tail stops at EQ2's closing chat quote (confirm against Task 0). Targeted buffs carry `(?: (?<attacker>[^"]+))?`; targetless omit it.
+- [ ] **Step 4: Implement — `BuffCatalog`.** Entries carry only `(id, displayName, duration, isTargeted)` — `BuffDef.BuildPattern` (Step 3) constructs each regex from the shared template (single-target: payload target capture; group-wide: lookbehind over the chat wrapper, capturing the caster).
 
 `src/eq2auras.Core/Timers/BuffCatalog.cs`:
 ```csharp
@@ -624,6 +649,11 @@ namespace Eq2Auras.Core.Timers
         };
 
         public static BuffDef Find(string id) => All.FirstOrDefault(b => b.Id == id);
+
+        /// By the display name (= the timer's `Name`, so the row renderer can look a buff up
+        /// from a reading and choose its format, §Display). Ordinal-ignore-case; names are unique.
+        public static BuffDef FindByName(string displayName)
+            => All.FirstOrDefault(b => string.Equals(b.DisplayName, displayName, System.StringComparison.OrdinalIgnoreCase));
     }
 }
 ```
@@ -637,7 +667,7 @@ Expected: PASS.
 
 ```bash
 git add src/eq2auras.Core/Timers/BuffDef.cs src/eq2auras.Core/Timers/BuffCatalog.cs tests/eq2auras.Core.Tests/BuffCatalogTests.cs
-git commit -m "feat(timers): bounded buff catalog (7 v1 seeds) + regex validator"
+git commit -m "feat(timers): bounded buff catalog (22 v1 seeds) + regex validator"
 ```
 
 ---
@@ -651,7 +681,7 @@ git commit -m "feat(timers): bounded buff catalog (7 v1 seeds) + regex validator
 - Test: `tests/eq2auras.Core.Tests/BuffSyncTests.cs`, additions to `SettingsTests.cs`
 
 **Interfaces:**
-- Produces: `class BuffPref { string Id; bool Enabled; int? DurationOverride; }`; `Settings.BuffPrefs` (`List<BuffPref>`, null → backfilled to one pref per catalog id, `Enabled=true`, no override = default all-on); `Settings.EnabledBuffIds()` (the enabled prefs' ids); `Settings.EffectiveDuration(string id)` (`pref.DurationOverride ?? BuffCatalog.Find(id).DurationSeconds`); `class BuffSyncPlan { IReadOnlyList<string> ToAdd; IReadOnlyList<string> ToRemove; }`; `static class BuffSync { IReadOnlyList<BuffDef> Desired(IEnumerable<string> enabledIds); BuffSyncPlan Plan(IReadOnlyCollection<string> currentlyInjectedIds, IEnumerable<string> enabledIds); }` (BuffSync stays id-based — it only diffs membership; the effective duration is applied by the injector at build time, Task 6).
+- Produces: `class BuffPref { string Id; bool Enabled; int? DurationOverride; }`; `Settings.BuffPrefs` (`List<BuffPref>`, null → backfilled to one pref per catalog id, `Enabled=true`, no override = default all-on); `Settings.EnabledBuffIds()` (the enabled prefs' ids); `Settings.EffectiveDuration(string id)` (`pref.DurationOverride ?? BuffCatalog.Find(id).DurationSeconds`); `static class BuffSync { IReadOnlyList<BuffDef> Desired(IEnumerable<string> enabledIds); }` (Desired = catalog ∩ enabled; the injector reconciles ACT's live state against it and applies the effective duration at build time, Task 6).
 
 - [ ] **Step 1: Write the failing tests.**
 
@@ -667,39 +697,13 @@ public class BuffSyncTests
     [Fact]
     public void Desired_is_catalog_intersect_enabled()
     {
-        var desired = BuffSync.Desired(new[] { "bolster", "turtle-shell", "not-a-buff" }).Select(b => b.Id).ToList();
-        Assert.Equal(new[] { "bolster", "turtle-shell" }, desired);
+        var desired = BuffSync.Desired(new[] { "bolster", "tortoise-shell", "not-a-buff" }).Select(b => b.Id).ToList();
+        Assert.Equal(new[] { "bolster", "tortoise-shell" }, desired);
     }
 
     [Fact]
     public void Null_enabled_set_desires_nothing()
         => Assert.Empty(BuffSync.Desired(null));
-
-    [Fact]
-    public void Plan_adds_newly_enabled_and_removes_no_longer_enabled()
-    {
-        var plan = BuffSync.Plan(currentlyInjectedIds: new[] { "bolster", "bladedance" }, enabledIds: new[] { "bolster", "turtle-shell" });
-        Assert.Equal(new[] { "turtle-shell" }, plan.ToAdd);
-        Assert.Equal(new[] { "bladedance" }, plan.ToRemove);
-    }
-
-    [Fact]
-    public void Plan_from_empty_current_is_the_init_and_zone_reinject_case()
-    {
-        // On init (nothing injected) or after a zone rebuild (triggers evicted), everything desired is added.
-        var plan = BuffSync.Plan(currentlyInjectedIds: new string[0], enabledIds: new[] { "bolster", "turtle-shell" });
-        Assert.Equal(new[] { "bolster", "turtle-shell" }, plan.ToAdd.OrderBy(x => x));
-        Assert.Empty(plan.ToRemove);
-    }
-
-    [Fact]
-    public void Plan_sweeps_a_stale_injected_id_not_in_the_catalog_or_enabled_set()
-    {
-        // A def left over from an older version (id no longer enabled) is swept.
-        var plan = BuffSync.Plan(currentlyInjectedIds: new[] { "retired-buff" }, enabledIds: new[] { "bolster" });
-        Assert.Equal(new[] { "bolster" }, plan.ToAdd);
-        Assert.Equal(new[] { "retired-buff" }, plan.ToRemove);
-    }
 }
 ```
 
@@ -795,40 +799,20 @@ In `Normalize()`, after the source-seeding block (Task 3), backfill:
 
 `src/eq2auras.Core/Timers/BuffSync.cs`:
 ```csharp
-using System;
 using System.Collections.Generic;
 using System.Linq;
 
 namespace Eq2Auras.Core.Timers
 {
-    public sealed class BuffSyncPlan
-    {
-        public IReadOnlyList<string> ToAdd { get; }
-        public IReadOnlyList<string> ToRemove { get; }
-        public BuffSyncPlan(IReadOnlyList<string> toAdd, IReadOnlyList<string> toRemove)
-        {
-            ToAdd = toAdd;
-            ToRemove = toRemove;
-        }
-    }
-
-    /// Pure enabled-set → injection policy. One function serves toggles, init-sweep (of stale
-    /// defs), and zone-rebuild re-injection (current = empty) (SPEC §Buff tracking).
+    /// Pure "what should be live" policy: the enabled catalog entries (catalog ∩ enabled). The
+    /// injector reconciles ACT's live state against this and applies each buff's effective duration
+    /// at build time; the stale-def sweep and zone re-inject are the injector's (SPEC §Buff tracking).
     public static class BuffSync
     {
         public static IReadOnlyList<BuffDef> Desired(IEnumerable<string> enabledIds)
             => enabledIds == null
                 ? new List<BuffDef>()
                 : enabledIds.Select(BuffCatalog.Find).Where(b => b != null).ToList();
-
-        public static BuffSyncPlan Plan(IReadOnlyCollection<string> currentlyInjectedIds, IEnumerable<string> enabledIds)
-        {
-            var desired = new HashSet<string>(Desired(enabledIds).Select(b => b.Id), StringComparer.OrdinalIgnoreCase);
-            var current = new HashSet<string>(currentlyInjectedIds ?? new string[0], StringComparer.OrdinalIgnoreCase);
-            return new BuffSyncPlan(
-                toAdd: desired.Where(id => !current.Contains(id)).ToList(),
-                toRemove: current.Where(id => !desired.Contains(id)).ToList());
-        }
     }
 }
 ```
@@ -863,13 +847,14 @@ git commit -m "feat(timers): enabled-buff set (default all-on) + pure BuffSync p
 - Modify: `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (construct, `InitPlugin` sweep+sync, hook the poll for ensure-present, `DeInitPlugin` teardown)
 
 **Interfaces:**
-- Consumes: `BuffCatalog`, `BuffSync`, `BuffSyncPlan`, `Settings.EnabledBuffIds()`, `Settings.EffectiveDuration()` (Core).
-- Produces: `class BuffInjector { void SyncTo(IEnumerable<string> enabledIds); void EnsurePresent(); void TearDown(); }`.
+- Consumes: `BuffCatalog`, `BuffSync.Desired`, `Settings.EnabledBuffIds()`, `Settings.EffectiveDuration()` (Core).
+- Produces: `class BuffInjector { void SyncTo(Settings settings); void EnsurePresent(Settings settings); void SweepAll(); }`.
 
 - [ ] **Step 1: Write `BuffInjector` (transcribe-only).** Uses the Task-0-verified API. Each buff = a persisted `TimerData` def (registered once, swept on init) + a transient `CustomTrigger` in `ActiveCustomTriggers` (re-ensured each poll).
 
 `src/eq2auras.Plugin/Act/BuffInjector.cs`:
 ```csharp
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using Advanced_Combat_Tracker;
@@ -878,86 +863,83 @@ using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Act
 {
-    /// Registers each enabled buff as a TimerData def + a transient ActiveCustomTriggers entry,
-    /// so ACT matches the macro line and spawns our timer. The def persists (swept on init); the
-    /// trigger is runtime-only and re-ensured each poll against zone-rebuild eviction
-    /// (SPEC §Buff tracking; decompile-verified ACT 3.8.5.288).
+    /// Registers each enabled buff as a TimerData def (Name = the buff's **display name**, so the
+    /// frame renders the buff; our reserved **Category** is the management namespace) + a transient
+    /// ActiveCustomTriggers entry keyed by a string WE own. Defs persist; triggers are runtime-only
+    /// and re-ensured against zone-rebuild eviction (SPEC §Buff tracking; decompile-verified ACT 3.8.5.288).
     public sealed class BuffInjector
     {
-        private static string TriggerKey(BuffDef b) => BuffCatalog.Category + "|" + b.Pattern; // mirrors CustomTrigger.Key = category + "|" + ShortRegexString
-        private static string DefName(BuffDef b) => "eq2auras-" + b.Id;
+        private const string Category = BuffCatalog.Category;            // "eq2auras Buffs" — our namespace
+        private static string DictKey(BuffDef b) => "eq2auras:" + b.Id;  // OUR ActiveCustomTriggers key — never a reconstructed CustomTrigger.Key
 
-        /// Idempotently make the live ACT state match `enabledIds`: sweep stale eq2auras defs,
-        /// register/withdraw defs, and (re)inject triggers. Called on init and on every toggle.
+        /// Reconcile ACT's live state to the enabled prefs at their EFFECTIVE durations. Called on
+        /// init (after SweepAll) and on every toggle/override change. Idempotent.
         public void SyncTo(Settings settings)
         {
-            var injectedNow = CurrentlyInjectedIds();
-            var plan = BuffSync.Plan(injectedNow, settings.EnabledBuffIds());
+            var desired = BuffSync.Desired(settings.EnabledBuffIds());
+            var desiredNames = new HashSet<string>(desired.Select(b => b.DisplayName), StringComparer.OrdinalIgnoreCase);
 
-            foreach (var id in plan.ToRemove) Remove(id);
-            foreach (var id in plan.ToAdd)
+            // Withdraw any of OUR category defs no longer desired (matched by name — no catalog lookup).
+            foreach (var td in OurDefs().Where(t => !desiredNames.Contains(t.Name)).ToList())
+                WithdrawByName(td.Name);
+
+            // Upsert EVERY desired def at its effective duration — AddEditTimerDef edits-or-adds, so an
+            // override change on an already-tracked buff propagates (not just newly-enabled ones) — and
+            // ensure its trigger.
+            foreach (var def in desired)
             {
-                var def = BuffCatalog.Find(id);
-                if (def != null) Add(def, settings.EffectiveDuration(id));   // override ?? catalog base
+                ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(def.DisplayName, false, settings.EffectiveDuration(def.Id), false, false, "", "", 5, true) { Category = Category });
+                ActGlobals.oFormActMain.ActiveCustomTriggers[DictKey(def)] = BuildTrigger(def);
             }
             ActGlobals.oFormSpellTimers.RebuildSpellTreeView();
         }
 
-        /// Cheap per-poll self-heal: re-add any desired trigger evicted by a zone rebuild.
-        /// Defs persist across zone change, so only the ActiveCustomTriggers entries need it.
-        public void EnsurePresent()
+        /// Cheap per-poll self-heal: re-add any desired trigger a zone rebuild evicted (defs persist).
+        public void EnsurePresent(Settings settings)
         {
-            foreach (var def in BuffSync.Desired(CurrentlyInjectedIds()))
-            {
-                if (!ActGlobals.oFormActMain.ActiveCustomTriggers.ContainsKey(TriggerKey(def)))
-                    ActGlobals.oFormActMain.ActiveCustomTriggers[TriggerKey(def)] = BuildTrigger(def);
-            }
+            foreach (var def in BuffSync.Desired(settings.EnabledBuffIds()))
+                if (!ActGlobals.oFormActMain.ActiveCustomTriggers.ContainsKey(DictKey(def)))
+                    ActGlobals.oFormActMain.ActiveCustomTriggers[DictKey(def)] = BuildTrigger(def);
         }
 
-        public void TearDown()
+        /// Remove EVERY def in our reserved category + every trigger we keyed — regardless of whether
+        /// a def's name still maps to a current catalog id — so a renamed/removed buff's leftover is
+        /// swept, never a zombie. Used on InitPlugin (clean slate before SyncTo) and DeInitPlugin.
+        public void SweepAll()
         {
-            foreach (var def in Eq2aurasDefs().ToList()) Remove(def.Id);
+            foreach (var td in OurDefs().ToList())
+                ActGlobals.oFormSpellTimers.RemoveTimerDef(td);
+            foreach (var key in ActGlobals.oFormActMain.ActiveCustomTriggers.Keys.Where(k => k.StartsWith("eq2auras:")).ToList())
+                ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(key);
             ActGlobals.oFormSpellTimers.RebuildSpellTreeView();
         }
 
-        // "Injected" is defined by our persisted defs (the durable record); triggers ride them.
-        private IReadOnlyCollection<string> CurrentlyInjectedIds() => Eq2aurasDefs().Select(d => d.Id).ToList();
+        private static IEnumerable<TimerData> OurDefs()
+            => ActGlobals.oFormSpellTimers.TimerDefs.Values.Where(td => td.Category == Category);
 
-        private static IEnumerable<BuffDef> Eq2aurasDefs()
-            => ActGlobals.oFormSpellTimers.TimerDefs.Values
-                .Where(td => td.Category == BuffCatalog.Category)
-                .Select(td => BuffCatalog.Find(td.Name.StartsWith("eq2auras-") ? td.Name.Substring("eq2auras-".Length) : td.Name))
-                .Where(b => b != null);
-
-        private static void Add(BuffDef def, int effectiveDuration)
+        private static void WithdrawByName(string timerName)
         {
-            ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(DefName(def), false, effectiveDuration, false, false, "", "", 5, true) { Category = BuffCatalog.Category });
-            ActGlobals.oFormActMain.ActiveCustomTriggers[TriggerKey(def)] = BuildTrigger(def);
-        }
-
-        private static void Remove(string id)
-        {
-            var def = BuffCatalog.Find(id);
-            var pattern = def?.Pattern;
-            var key = pattern != null ? BuffCatalog.Category + "|" + pattern : null;
-            if (key != null) ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(key);
-            var td = ActGlobals.oFormSpellTimers.TimerDefs.Values.FirstOrDefault(t => t.Category == BuffCatalog.Category && t.Name == "eq2auras-" + id);
+            var td = OurDefs().FirstOrDefault(t => t.Name == timerName);
             if (td != null) ActGlobals.oFormSpellTimers.RemoveTimerDef(td);
+            foreach (var key in ActGlobals.oFormActMain.ActiveCustomTriggers
+                        .Where(e => e.Value.Category == Category && e.Value.TimerName == timerName)
+                        .Select(e => e.Key).ToList())
+                ActGlobals.oFormActMain.ActiveCustomTriggers.Remove(key);
         }
 
         private static CustomTrigger BuildTrigger(BuffDef def)
-            => new CustomTrigger(def.Pattern, 0, "", true, DefName(def), false) { Category = BuffCatalog.Category };
+            => new CustomTrigger(def.Pattern, 0, "", true, def.DisplayName, false) { Category = Category };
     }
 }
 ```
 
-> **Transcribe note:** `ActGlobals.oFormSpellTimers.TimerDefs` and `CustomTrigger.Key` shape are the decompile-observed members; if the on-box build reveals a different accessor (e.g. `TimerDefs` is non-public), the merge-gate step will surface the compile error — adjust to the real member and re-verify. `TimerData`'s constructor arg order is the decompiled `(name, onlyMasterTicks, timerValue, restrictToMe, absoluteTiming, sound, ..., warningValue, ...)`; confirm against the box in Task 0.
+> **Transcribe note:** `ActGlobals.oFormSpellTimers.TimerDefs` and the `CustomTrigger`/`TimerData` constructor shapes are decompile-observed; if the on-box build reveals a different accessor (e.g. `TimerDefs` non-public, or `CustomTrigger.TimerName`/`.Category` differ), the merge-gate compile surfaces it — adjust to the real member and re-verify. `TimerData`'s arg order is the decompiled `(name, onlyMasterTicks, timerValue, restrictToMe, absoluteTiming, sound, ..., warningValue, ...)`; confirm against the box in Task 0. We key `ActiveCustomTriggers` by our own `DictKey` and manage defs/triggers by our reserved `Category` + the buff's display name — never by a reconstructed `CustomTrigger.Key`, so no `ShortRegexString` assumption.
 
 - [ ] **Step 2: Wire into the plugin lifecycle (transcribe-only).** In `Eq2AurasPlugin.cs`:
 - Construct `private readonly BuffInjector _buffInjector = new BuffInjector();`
-- In `InitPlugin`, after settings load: `_buffInjector.SyncTo(_settings);`
-- In the poll handler (the existing `TimerProbe` `_onPollTick` or the 100 ms tick), on a divider (~every 5th tick): `_buffInjector.EnsurePresent();`
-- In `DeInitPlugin`: `_buffInjector.TearDown();`
+- In `InitPlugin`, after settings load: `_buffInjector.SweepAll(); _buffInjector.SyncTo(_settings);` (clean slate — clears any leftover `eq2auras Buffs` defs from a prior version — then register the enabled set).
+- In the poll handler (the existing `TimerProbe` `_onPollTick` / 100 ms tick), on a divider (~every 5th tick): `_buffInjector.EnsurePresent(_settings);`
+- In `DeInitPlugin`: `_buffInjector.SweepAll();`
 
 - [ ] **Step 3: Branch CI compile gate.**
 
@@ -970,31 +952,50 @@ Expected: CI green (compiles against the real ACT reference).
 
 ---
 
-### Task 7: Host the buff window (third group) + the title-cased target suffix
+### Task 7: The two-format buff row + host the third group
 
 **Files:**
-- Modify: `src/eq2auras.Plugin/Overlay/OverlayHost.cs` (host a window pair for the third group; default placement)
-- Modify: the timer row/label builder (`src/eq2auras.Core/Timers/TimerListBuilder.cs` and/or the row visual) — the target suffix
+- Modify: `src/eq2auras.Core/Timers/TimerListBuilder.cs` — the buff-aware `Label`
+- Modify: the timer row visual — route the row label through `Label`
+- Modify: `src/eq2auras.Plugin/Overlay/OverlayHost.cs` (`PanelNames`), `src/eq2auras.Plugin/Eq2AurasPlugin.cs` (buff-window tab group box)
 
-**OPEN DISPLAY DECISION (confirm at plan review):** the suffix rule. Recommended: render `{Name} — {TitleCase(Combatant)}` whenever `Combatant` is **meaningful** (not empty / `"none"` / `"you"`), as a **general** row rule consistent with ACT's own `{Name} - {Combatant}` label and the SPEC data-table intent (`SPEC.md:136`). Buffs get their target; existing panel timers with a `none`/self combatant are unchanged; existing timers with a *real* combatant would gain a caster suffix (covered by the merge-gate timer-regression check). Alternative if that regression is unwanted: scope the suffix to the buff group only. **This is the one behavior the plan can't derive purely from the spec — confirm before implementing.**
+**Display decision (Alex, 2026-08-19 — resolves the plan-review question):** caster and target are mutually exclusive, so **two formats, buff-scoped** — a single-target buff renders **`{Buff} → {Target}`**, a group-wide buff **`{Caster}: {Buff}`** (both title-cased). The format is chosen by the catalog's `IsTargeted`; a reading whose name is **not** a catalog buff renders unchanged (`{Name}`), so **ordinary panel timers are untouched** (no regression).
 
-- [ ] **Step 1: Implement the meaningful-combatant suffix (Core, TDD since it's in `TimerListBuilder`).** Add a helper + test in Core:
+- [ ] **Step 1: Implement the buff-aware `Label` (Core, TDD).** Add a helper + test in Core:
 
 `tests/eq2auras.Core.Tests/TimerListBuilderTests.cs` (add):
 ```csharp
     [Theory]
-    [InlineData("Bloodlust", "bob", "Bloodlust — Bob")]
-    [InlineData("Tortoise Shell", "none", "Tortoise Shell")]
-    [InlineData("Tortoise Shell", "None", "Tortoise Shell")]
-    [InlineData("Soul Paralysis", "you", "Soul Paralysis")]
-    [InlineData("Bloodlust", "", "Bloodlust")]
-    public void Label_appends_a_title_cased_target_only_when_meaningful(string name, string combatant, string expected)
+    [InlineData("Bolster", "bob", "Bolster → Bob")]                        // single-target: ability → target
+    [InlineData("Tortoise Shell", "onlyfans", "Onlyfans: Tortoise Shell")] // group-wide: caster: ability
+    [InlineData("Tortoise Shell", "None", "Tortoise Shell")]               // defensive: no capture
+    [InlineData("Soul Paralysis", "boss", "Soul Paralysis")]              // NOT a catalog buff → unchanged
+    [InlineData("Bolster", "", "Bolster")]                                 // no target → bare
+    public void Buff_rows_use_two_formats_and_other_timers_are_unchanged(string name, string combatant, string expected)
         => Assert.Equal(expected, TimerListBuilder.Label(name, combatant));
 ```
 
-Implement `public static string Label(string name, string combatant)` in `TimerListBuilder`: return `name` when `combatant` is null/empty or equals (ordinal-ignore-case) `"none"`/`"you"`; else `name + " — " + TitleCase(combatant)` (title-case = upper first char + lower rest, single-token EQ2 names).
+Implement `public static string Label(string name, string combatant)` in `TimerListBuilder`:
+```csharp
+    public static string Label(string name, string combatant)
+    {
+        var def = BuffCatalog.FindByName(name);
+        if (def == null) return name;                                      // non-buff timers: unchanged
+        var who = TitleCase(combatant);                                    // "" / "none" → empty
+        if (string.IsNullOrEmpty(who) || who == "None") return name;       // defensive: no captured name
+        return def.IsTargeted ? name + " → " + who : who + ": " + name;
+    }
 
-- [ ] **Step 2: Route rows through `Label` (transcribe-only in the row visual/list builder), and host the third group in `OverlayHost`** — iterate the seeded `Settings.Panels` (now 3) rather than a hardcoded 2, and give the buff group (index 2) a distinct default position (offset from panels A/B so it doesn't overlap on first run).
+    // Single-token EQ2 names: upper first, lower rest. "none"/"" → "" so callers can treat it as absent.
+    private static string TitleCase(string s)
+    {
+        if (string.IsNullOrWhiteSpace(s) || s.Equals("none", System.StringComparison.OrdinalIgnoreCase)) return "";
+        return char.ToUpperInvariant(s[0]) + s.Substring(1).ToLowerInvariant();
+    }
+```
+(`BuffCatalog` is the same `Eq2Auras.Core.Timers` namespace as `TimerListBuilder` — no new using.)
+
+- [ ] **Step 2: Wire the label + host the third group (transcribe-only).** Route the row visual's displayed text through `TimerListBuilder.Label(reading.Name, reading.Combatant)`. `OverlayHost.Start` **already** iterates `_settings.Panels.Count` with a per-index default position (`OverlayHost.cs:48-51,502`), so hosting the third group needs no loop change — what *does* need attention: **`PanelNames`** has only two entries (`OverlayHost.cs:19`), so the buff group falls back to "Panel 3" — add a third name ("Buffs"); and the settings tab builds group boxes only for Panels A/B (`Eq2AurasPlugin.cs:115-116`) — add a **"Buffs" group box** for the third group's knobs (or, for v1, note the buff window uses default knobs until the timer-config tab-redesign arc lands — Alex's call).
 
 - [ ] **Step 3: Core tests + CI compile.**
 
@@ -1033,12 +1034,12 @@ git push
 Run after `dev-latest` picks up the branch build. **This carries both the buff verification AND the timer-regression pass** (per the association-model re-seat).
 
 1. **Timer regression:** existing Panel A / Panel B timers appear, escalate, drain, and color exactly as before (trigger a known panel-1 and panel-2 timer). Confirm no display change to existing timers (or, if the general suffix shipped, that any caster suffix is acceptable — the Task-7 decision).
-2. **Buff spawn (targeted):** with the Bolster macro set up, `/g eq2auras Bolster <target>` → a `Bolster — <Target>` row appears in the buff window for the buff's duration, title-cased.
-3. **Buff spawn (group-wide, either channel):** `/g eq2auras Tortoise Shell` **and** `/r eq2auras Tortoise Shell` each → a `Tortoise Shell — <Caster>` row (caster captured from the chat line, title-cased); firing **both** in the same instant yields **one** timer (ACT 2s dedup).
+2. **Buff spawn (targeted):** with the Bolster macro set up, `/g eq2auras Bolster <target>` → a **`Bolster → <Target>`** row appears in the buff window for the buff's duration, title-cased.
+3. **Buff spawn (group-wide, either channel):** `/g eq2auras Tortoise Shell` **and** `/r eq2auras Tortoise Shell` each → a **`<Caster>: Tortoise Shell`** row (caster captured from the chat line, title-cased); firing **both** in the same instant yields **one** timer (ACT 2s dedup).
 4. **Toggle:** disable Bolster in the tab → its macro no longer spawns a row; re-enable → it works again (inject/withdraw live).
 5. **Zone re-injection:** zone into a new area, re-cast a buff macro → the row still appears (the poll re-ensure survived the `RebuildActiveCustomTriggers`).
 6. **Clean teardown:** toggle the plugin off / reload → ACT's Spell Timers list has no lingering `eq2auras Buffs` category entries.
-7. **Regex runtime at raid scale:** with all enabled buffs injected (group-wide on the **lookbehind fast-reject** form, so every buff pattern leads with the `eq2auras` literal), confirm ACT's poll-loop health through a **flooded combat** encounter (SPEC §raid-scale validation) — no new poll hiccups vs. baseline.
+7. **Regex runtime at raid scale:** with all enabled buffs injected (group-wide on the **lookbehind fast-reject** form, so every buff pattern leads with the `eq2auras` literal), confirm ACT's poll-loop health through a **flooded combat** encounter (the backlog’s standing raid-scale-validation item) — no new poll hiccups vs. baseline.
 
 ---
 
@@ -1046,14 +1047,14 @@ Run after `dev-latest` picks up the branch build. **This carries both the buff v
 
 - **Durations — RESOLVED (census, 2026-08-19):** all 22 base durations are filled from the Daybreak census `spell` collection. Three tier-variable buffs (Tsunami, Adrenaline, Sanctuary) use the Grandmaster max; the per-buff **override** is the correction for characters running higher tiers.
 - **Macro channel + the group-wide wrapper (Task 0):** confirm the exact EQ2 chat log-line format on the box — the **single-target** payload patterns are robust, but the **group-wide** caster capture depends on the wrapper shape (`\S+ says to the group, "…"`); adjust the group-wide patterns to the captured sample.
-- **Display suffix rule (Task 7):** with group-wide buffs now capturing the caster, *every* buff renders `{Buff} — {Name}`; confirm at plan review that the general meaningful-combatant suffix (vs. buff-group-only) is acceptable for existing timers.
+- **Display format — RESOLVED (Alex, 2026-08-19):** two buff-scoped formats — single-target `{Buff} → {Target}`, group-wide `{Caster}: {Buff}` — chosen by catalog `IsTargeted`; non-catalog (panel) timers render unchanged, so no existing-timer regression.
 
 ---
 
 ## Self-review
 
-**Spec coverage:** association model (Tasks 2–3) ✓; `Category` reading (Task 1) ✓; bounded 22-buff catalog + per-buff regex, single-target payload capture *and* group-wide caster capture (Task 4) ✓; per-buff prefs (enabled + duration override) + effective-duration resolution + sync/sweep/zone-reinject (Task 5–6) ✓; transient two-object injection at the effective duration (Task 6) ✓; buff window display — `{Buff} — {Name}` title-cased, target or caster (Task 7) ✓; per-buff toggles + duration field + published macro (Task 8) ✓; three-group migration (Task 3) ✓; the reviewer plan-watch field gates (merge-gate script) ✓. The display-suffix rule (general vs buff-group-only) is the one spec-underspecified point, flagged as an open decision rather than silently chosen.
+**Spec coverage:** association model incl. the 4th-group litmus + no-truncate (Tasks 2–3) ✓; `Category` reading (Task 1) ✓; bounded 22-buff catalog + templated regex, single-target payload capture *and* group-wide caster lookbehind (Task 4) ✓; per-buff prefs (enabled + duration override) + effective-duration resolution (Task 5) ✓; transient injection at the effective duration incl. override-propagation + category sweep + zone re-inject (Task 6) ✓; two-format buff row, target or caster, panel timers unchanged (Task 7) ✓; per-buff toggles + duration field + documented format (Task 8) ✓; three-group seed on construction *and* load (Task 3) ✓; the reviewer plan-watch field gates (merge-gate script) ✓.
 
-**Type consistency:** `SourceRule.Panel/OfCategory/OfName`, `SourceRules.Matches/MatchesAny`, `TimerReading.Category`, `PanelSettings.Sources`, `Settings.GroupCount==3`/`BuffPrefs`/`EnabledBuffIds`/`EffectiveDuration`, `BuffPref.{Id,Enabled,DurationOverride}`, `BuffDef.{Id,DisplayName,DurationSeconds,Pattern,IsTargeted,TryMatch}`, `BuffCatalog.{Category,All,Find}`, `BuffSync.{Desired,Plan}`/`BuffSyncPlan.{ToAdd,ToRemove}`, `BuffInjector.{SyncTo,EnsurePresent,TearDown}` — used consistently across tasks.
+**Type consistency:** `SourceRule.Panel/OfCategory/OfName`, `SourceRules.Matches/MatchesAny`, `TimerReading.Category`, `PanelSettings.Sources`, `Settings.GroupCount==3`/`BuffPrefs`/`EnabledBuffIds`/`EffectiveDuration`/`SeededGroups`, `BuffPref.{Id,Enabled,DurationOverride}`, `BuffDef.{Id,DisplayName,DurationSeconds,Pattern,IsTargeted,TryMatch}`, `BuffCatalog.{Category,All,Find,FindByName}`, `BuffSync.Desired`, `BuffInjector.{SyncTo,EnsurePresent,SweepAll}`, `TimerListBuilder.Label` — used consistently across tasks.
 
 **Placeholder scan:** durations are resolved (census); no code-vagueness placeholders remain. The only field-confirmed item is the group-wide chat-wrapper shape (Task 0).
