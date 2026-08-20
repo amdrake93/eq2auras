@@ -72,6 +72,7 @@ namespace Eq2Auras.Plugin.Act
                         FillArgb = data.FillColor.ToArgb(),
                         ShowInPanelA = data.Panel1Display,
                         ShowInPanelB = data.Panel2Display,
+                        Category = data.Category ?? "",
                         IsMaster = instance.MasterTimer,
                         StartTime = instance.StartTime
                     });
