@@ -53,7 +53,7 @@ _Copied from SPEC.md; every task implicitly includes these._
 - Test: `tests/eq2auras.Core.Tests/EscalationDefaultsTests.cs`; additions to + one edit in `SettingsTests.cs`
 
 **Interfaces:**
-- Produces: `enum EscalationStyle { CenterRadial=0, HighlightInPlace=1, None=2 }`; `PanelSettings.EscalationStyle` is `EscalationStyle?` with `EmitDefaultValue = false` (null = unset, omitted from JSON); `static EscalationStyle EscalationDefaults.Resolve(PanelSettings panel)` — `panel.EscalationStyle ?? (buff-category source ? None : CenterRadial)`.
+- Produces: `enum EscalationStyle { CenterRadial=0, HighlightInPlace=1, None=2 }`; `PanelSettings.EscalationStyle` is `EscalationStyle?` with `EmitDefaultValue = false` — only a **null** (unset) is omitted from JSON; an **explicit** value, `CenterRadial`/`0` included, still serializes so a real pick persists (the default omitted here is the nullable's `null`, not the enum's `0`); `static EscalationStyle EscalationDefaults.Resolve(PanelSettings panel)` — `panel.EscalationStyle ?? (buff-category source ? None : CenterRadial)`.
 
 - [ ] **Step 1: Write the failing tests.**
 
@@ -522,7 +522,7 @@ Expected: CI green.
 ## Merge-gate live script (Alex, Windows box)
 
 1. **Update + reload** → version bumps, no crash. **Existing install migration:** the buff window is now a **plain draining list** (no flying-to-center) without touching any setting — the one-time reset fired.
-2. **Fresh install (F2 crash gate):** move `settings.json` aside, reload → the plugin **loads without crashing** (the nullable A/B styles resolve, they don't throw in `InitPlugin`), buffs default to a calm list, Panels A/B default to Center radial.
+2. **Fresh install (F2 crash gate):** move `settings.json` aside, reload → the plugin **loads without crashing** (the nullable A/B styles resolve, they don't throw in `InitPlugin`), buffs default to a calm list, Panels A/B resolve to Center radial (stored null).
 3. **No Panel A leak:** cast a buff → it appears **only** in the Buffs window, never Panel A (the `Panel1Display=false` field gate).
 4. **Escalation config (all three windows now offer None):** in the buff-tracker section, flip the buff window to **Center radial** → buffs now escalate (at the 25% fallback for un-warned buffs); set a per-buff **warning** (e.g. 10s on one buff) → that buff escalates at 10s; flip back to **None** → calm list again. On **Panel A**, confirm the dropdown now has a **None** item and selecting it makes that panel a calm list.
 5. **Warning override persists** across reload; an absurd hand-edited `warnOverride`/`removeOverride` in `settings.json` doesn't crash load (clamped to base).
