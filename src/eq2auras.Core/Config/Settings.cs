@@ -35,6 +35,9 @@ namespace Eq2Auras.Core.Config
         [DataMember(Name = "betaChannel")]
         public bool BetaChannel { get; set; }    // global knob (SPEC §Two channels): false (0-value) = stable channel
 
+        [DataMember(Name = "buffEscalationReset")]
+        public bool BuffEscalationReset { get; set; }   // one-shot: false in pre-amendment files -> migrate the buff window's escalation once
+
         public const int GroupCount = 3;   // the three SEEDED groups: panel:1, panel:2, category:"eq2auras Buffs"
         public const int MaxPaletteSize = 16;
         public const double MinRowWidth = 100, MaxRowWidth = 800;
@@ -141,6 +144,19 @@ namespace Eq2Auras.Core.Config
             foreach (var pref in BuffPrefs)
                 if (pref.DurationOverride.HasValue && (pref.DurationOverride.Value < 1 || pref.DurationOverride.Value > 3600))
                     pref.DurationOverride = null;
+
+            // One-time: a pre-amendment buff window carries the escalating default (escalationStyle:0),
+            // indistinguishable by value from a later explicit CenterRadial pick — so the MARKER, not the
+            // value, decides. First load (marker false): null the buff group's escalation (-> resolves to
+            // None) and set the marker; thereafter leave it, so a user's later pick persists (SPEC §Configuration).
+            if (!BuffEscalationReset)
+            {
+                var buffGroup = Panels.FirstOrDefault(p => p.Sources != null
+                    && p.Sources.Any(r => r != null && r.Type == SourceRuleType.Category
+                        && string.Equals(r.Value, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)));
+                if (buffGroup != null) buffGroup.EscalationStyle = null;
+                BuffEscalationReset = true;
+            }
 
             // Assign only when out of range: the engine reads these fields per tick /
             // per restyle on other threads — a valid value must never be rewritten.

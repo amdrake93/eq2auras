@@ -204,6 +204,26 @@ public class SettingsTests
         Assert.Contains("\"escalationStyle\":0", s.ToJson());   // flat top-level = CenterRadial
     }
 
+    [Fact]
+    public void A_pre_amendment_buff_window_escalation_resets_to_null_once()
+    {
+        // Old file: buff group carries the escalating default (escalationStyle:0), marker absent.
+        var json = "{\"panels\":[{},{},{\"escalationStyle\":0}]}";
+        var s = Settings.Parse(json);
+        Assert.Null(s.Panels[2].EscalationStyle);   // migrated to null -> resolves to None
+        Assert.True(s.BuffEscalationReset);         // marker set
+    }
+
+    [Fact]
+    public void A_migrated_files_explicit_buff_escalation_pick_survives()
+    {
+        // Post-migration: marker true, raider explicitly picked CenterRadial for the buff window.
+        var json = "{\"buffEscalationReset\":true,\"panels\":[{},{},{\"escalationStyle\":0}]}";
+        var s = Settings.Parse(json);
+        Assert.Equal(EscalationStyle.CenterRadial, s.Panels[2].EscalationStyle);   // NOT reset
+        Assert.True(s.BuffEscalationReset);
+    }
+
     [Theory]
     [InlineData("{\"panels\":[]}")]                     // empty list
     [InlineData("{\"panels\":[{\"colorSource\":1}]}")]  // one entry
