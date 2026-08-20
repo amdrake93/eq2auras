@@ -65,7 +65,7 @@ namespace Eq2Auras.Core.Config
             while (panels.Count < GroupCount) panels.Add(new PanelSettings());
             SeedSources(panels[0], SourceRule.Panel(1));
             SeedSources(panels[1], SourceRule.Panel(2));
-            SeedSources(panels[2], SourceRule.OfCategory("eq2auras Buffs"));
+            SeedSources(panels[2], SourceRule.OfCategory(BuffCatalog.Category));
             return panels;
         }
 
