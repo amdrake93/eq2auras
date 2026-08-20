@@ -22,7 +22,7 @@ namespace Eq2Auras.Plugin.Act
         public void SyncTo(Settings settings)
         {
             var desired = BuffSync.Desired(settings.EnabledBuffIds());
-            var desiredNames = new HashSet<string>(desired.Select(b => b.DisplayName), StringComparer.OrdinalIgnoreCase);
+            var desiredNames = new HashSet<string>(desired.Select(b => BuffCatalog.InjectedName(b.DisplayName)), StringComparer.OrdinalIgnoreCase);
 
             // Withdraw any of OUR category defs no longer desired (matched by name — no catalog lookup).
             foreach (var td in OurDefs().Where(t => !desiredNames.Contains(t.Name)).ToList())
@@ -34,7 +34,7 @@ namespace Eq2Auras.Plugin.Act
             foreach (var def in desired)
             {
                 ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(
-                        def.DisplayName, false, settings.EffectiveDuration(def.Id), false, false, "", "",
+                        BuffCatalog.InjectedName(def.DisplayName), false, settings.EffectiveDuration(def.Id), false, false, "", "",
                         settings.EffectiveWarning(def.Id), true)
                     {
                         Category = Category,
@@ -84,6 +84,6 @@ namespace Eq2Auras.Plugin.Act
         }
 
         private static CustomTrigger BuildTrigger(BuffDef def)
-            => new CustomTrigger(def.Pattern, 0, "", true, def.DisplayName, false) { Category = Category };
+            => new CustomTrigger(def.Pattern, 0, "", true, BuffCatalog.InjectedName(def.DisplayName), false) { Category = Category };
     }
 }

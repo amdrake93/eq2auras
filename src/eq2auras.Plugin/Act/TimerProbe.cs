@@ -57,11 +57,20 @@ namespace Eq2Auras.Plugin.Act
                 var instances = frame.SpellTimers;
                 if (data == null || instances == null) continue;
 
+                // Our injected buffs register under a namespaced name (eq2auras:<buff>) to dodge ACT's
+                // (Name, Combatant) frame collision with a raider's own same-named timer; strip it back
+                // to the clean buff name for our category so display/color/lookup are unaffected (SPEC
+                // §Buff tracking — Name namespacing).
+                var category = data.Category ?? "";
+                var name = string.Equals(category, BuffCatalog.Category, StringComparison.OrdinalIgnoreCase)
+                    ? BuffCatalog.StripInjectedPrefix(frame.Name ?? "")
+                    : (frame.Name ?? "");
+
                 foreach (var instance in instances)
                 {
                     readings.Add(new TimerReading
                     {
-                        Name = frame.Name ?? "",
+                        Name = name,
                         Combatant = frame.Combatant ?? "",
                         TimeLeft = instance.TimeLeft,
                         RawPreciseTimeLeft = instance.TimerFinalDuration
@@ -72,7 +81,7 @@ namespace Eq2Auras.Plugin.Act
                         FillArgb = data.FillColor.ToArgb(),
                         ShowInPanelA = data.Panel1Display,
                         ShowInPanelB = data.Panel2Display,
-                        Category = data.Category ?? "",
+                        Category = category,
                         IsMaster = instance.MasterTimer,
                         StartTime = instance.StartTime
                     });
