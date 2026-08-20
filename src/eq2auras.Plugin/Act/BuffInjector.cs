@@ -7,10 +7,12 @@ using Eq2Auras.Core.Timers;
 
 namespace Eq2Auras.Plugin.Act
 {
-    /// Registers each enabled buff as a TimerData def (Name = the buff's display name, so the
-    /// frame renders the buff; our reserved Category is the management namespace) + a transient
-    /// ActiveCustomTriggers entry keyed by a string WE own. Defs persist; triggers are runtime-only
-    /// and re-ensured against zone-rebuild eviction (SPEC §Buff tracking; decompile-verified ACT 3.8.5.288).
+    /// Registers each enabled buff as a TimerData def (Name = the NAMESPACED name `eq2auras:<buff>`,
+    /// so ACT's (Name, Combatant) frame key can't collide with a raider's own same-named timer — the
+    /// probe strips the prefix back to the clean buff name for display; our reserved Category is the
+    /// management namespace) + a transient ActiveCustomTriggers entry keyed by a string WE own. Defs
+    /// persist; triggers are runtime-only and re-ensured against zone-rebuild eviction (SPEC §Buff
+    /// tracking — Name namespacing; decompile-verified ACT 3.8.5.288).
     public sealed class BuffInjector
     {
         private const string Category = BuffCatalog.Category;            // "eq2auras Buffs" — our namespace
@@ -22,7 +24,7 @@ namespace Eq2Auras.Plugin.Act
         public void SyncTo(Settings settings)
         {
             var desired = BuffSync.Desired(settings.EnabledBuffIds());
-            var desiredNames = new HashSet<string>(desired.Select(b => b.DisplayName), StringComparer.OrdinalIgnoreCase);
+            var desiredNames = new HashSet<string>(desired.Select(b => BuffCatalog.InjectedName(b.DisplayName)), StringComparer.OrdinalIgnoreCase);
 
             // Withdraw any of OUR category defs no longer desired (matched by name — no catalog lookup).
             foreach (var td in OurDefs().Where(t => !desiredNames.Contains(t.Name)).ToList())
@@ -34,7 +36,7 @@ namespace Eq2Auras.Plugin.Act
             foreach (var def in desired)
             {
                 ActGlobals.oFormSpellTimers.AddEditTimerDef(new TimerData(
-                        def.DisplayName, false, settings.EffectiveDuration(def.Id), false, false, "", "",
+                        BuffCatalog.InjectedName(def.DisplayName), false, settings.EffectiveDuration(def.Id), false, false, "", "",
                         settings.EffectiveWarning(def.Id), true)
                     {
                         Category = Category,
@@ -84,6 +86,6 @@ namespace Eq2Auras.Plugin.Act
         }
 
         private static CustomTrigger BuildTrigger(BuffDef def)
-            => new CustomTrigger(def.Pattern, 0, "", true, def.DisplayName, false) { Category = Category };
+            => new CustomTrigger(def.Pattern, 0, "", true, BuffCatalog.InjectedName(def.DisplayName), false) { Category = Category };
     }
 }

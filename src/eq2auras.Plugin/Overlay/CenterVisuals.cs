@@ -73,7 +73,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void Update(CenterElement element)
         {
             _seconds.Text = element.SecondsLeft.ToString();
-            _name.Text = TimerListBuilder.Label(element.Name, element.Combatant);
+            _name.Text = TimerListBuilder.Label(element.Name, element.Combatant, element.Category);
 
             if (element.FillArgb != _fillArgb)
             {
@@ -146,7 +146,7 @@ namespace Eq2Auras.Plugin.Overlay
         public void Update(CenterElement element)
         {
             _late.Text = "LATE +" + element.LateSeconds + "s";
-            _name.Text = TimerListBuilder.Label(element.Name, element.Combatant);
+            _name.Text = TimerListBuilder.Label(element.Name, element.Combatant, element.Category);
         }
     }
 

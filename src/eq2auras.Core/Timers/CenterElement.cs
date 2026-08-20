@@ -10,6 +10,7 @@ namespace Eq2Auras.Core.Timers
         public CenterElementKind Kind { get; set; }
         public string Name { get; set; }
         public string Combatant { get; set; }
+        public string Category { get; set; }   // TimerData.Category — scopes the buff two-format label (SPEC §Display)
         public int SecondsLeft { get; set; }      // Pie: seconds remaining (ceil of the wall-clock value)
         public double PreciseSecondsLeft { get; set; } // Pie: sub-second, drives the smooth drain
         public double PieFraction { get; set; }   // Pie: remaining share of the warning window

@@ -67,6 +67,7 @@ namespace Eq2Auras.Core.Timers
                         Kind = CenterElementKind.Late,
                         Name = r.Name,
                         Combatant = r.Combatant,
+                        Category = r.Category,
                         LateSeconds = -r.TimeLeft,
                         FillArgb = r.FillArgb
                     })
@@ -88,6 +89,7 @@ namespace Eq2Auras.Core.Timers
                 Kind = CenterElementKind.Pie,
                 Name = r.Name,
                 Combatant = r.Combatant,
+                Category = r.Category,
                 SecondsLeft = (int)Math.Max(0, Math.Ceiling(TimerMath.PreciseOf(r))),
                 PreciseSecondsLeft = Math.Max(0, TimerMath.PreciseOf(r)),
                 PieFraction = Math.Max(0, Math.Min(1.0, TimerMath.PreciseOf(r) / TimerMath.EffectiveWarning(r))),
@@ -113,6 +115,7 @@ namespace Eq2Auras.Core.Timers
             {
                 Name = reading.Name,
                 Combatant = reading.Combatant,
+                Category = reading.Category,   // must survive the copy — scopes the buff two-format label (§Display)
                 TimeLeft = reading.TimeLeft,
                 RawPreciseTimeLeft = reading.RawPreciseTimeLeft,
                 WarningValue = reading.WarningValue,
